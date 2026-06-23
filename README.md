@@ -4,6 +4,23 @@ Remote access to **Claude Code** over Telegram. Message a bot from your phone an
 
 > ⚠️ **This bot can read, write, and run commands on the machine it runs on.** Access is gated only by a Telegram user-id allow-list. Keep `ALLOWED_USER_IDS` tight, and prefer running it somewhere disposable.
 
+## Why
+
+The usual loop for touching a server is: open a terminal, SSH in, run something, close the session. This replaces that with a chat. It's something already running on the box that knows the system — it can check on services, restart things, set up a crontab, read logs, deploy — driven from natural-language messages. When a service falls over at 2am you get a Telegram ping and fix it from your phone, no SSH client required. Read the [full write-up →](https://gyorgy.sh/blog/claude-code-telegram).
+
+## Screenshots
+
+| | |
+| --- | --- |
+| ![Upload a photo, ask a question, and approve a command](images/tg-claude-1.webp) | ![Live-streaming a reply as it's written](images/tg-claude-2.webp) |
+| Upload files & photos (Claude can *see* images), then drive the host — here approving a `Bash` call inline. | Replies stream back live as they're written, then land as a clean, formatted message. |
+| ![Inline approval buttons for a Write](images/tg-claude-4.webp) | ![A denied request, answered inline instead](images/tg-claude-5.webp) |
+| Every non-read-only tool call pauses for **✅ Approve · ❌ Deny · ♾️ Always allow**. | Deny it and Claude adapts — here handing back the script inline instead of writing the file. |
+
+![A full task: writing and running a script, with formatted code output](images/tg-claude-3.webp)
+
+*Asking for a script, approving the write, and getting formatted code with notes back — a full task end to end.*
+
 ## Features
 
 - **Live streaming, the native way** — uses Telegram's streaming APIs: **Rich Messages** (Bot API 10.1) and **message drafts** (Bot API 9.3) so replies stream in as an animated preview and land as cleanly formatted, structured messages. A legacy edit-in-place mode is available as a fallback. See [Streaming modes](#streaming-modes).
@@ -67,7 +84,7 @@ scripts/
 | --- | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | yes | Token from @BotFather |
 | `ALLOWED_USER_IDS` | yes | Comma-separated numeric Telegram user ids (the allow-list) |
-| `WORKDIR` | no | Directory Claude starts in (default: process cwd) |
+| `WORKDIR` | no | Directory Claude starts in (default: the gitignored `data/` folder, so agent-created files stay out of the repo) |
 | `CLAUDE_MODEL` | no | Model id (default `claude-opus-4-8`) |
 | `ANTHROPIC_API_KEY` | no | API key; omit to use `claude` CLI login |
 | `APPROVAL_TIMEOUT_MS` | no | Approval wait before auto-deny (default 300000) |

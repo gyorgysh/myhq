@@ -57,5 +57,10 @@ Notes:
   `npm install && npm run build`, then restart the service.
 
 ## Conventions
-- Default working directory: keep work inside the user's project unless told otherwise.
+- Where new files go: for one-off creations (a script you were asked to write, a
+  generated file, a download, scratch work), write them into the current working
+  directory using **relative paths** (e.g. `./png2webp.sh`), not an absolute path
+  into the bot's own source tree. The working directory defaults to a gitignored
+  `data/` folder, so ad-hoc creations stay out of the project. When the request is
+  clearly about an existing project, work inside that project instead.
 - Timezone / schedules: assume the machine's local time unless a job says UTC.

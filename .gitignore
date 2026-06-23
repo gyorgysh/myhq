@@ -5,5 +5,9 @@ dist/
 uploads/
 .DS_Store
 
+# User/agent-created files land here (default WORKDIR) — keep them out of the repo
+data/
+!data/.gitkeep
+
 # Machine-local Claude Code settings (keep personal allowlists out of the repo)
 .claude/settings.local.json

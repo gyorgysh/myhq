@@ -1,7 +1,14 @@
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { config as loadEnv } from "dotenv";
 import { z } from "zod";
 
 loadEnv();
+
+// Default working directory: a gitignored `data/` folder at the repo root, so
+// files the agent creates (and uploads) stay out of the project tree.
+// Resolves to <repo>/data from both src/config.ts and dist/config.js.
+const defaultWorkdir = join(dirname(dirname(fileURLToPath(import.meta.url))), "data");
 
 const csvIds = z
   .string()
@@ -18,7 +25,7 @@ const csvIds = z
 const schema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(1, "TELEGRAM_BOT_TOKEN is required"),
   ALLOWED_USER_IDS: csvIds,
-  WORKDIR: z.string().min(1).default(process.cwd()),
+  WORKDIR: z.string().min(1).default(defaultWorkdir),
   CLAUDE_MODEL: z.string().min(1).default("claude-opus-4-8"),
   ANTHROPIC_API_KEY: z.string().optional(),
   APPROVAL_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
