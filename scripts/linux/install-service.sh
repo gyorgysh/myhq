@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+#
+# Linux/systemd installer. Creates /etc/systemd/system/telegram-agent.service,
+# builds the project, enables + starts it, and drops a scoped passwordless
+# sudoers rule so the service user (and thus the agent) can restart THIS service.
+
+set -euo pipefail
+
+SERVICE=telegram-agent
+APP_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+
+if ! command -v systemctl >/dev/null 2>&1; then
+  echo "✖ systemd (systemctl) not found. This installer is for Linux." >&2
+  exit 1
+fi
+
+NODE_BIN="$(command -v node || true)"
+[ -n "$NODE_BIN" ] || { echo "✖ node not found in PATH." >&2; exit 1; }
+NODE_DIR="$(dirname "$NODE_BIN")"
+SYSTEMCTL="$(command -v systemctl)"
+RUN_USER="${SUDO_USER:-$USER}"
+
+[ -f "$APP_DIR/.env" ] || {
+  echo "✖ $APP_DIR/.env is missing. Run 'cp .env.example .env' and fill it in first." >&2
+  exit 1
+}
+
+echo "• Building the project…"
+( cd "$APP_DIR" && npm install && npm run build )
+
+UNIT="/etc/systemd/system/${SERVICE}.service"
+echo "• Writing $UNIT (user: $RUN_USER)…"
+sudo tee "$UNIT" >/dev/null <<EOF
+[Unit]
+Description=Claude Code Telegram agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$RUN_USER
+WorkingDirectory=$APP_DIR
+Environment=NODE_BIN=$NODE_BIN
+Environment=PATH=$NODE_DIR:/usr/local/bin:/usr/bin:/bin
+ExecStart=$NODE_BIN $APP_DIR/dist/index.js
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+SUDOERS="/etc/sudoers.d/${SERVICE}"
+echo "• Allowing $RUN_USER to manage $SERVICE without a password…"
+sudo tee "$SUDOERS" >/dev/null <<EOF
+$RUN_USER ALL=(root) NOPASSWD: $SYSTEMCTL start $SERVICE, $SYSTEMCTL stop $SERVICE, $SYSTEMCTL restart $SERVICE, $SYSTEMCTL status $SERVICE
+EOF
+sudo chmod 0440 "$SUDOERS"
+sudo visudo -cf "$SUDOERS" >/dev/null
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now "$SERVICE"
+
+echo "✓ Installed and started '$SERVICE'."
+echo "  Manage with: ./scripts/agentctl.sh {start|stop|restart|status|logs}"

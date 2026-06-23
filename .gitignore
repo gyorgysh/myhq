@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+*.log
+uploads/
+.DS_Store
+
+# Machine-local Claude Code settings (keep personal allowlists out of the repo)
+.claude/settings.local.json

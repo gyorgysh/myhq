@@ -1,0 +1,163 @@
+# claude-code-telegram
+
+Remote access to **Claude Code** over Telegram. Message a bot from your phone and it drives a real Claude Code agent on your machine — streaming the reply back live, asking for approval before it runs anything risky.
+
+> ⚠️ **This bot can read, write, and run commands on the machine it runs on.** Access is gated only by a Telegram user-id allow-list. Keep `ALLOWED_USER_IDS` tight, and prefer running it somewhere disposable.
+
+## Features
+
+- **Live streaming, the native way** — uses Telegram's streaming APIs: **Rich Messages** (Bot API 10.1) and **message drafts** (Bot API 9.3) so replies stream in as an animated preview and land as cleanly formatted, structured messages. A legacy edit-in-place mode is available as a fallback. See [Streaming modes](#streaming-modes).
+- **Permission-first** — nothing runs without your say-so. Read-only tools (Read/Glob/Grep…) run automatically; anything that touches the system (`Bash`/`Write`/`Edit`…) pauses for **✅ Approve · ❌ Deny · ♾️ Always allow** inline buttons. "Always allow" whitelists that tool for the rest of the session; approvals auto-deny on timeout so nothing hangs.
+- **A capable, on-task personality** — smart, resourceful, and concise for a phone screen, with the occasional joke but work first, fun later. Tunable in `src/prompt.ts`.
+- **Operator playbook (`work.md`)** — define how recurring jobs should be done ("restart Apache", crontab edits, deploys, schedules) once, and the bot follows your conventions every time. See [work.md](#workmd--your-operator-playbook).
+- **Session continuity** — context carries across messages; `/new` resets it.
+- **Working directory control** — `/cd`, `/pwd`, `/status`.
+- **File send/receive** — upload files/photos (saved into the working dir); Claude can send files back via a built-in `send_file` tool.
+- **Quiet by default** — messages from anyone not on the allow-list are silently ignored (no reply, no trace).
+
+## Platforms
+
+Runs anywhere Node.js 20+ runs — **Linux**, **macOS**, and **Windows** — using the npm scripts (`npm install`, `npm run dev` / `npm run build && npm start`).
+
+Authentication for Claude itself reuses your existing `claude` CLI login, or set `ANTHROPIC_API_KEY` in `.env`. Uses long polling, so no public webhook or open port is needed.
+
+## Setup
+
+1. **Create a bot**: message [@BotFather](https://t.me/BotFather), run `/newbot`, copy the token.
+2. **Find your user id**: message [@userinfobot](https://t.me/userinfobot).
+3. **Configure**:
+   ```bash
+   cp .env.example .env
+   # edit .env: TELEGRAM_BOT_TOKEN, ALLOWED_USER_IDS, WORKDIR
+   ```
+4. **Install & run**:
+   ```bash
+   npm install
+   npm run dev         # watch mode (reloads on change)
+   # or: npm run build && npm start
+   ```
+
+## Run as a service (Linux & macOS)
+
+For an always-on deployment, install the bot as an OS service. The same commands work on both platforms — they dispatch to **systemd** on Linux and **launchd** on macOS:
+
+```bash
+./scripts/install-service.sh        # builds, installs + starts the service
+./scripts/agentctl.sh status        # start | stop | restart | status | logs
+./scripts/agentctl.sh logs          # follow logs
+```
+
+- **Linux** — a systemd unit (`telegram-agent`). The installer also adds a scoped, passwordless sudoers rule for just this service.
+- **macOS** — a per-user LaunchAgent (`sh.gyorgy.telegram-agent`) that runs in your login session (where the `claude` CLI login lives); no sudo needed.
+
+Either way you can **ask the agent to restart itself** ("restart yourself" → `./scripts/agentctl.sh restart`); the management commands are documented in `work.md`. The launcher `scripts/run.sh` can also be run directly without any service manager.
+
+```
+scripts/
+  run.sh                 # launcher (build if needed, then run)
+  install-service.sh     # installer  → dispatches by OS
+  agentctl.sh            # manager     → dispatches by OS
+  linux/                 # systemd implementation
+  macos/                 # launchd implementation
+```
+
+## Configuration
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `TELEGRAM_BOT_TOKEN` | yes | Token from @BotFather |
+| `ALLOWED_USER_IDS` | yes | Comma-separated numeric Telegram user ids (the allow-list) |
+| `WORKDIR` | no | Directory Claude starts in (default: process cwd) |
+| `CLAUDE_MODEL` | no | Model id (default `claude-opus-4-8`) |
+| `ANTHROPIC_API_KEY` | no | API key; omit to use `claude` CLI login |
+| `APPROVAL_TIMEOUT_MS` | no | Approval wait before auto-deny (default 300000) |
+| `STREAM_MODE` | no | `rich` (default), `draft`, or `edit` — see below |
+| `LOG_LEVEL` | no | `error` \| `warn` \| `info` (default) \| `debug` |
+| `WORK_FILE` | no | Path to the operator playbook (default `work.md`) |
+
+### Streaming modes
+
+| Mode | How it streams | Notes |
+| --- | --- | --- |
+| `rich` | Bot API 10.1 Rich Messages (`sendRichMessageDraft` → `sendRichMessage`) | Default. Structured formatting; sent as safe escaped HTML so code (`<…>`, `#`, `$`) never breaks the parser. Private chats only. |
+| `draft` | Bot API 9.3 `sendMessageDraft` → `sendMessage` | Plain animated preview, finalized as a formatted message. Private chats only. |
+| `edit` | Throttled `editMessageText` of a placeholder | Most battle-tested fallback; works in any chat. |
+
+## Permissions
+
+The bot never runs commands on its own. For every non-read-only tool call you get an inline prompt showing exactly what Claude wants to do:
+
+- **✅ Approve** — run it once.
+- **❌ Deny** — refuse it.
+- **♾️ Always allow `<Tool>`** — stop asking for that tool for the rest of this session (until `/new` or a restart).
+
+To run without prompts entirely, switch a chat to autonomous mode with `/mode auto` (and back with `/mode safe`). Read-only tools always run automatically.
+
+## work.md — your operator playbook
+
+`work.md` is a plain-markdown file the bot appends to Claude's system prompt **on every turn** (so edits apply instantly, no restart). Use it to define how common, recurring tasks should be done so they happen the same way each time — for example:
+
+- "restart Apache" → the exact command and a config test first
+- editing **crontab** safely (diff, back up, non-interactive install) and scheduling jobs
+- deploy steps for your projects
+- ground rules (confirm destructive actions, prefer non-interactive commands)
+
+A starter template ships in `work.md`; replace the examples with what's true for your machine. Point `WORK_FILE` elsewhere to use a different file.
+
+## Commands
+
+| Command | Action |
+| --- | --- |
+| `/new` | Start a fresh conversation |
+| `/cd <path>` | Change working directory |
+| `/pwd` | Show current directory |
+| `/status` | Show session info (cwd, model, mode, session id) |
+| `/stop` | Abort the running request |
+| `/mode safe\|auto` | Interactive approval (default) or autonomous |
+| `/help` | Show help |
+
+## Architecture
+
+```
+src/
+  index.ts            entry: load config, build bot, set commands, launch
+  config.ts           env parse + validation (zod)
+  auth.ts             allow-list middleware (silently drops non-admins)
+  logger.ts           tiny timestamped structured logger (LOG_LEVEL)
+  prompt.ts           personality + work.md -> system prompt (per turn)
+  bot.ts              Telegraf wiring + per-turn orchestration
+  commands.ts         /new /cd /pwd /status /stop /mode /help
+  session/manager.ts  per-chat state (sessionId, cwd, busy, mode, allow-list)
+  claude/
+    runner.ts         wraps the Agent SDK query(); fans events to callbacks
+    events.ts         narrow type guards over SDK messages
+  telegram/
+    streamer.ts          edit-in-place streaming backend ("edit")
+    baseDraftStreamer.ts  shared draft machinery (throttle + keepalive)
+    draftStreamer.ts      Bot API 9.3 sendMessageDraft backend ("draft")
+    richDraftStreamer.ts  Bot API 10.1 Rich Messages backend ("rich")
+    send.ts            shared final-message sender (markdown -> HTML, splitting)
+    formatting.ts      markdown -> Telegram HTML (headings, bold, code, quotes)
+    permissions.ts     approval keyboards + pending-request registry
+    files.ts           incoming file downloads
+  mcp/sendFile.ts     in-process MCP tool so Claude can send files back
+```
+
+Built on [`telegraf`](https://github.com/telegraf/telegraf) and [`@anthropic-ai/claude-agent-sdk`](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk).
+
+## Support & troubleshooting
+
+- **Bot doesn't respond at all** — confirm your numeric id is in `ALLOWED_USER_IDS`; unknown users are ignored silently. Check the console logs (raise detail with `LOG_LEVEL=debug`).
+- **`npm start` shows stale behavior** — `npm start` runs the compiled `dist/`; rebuild with `npm run build` first.
+- **Rich formatting looks off** — try `STREAM_MODE=draft` or `STREAM_MODE=edit` in `.env`. Rich/draft modes require a **private** chat.
+- **Approvals never resolve** — make sure only **one** instance is polling; two pollers split updates and cause conflicts.
+
+## Credits
+
+Created by **Gyorgy** — [gyorgy.sh](https://gyorgy.sh) · [github.com/gyorgysh](https://github.com/gyorgysh).
+
+> 🤖 **Fun fact:** this project was built hand-in-hand with Claude — which is fitting, since the whole thing exists to put Claude Code in your pocket. Claude helped write the bot that lets you talk to Claude. Turtles all the way down.
+
+## License
+
+MIT

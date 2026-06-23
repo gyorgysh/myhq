@@ -1,0 +1,49 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+A Telegram bot that exposes a real Claude Code agent over chat. A user messages the bot; the bot drives the Claude Agent SDK on the host machine, streams the reply back live, and gates risky tool calls behind inline approval buttons. **The bot can read/write/run anything on the host** — the only access control is the `ALLOWED_USER_IDS` allow-list enforced in `src/auth.ts`.
+
+## Commands
+
+```bash
+npm run dev        # tsx watch — run locally with reload
+npm run build      # tsc -> dist/
+npm start          # node dist/index.js (requires build first)
+npm run typecheck  # tsc --noEmit
+```
+
+There is no test suite, linter config, or single-test runner. `typecheck` (strict mode, with `noUnusedLocals`/`noUnusedParameters`) is the only automated check — run it after changes.
+
+Requires Node >= 20. Config comes from `.env` (copy from `.env.example`); the process exits at startup with a printed list of issues if required vars are missing (see `parseConfig` in `src/config.ts`).
+
+## Architecture
+
+ESM throughout (`"type": "module"`), so **relative imports must use the `.js` extension** even though sources are `.ts`.
+
+Request lifecycle for one user message (`handleUserPrompt` in `src/bot.ts`):
+1. `auth.ts` middleware drops anyone not in `allowedUserIds`.
+2. A per-chat `Session` (`src/session/manager.ts`) holds `sessionId` (Claude resume token), `cwd`, `busy` flag, `abort` controller, `mode`, and the per-session "always allow" tool set. Sessions are in-memory only — restarting the process loses all state.
+3. A placeholder message is sent, wrapped in a `TelegramStreamer`.
+4. `runTurn` (`src/claude/runner.ts`) calls the SDK `query()` and iterates its async message stream, fanning events to callbacks: `onText` (streaming deltas), `onToolUse` (status line), `onSessionId` (capture resume token), and the final `result` (cost/duration).
+5. Streamer edits the message in place (throttled) and the loop ends; `busy`/`abort` are cleared in `finally`.
+
+Key cross-cutting pieces:
+- **Permission flow** (`src/telegram/permissions.ts` + `canUseTool` in `bot.ts`): read-only tools in `AUTO_ALLOWED_TOOLS` (`runner.ts`) run automatically; everything else posts Approve/Deny/Always-allow buttons and the `canUseTool` promise blocks until a `callback_query` resolves it (or it times out → deny). "Always" adds the tool to `session.sessionAllowedTools`. Pending requests are keyed by a random id embedded in the callback data (`appr:<id>:<action>`).
+- **Modes**: `safe` maps to SDK `permissionMode: "default"` (interactive approval); `auto` maps to `"bypassPermissions"` (no prompts). Set via `/mode`.
+- **Streaming** — three backends behind `STREAM_MODE` (config), all implementing the `Streamer` interface (`appendText`/`setStatus`/`finalize`), selected in `handleUserPrompt`:
+  - `rich` (default): Bot API 10.1 Rich Messages. Streams `sendRichMessageDraft` (Claude's markdown → `InputRichMessage.markdown`, Telegram parses the structure) and finalizes with `sendRichMessage`. `richDraftStreamer.ts`.
+  - `draft`: Bot API 9.3 `sendMessageDraft` — plain-text animated preview, finalized as a normal formatted `sendMessage`. `draftStreamer.ts`.
+  - `edit`: legacy throttled `editMessageText` of a placeholder + typing indicator. `streamer.ts`.
+  - The two draft backends share `baseDraftStreamer.ts` (throttled flush + 20s keepalive so the 30s ephemeral preview doesn't lapse; stable non-zero `draft_id` so updates animate). Drafts are **private-chat only** and **ephemeral** — nothing persists until the `finalize` send. `send.ts` holds the shared final-send (markdown→HTML, 4096 split, plain-text fallback on "can't parse entities"); `formatting.ts` does the markdown→HTML conversion used by the non-rich paths.
+  - Bot API 9.3/10.1 methods have no telegraf wrapper (4.16.3), so they're called raw via `tg.callApi(<method>, …)` (typed loosely as `RawApi`).
+- **MCP send_file** (`src/mcp/sendFile.ts`): an in-process MCP server giving Claude a `send_file` tool to push files back to the chat. It's in `AUTO_ALLOWED_TOOLS` because it's a deliberate user-facing action.
+- **Incoming files** (`src/telegram/files.ts`): uploaded docs/photos are downloaded into the session `cwd`, then a synthetic prompt tells Claude where the file landed.
+
+The SDK is configured with `settingSources: ["user", "project", "local"]` so the driven agent loads real CLAUDE.md / settings from whatever `cwd` it runs in — i.e. this bot behaves like a genuine Claude Code session in the target project, not a sandbox.
+
+- **System prompt / personality** (`src/prompt.ts`): each turn passes `systemPrompt: { type: "preset", preset: "claude_code", append }` — keeping Claude Code's defaults while appending a fixed personality plus the contents of `work.md` (path overridable via `WORK_FILE`). `work.md` is an operator playbook (how to handle recurring ops requests — services, crontab, deploys) re-read every turn, so edits apply without a restart.
+
+`src/claude/events.ts` holds narrow type guards over the SDK's loosely-typed message union; prefer adding/using a guard there over inline `any` casts when reading new SDK message fields.
