@@ -1,9 +1,35 @@
 import { createWriteStream } from "node:fs";
-import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile } from "node:fs/promises";
+import { extname, join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { Telegram } from "telegraf";
+import type { ImageInput } from "../claude/runner.js";
+
+/** Map known image extensions to the MIME types the model accepts. */
+const IMAGE_MEDIA_TYPES: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+};
+
+/** True if the path looks like an image the model can view inline. */
+export function isViewableImage(path: string): boolean {
+  return extname(path).toLowerCase() in IMAGE_MEDIA_TYPES;
+}
+
+/**
+ * Read a saved image file into an inline-vision ImageInput, or return undefined
+ * if it isn't a supported image type.
+ */
+export async function readImageInput(path: string): Promise<ImageInput | undefined> {
+  const mediaType = IMAGE_MEDIA_TYPES[extname(path).toLowerCase()];
+  if (!mediaType) return undefined;
+  const base64 = (await readFile(path)).toString("base64");
+  return { base64, mediaType };
+}
 
 /**
  * Download an incoming Telegram file into <cwd>/uploads and return the absolute

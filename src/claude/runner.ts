@@ -1,4 +1,4 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { config } from "../config.js";
 import { systemPrompt } from "../prompt.js";
 import { log } from "../logger.js";
@@ -28,8 +28,18 @@ export type PermissionResult =
   | { behavior: "allow"; updatedInput: Record<string, unknown> }
   | { behavior: "deny"; message: string };
 
+/** A decoded image to hand to the model inline (vision), not just as a path. */
+export interface ImageInput {
+  /** base64-encoded image bytes (no data: prefix). */
+  base64: string;
+  /** MIME type, e.g. "image/jpeg" or "image/png". */
+  mediaType: string;
+}
+
 export interface RunOptions {
   prompt: string;
+  /** Images to include alongside the prompt so the model sees them directly. */
+  images?: ImageInput[];
   cwd: string;
   resume?: string;
   /** "default" = interactive approval; "bypassPermissions" = autonomous. */
@@ -56,8 +66,15 @@ export async function runTurn(opts: RunOptions): Promise<RunResult> {
   // "process exited with code 1" — the real reason ends up in our logs / error.
   const stderr: string[] = [];
 
+  // With images we must use streaming input (a single structured user message
+  // carrying image blocks); plain text stays a plain string prompt.
+  const prompt =
+    opts.images && opts.images.length > 0
+      ? imagePrompt(opts.prompt, opts.images, opts.resume)
+      : opts.prompt;
+
   const response = query({
-    prompt: opts.prompt,
+    prompt,
     options: {
       cwd: opts.cwd,
       resume: opts.resume,
@@ -111,4 +128,32 @@ export async function runTurn(opts: RunOptions): Promise<RunResult> {
   }
 
   return result;
+}
+
+/**
+ * Build a one-shot streaming-input prompt that carries images as inline content
+ * blocks so the model sees them directly (rather than via a Read round-trip).
+ * `session_id` is a placeholder here — actual resume is driven by the `resume`
+ * option; the SDK assigns/threads the real id.
+ */
+async function* imagePrompt(
+  text: string,
+  images: ImageInput[],
+  resume: string | undefined,
+): AsyncIterable<SDKUserMessage> {
+  yield {
+    type: "user",
+    session_id: resume ?? "",
+    parent_tool_use_id: null,
+    message: {
+      role: "user",
+      content: [
+        ...images.map((img) => ({
+          type: "image" as const,
+          source: { type: "base64" as const, media_type: img.mediaType, data: img.base64 },
+        })),
+        { type: "text" as const, text: text || "Take a look at this image." },
+      ],
+    },
+  } as SDKUserMessage;
 }

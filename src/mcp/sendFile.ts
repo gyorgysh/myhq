@@ -1,10 +1,14 @@
 import { createReadStream, existsSync, statSync } from "node:fs";
-import { basename, isAbsolute, resolve } from "node:path";
+import { basename, extname, isAbsolute, resolve } from "node:path";
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { Telegram } from "telegraf";
 import { z } from "zod";
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024; // Telegram bot upload limit.
+// Telegram renders these inline when sent as a photo (10MB cap for photos);
+// other types go as documents so they download intact.
+const PHOTO_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 
 /**
  * Build a per-chat MCP server exposing `send_file`, letting Claude deliberately
@@ -38,12 +42,20 @@ export function createTelegramMcp(tg: Telegram, chatId: number, cwd: string) {
               isError: true,
             };
           }
-          await tg.sendDocument(
-            chatId,
-            { source: createReadStream(full), filename: basename(full) },
-            args.caption ? { caption: args.caption } : {},
-          );
-          return { content: [{ type: "text", text: `Sent ${basename(full)} to the user.` }] };
+          const name = basename(full);
+          const caption = args.caption ? { caption: args.caption } : {};
+          // Images go as photos for an inline preview; large images and all
+          // other files go as documents to preserve the original bytes.
+          const asPhoto =
+            PHOTO_EXTS.has(extname(full).toLowerCase()) && statSync(full).size <= MAX_PHOTO_BYTES;
+          if (asPhoto) {
+            await tg.sendPhoto(chatId, { source: createReadStream(full) }, caption);
+          } else {
+            await tg.sendDocument(chatId, { source: createReadStream(full), filename: name }, caption);
+          }
+          return {
+            content: [{ type: "text", text: `Sent ${name} to the user as a ${asPhoto ? "photo" : "document"}.` }],
+          };
         },
       ),
     ],
