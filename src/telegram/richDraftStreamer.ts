@@ -1,43 +1,40 @@
 import { BaseDraftStreamer } from "./baseDraftStreamer.js";
-import { escapeHtml, markdownToHtml, tameRichMarkdown } from "./formatting.js";
+import { tameRichMarkdown } from "./formatting.js";
 import { sendFormattedMarkdown } from "./send.js";
 
 /**
  * Streams a reply using Bot API 10.1 Rich Messages: `sendRichMessageDraft`
  * while generating, finalized with `sendRichMessage`.
  *
- * We send the `html` field, not raw markdown: Claude's output is full of `<…>`,
- * `#`, `$`, `@`, `/` (code, generics, paths) that the rich markdown parser
- * either treats as HTML or auto-links into mangled entities. Our markdownToHtml
- * escapes text and emits only a safe, balanced tag subset, and we pass
- * skip_entity_detection so code-ish tokens stay literal — robust on every tick.
+ * We use the `markdown` field, not `html`: Telegram's rich markdown parser is
+ * built for streaming AI replies and preserves paragraph/line structure, whereas
+ * the html field collapses newlines like real HTML (e.g. "foo.\n\nbar" -> "foo.bar").
+ * Headings are demoted to bold (tameRichMarkdown) so they aren't oversized, and
+ * skip_entity_detection keeps code-ish tokens (`#`, `$`, `@`, `/`) from being
+ * auto-linked. If a finished reply is rejected, we fall back to plain messages.
  */
 export class RichDraftStreamer extends BaseDraftStreamer {
-  private html(footer?: string): string {
-    const body = markdownToHtml(tameRichMarkdown(this.content)) || "";
-    const footerLine = footer ? (body ? "\n\n" : "") + `<i>${escapeHtml(footer)}</i>` : "";
-    return (body + footerLine).trim();
-  }
-
   protected async pushDraft(): Promise<void> {
     await this.raw.callApi("sendRichMessageDraft", {
       chat_id: this.chatId,
       draft_id: this.draftId,
-      rich_message: { html: this.html(), skip_entity_detection: true },
+      rich_message: { markdown: tameRichMarkdown(this.content), skip_entity_detection: true },
     });
   }
 
   async finalize(footer?: string): Promise<void> {
     this.stopTimers();
     if (!this.content.trim()) return;
+    const tamed = tameRichMarkdown(this.content);
+    const markdown = footer ? `${tamed}\n\n${footer}` : tamed;
     try {
       await this.raw.callApi("sendRichMessage", {
         chat_id: this.chatId,
-        rich_message: { html: this.html(footer), skip_entity_detection: true },
+        rich_message: { markdown, skip_entity_detection: true },
       });
     } catch {
       // Rich send failed (length/unsupported) — degrade to plain formatted messages.
-      await sendFormattedMarkdown(this.tg, this.chatId, tameRichMarkdown(this.content), footer);
+      await sendFormattedMarkdown(this.tg, this.chatId, tamed, footer);
     }
   }
 }

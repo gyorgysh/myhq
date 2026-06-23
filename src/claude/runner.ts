@@ -1,6 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { config } from "../config.js";
 import { systemPrompt } from "../prompt.js";
+import { log } from "../logger.js";
 import {
   isAssistant,
   isResult,
@@ -51,6 +52,10 @@ export interface RunResult {
 
 /** Drive one Claude Code turn, fanning SDK events out to the provided callbacks. */
 export async function runTurn(opts: RunOptions): Promise<RunResult> {
+  // Capture the underlying CLI's stderr so a non-zero exit isn't an opaque
+  // "process exited with code 1" — the real reason ends up in our logs / error.
+  const stderr: string[] = [];
+
   const response = query({
     prompt: opts.prompt,
     options: {
@@ -63,6 +68,13 @@ export async function runTurn(opts: RunOptions): Promise<RunResult> {
       abortController: opts.abortController,
       mcpServers: opts.mcpServers,
       canUseTool: opts.canUseTool,
+      stderr: (data: string) => {
+        const line = data.trim();
+        if (line) {
+          stderr.push(line);
+          log.debug("claude stderr", { line: line.slice(0, 500) });
+        }
+      },
       // Load project context (CLAUDE.md, settings) for a real Claude Code feel.
       settingSources: ["user", "project", "local"],
     },
@@ -70,26 +82,32 @@ export async function runTurn(opts: RunOptions): Promise<RunResult> {
 
   let result: RunResult = { isError: false };
 
-  for await (const msg of response) {
-    if (isSystemInit(msg)) {
-      if (msg.session_id) opts.onSessionId(msg.session_id);
-    } else if (isStreamEvent(msg)) {
-      const delta = textDelta(msg);
-      if (delta) opts.onText(delta);
-    } else if (isAssistant(msg)) {
-      for (const block of msg.message.content ?? []) {
-        if (block.type === "tool_use" && block.name) {
-          opts.onToolUse(block.name, block.input);
+  try {
+    for await (const msg of response) {
+      if (isSystemInit(msg)) {
+        if (msg.session_id) opts.onSessionId(msg.session_id);
+      } else if (isStreamEvent(msg)) {
+        const delta = textDelta(msg);
+        if (delta) opts.onText(delta);
+      } else if (isAssistant(msg)) {
+        for (const block of msg.message.content ?? []) {
+          if (block.type === "tool_use" && block.name) {
+            opts.onToolUse(block.name, block.input);
+          }
         }
+      } else if (isResult(msg)) {
+        result = {
+          isError: Boolean(msg.is_error),
+          text: msg.result,
+          costUsd: msg.total_cost_usd,
+          durationMs: msg.duration_ms,
+        };
       }
-    } else if (isResult(msg)) {
-      result = {
-        isError: Boolean(msg.is_error),
-        text: msg.result,
-        costUsd: msg.total_cost_usd,
-        durationMs: msg.duration_ms,
-      };
     }
+  } catch (err) {
+    const tail = stderr.slice(-8).join("\n");
+    if (tail) log.error("claude process failed", { stderr: tail });
+    throw new Error(tail ? `${err instanceof Error ? err.message : String(err)} — ${tail}` : String(err));
   }
 
   return result;

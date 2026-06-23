@@ -112,7 +112,7 @@ function runUserPrompt(
     const session = sessions.get(chatId);
     session.busy = false;
     session.abort = undefined;
-    void tg.sendMessage(chatId, `⚠️ Error: ${errText(err)}`).catch(() => {});
+    void tg.sendMessage(chatId, friendlyError(err)).catch(() => {});
     log.error("Turn failed", { chatId, error: errText(err) });
   });
 }
@@ -143,10 +143,9 @@ async function handleUserPrompt(
   session.busy = true;
   session.abort = new AbortController();
 
-  // rich/draft modes stream a native ephemeral preview ("Thinking…" then
-  // animated text); edit mode uses a throttled placeholder + typing indicator.
+  // rich/draft modes stream a native ephemeral preview; edit mode uses a
+  // throttled placeholder message.
   let streamer: Streamer;
-  let typing: NodeJS.Timeout | undefined;
   if (config.STREAM_MODE === "rich") {
     const draft = new RichDraftStreamer(tg, chatId);
     await draft.start();
@@ -158,11 +157,14 @@ async function handleUserPrompt(
   } else {
     const placeholder = await tg.sendMessage(chatId, "🤔 Thinking…");
     streamer = new TelegramStreamer(tg, chatId, placeholder.message_id);
-    await tg.sendChatAction(chatId, "typing").catch(() => {});
-    typing = setInterval(() => {
-      void tg.sendChatAction(chatId, "typing").catch(() => {});
-    }, 4000);
   }
+
+  // Native "typing…" indicator for the whole turn (it expires after ~5s, so
+  // refresh it). Runs in every mode, including before the first streamed token.
+  await tg.sendChatAction(chatId, "typing").catch(() => {});
+  const typing = setInterval(() => {
+    void tg.sendChatAction(chatId, "typing").catch(() => {});
+  }, 4000);
 
   const canUseTool = async (
     toolName: string,
@@ -213,15 +215,18 @@ async function handleUserPrompt(
       chars: res.text?.length ?? 0,
     });
   } catch (err) {
+    // Flush whatever streamed so far, then send the notice as its own message —
+    // finalize() drops empty content, so an early failure would otherwise be silent.
+    await streamer.finalize().catch(() => {});
     if (session.abort?.signal.aborted) {
       log.info("Turn stopped by user", { chatId, ms: Date.now() - startedAt });
-      await streamer.finalize("⏹ Stopped.");
+      await tg.sendMessage(chatId, "⏹ Stopped.").catch(() => {});
     } else {
       log.error("Turn errored", { chatId, ms: Date.now() - startedAt, error: errText(err) });
-      await streamer.finalize(`⚠️ Error: ${errText(err)}`);
+      await tg.sendMessage(chatId, friendlyError(err)).catch(() => {});
     }
   } finally {
-    if (typing) clearInterval(typing);
+    clearInterval(typing);
     session.busy = false;
     session.abort = undefined;
   }
@@ -240,4 +245,29 @@ function summarizeInput(input: unknown): string {
 
 function errText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Turn a raw SDK/CLI error into a clear notice for the admin. The raw text now
+ * includes the CLI's stderr tail (see runner.ts), so usage/credit/auth issues
+ * are matchable and surfaced plainly instead of "process exited with code 1".
+ */
+function friendlyError(err: unknown): string {
+  const raw = errText(err);
+  const low = raw.toLowerCase();
+  if (/\b429\b|rate.?limit/.test(low)) {
+    return "⏳ Rate limited by the API. Give it a moment and try again.";
+  }
+  if (/credit balance|insufficient|out of credit|quota|usage limit|limit reached|too low/.test(low)) {
+    return "💳 Usage limit / credits exhausted. Top up or wait for the limit to reset, then retry.";
+  }
+  if (/\b529\b|overloaded/.test(low)) {
+    return "🌀 The API is overloaded right now. Try again shortly.";
+  }
+  if (/\b401\b|unauthorized|authentication|invalid.{0,12}api.?key|oauth|not logged in|login/.test(low)) {
+    return "🔑 Authentication failed. Check ANTHROPIC_API_KEY or re-run the `claude` CLI login, then restart.";
+  }
+  if (/abort/.test(low)) return "⏹ Stopped.";
+  const detail = raw.length > 600 ? raw.slice(0, 600) + "…" : raw;
+  return `⚠️ That action failed.\n\n${detail}`;
 }
