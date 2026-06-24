@@ -53,6 +53,8 @@ You'll need a [bot token](#setup) and your numeric Telegram user id on hand — 
 
 ## Setup (manual)
 
+> This is the advanced path: no background services or OS-level workers are installed. That's fine for testing and running the bot in your terminal — full functionality is available. You can always install it as a service later, or uninstall cleanly, without touching your checkout or data.
+
 1. **Create a bot**: message [@BotFather](https://t.me/BotFather), run `/newbot`, copy the token.
 2. **Find your user id**: message [@userinfobot](https://t.me/userinfobot).
 3. **Configure**:
