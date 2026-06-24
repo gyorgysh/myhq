@@ -1,12 +1,25 @@
 # claude-code-telegram
 
-Remote access to **Claude Code** over Telegram. Message a bot from your phone and it drives a real Claude Code agent on your machine — streaming the reply back live, asking for approval before it runs anything risky.
+**A self-hosted AI operator for your machines — reach it over Telegram or the CCT Panel web dashboard.**
 
-> ⚠️ **This bot can read, write, and run commands on the machine it runs on.** Access is gated only by a Telegram user-id allow-list. Keep `ALLOWED_USER_IDS` tight, and prefer running it somewhere disposable.
+Open source. It puts a real **Claude Code** agent on your box and lets you drive it from your phone or a browser: check on services, restart things, read logs, edit a crontab, ship code, answer questions about the system — all in plain language, with the reply streaming back live and every risky action gated behind your approval.
 
-## Why
+It has grown well past a chat bot. It's a small **multi-agent platform**: a main agent you talk to, named **sub-agents** that run on a schedule or on demand, and a task board whose cards you can **delegate to an agent**. It runs on **cloud models** (Opus / Sonnet / Haiku) *or* your **own local LLMs** (LM Studio, Ollama) *or* any proxy — mix them freely. It **remembers what it learns** and recalls the relevant pieces into each conversation, so it adapts to you over time. And it's built in the open and improving fast — including self-updating itself.
 
-The usual loop for touching a server is: open a terminal, SSH in, run something, close the session. This replaces that with a chat. It's something already running on the box that knows the system — it can check on services, restart things, set up a crontab, read logs, deploy — driven from natural-language messages. When a service falls over at 2am you get a Telegram ping and fix it from your phone, no SSH client required. Read the [full write-up →](https://gyorgy.sh/blog/claude-code-telegram).
+> ⚠️ **This can read, write, and run commands on the machine it runs on.** Access is gated only by a Telegram user-id allow-list (and, for the panel, a secret token). Keep `ALLOWED_USER_IDS` tight and run it somewhere you control.
+
+## Two ways in
+
+The same agent, two front doors:
+
+- **Telegram** — message a bot from your phone. The old loop for touching a server (open a terminal, SSH in, run something, close the session) becomes a chat with something already running on the box that knows the system. When a service falls over at 2am you get a ping and fix it from the couch, no SSH client required.
+- **CCT Panel** — an optional web dashboard served by the *same process*: chat with the agent in the browser, watch live system health and model-backend status, run and schedule sub-agents, delegate task-board cards, browse and edit the agent's memory and skills, manage secrets, and tune proactive monitoring. See [CCT Panel](#cct-panel--the-web-dashboard).
+
+Read the [full write-up →](https://gyorgy.sh/blog/claude-code-telegram).
+
+## Where it's going
+
+This is actively built in the open. The agent already **learns and adapts** — it writes durable memories, recalls them into future turns, and distils reusable skills on its own — and the platform keeps growing: richer memory, more connectors (Gmail, Calendar, Drive, Notion are stubbed in), deeper autonomy, and one-click panel updates are on the way. The aim is simple: the last operator you need to install on a box. Issues and PRs welcome.
 
 ## Screenshots
 
@@ -20,7 +33,7 @@ The usual loop for touching a server is: open a terminal, SSH in, run something,
 ## Features
 
 - **Live streaming, the native way** — uses Telegram's streaming APIs: **Rich Messages** (Bot API 10.1) and **message drafts** (Bot API 9.3) so replies stream in as an animated preview and land as cleanly formatted, structured messages. A legacy edit-in-place mode is available as a fallback. See [Streaming modes](#streaming-modes).
-- **Management panel (optional)** — a full embedded web dashboard with a left-sidebar layout: **chat with the agent** in the browser, live **system health**, a **model-backend status** page, **sub-agent workers**, a **task board** (with delegate-to-agent), a **skills** library, **durable memory**, a **secret vault**, **heartbeat** monitoring, schedules, sessions, usage, live logs and more. Off by default; token-gated; light / dark / hacker themes. See [Management panel](#management-panel).
+- **CCT Panel — the web dashboard (optional)** — a full embedded UI with a left-sidebar layout: **chat with the agent** in the browser, live **system health**, a **model-backend status** page, **sub-agent workers**, a **task board** (with delegate-to-agent), a **skills** library, **durable memory**, a **secret vault**, **heartbeat** monitoring, schedules, sessions, usage, live logs and more. Off by default; token-gated; light / dark / hacker themes. See [CCT Panel](#cct-panel--the-web-dashboard).
 - **Durable memory** — the agent remembers durable facts across conversations and recalls the relevant ones into each turn automatically (own `memory_*` tools; editable in the panel). It can also distil reusable workflows into the **skills** library itself.
 - **Proactive monitoring** — an optional **heartbeat** watches host health (CPU/mem/swap/disk) and stalled task cards and pings you on Telegram when something's noteworthy — deterministic alerts, or an autonomous turn that investigates and acts.
 - **Secret vault** — AES-256-GCM encrypted secrets with the master key in the macOS Keychain (file fallback on Linux); reference them as `vault:<id>` so provider tokens never sit in plaintext.
@@ -128,7 +141,7 @@ scripts/
 | `FFMPEG_PATH` | no | ffmpeg binary used to decode voice notes for Vosk (default `ffmpeg`) |
 | `LOG_LEVEL` | no | `error` \| `warn` \| `info` (default) \| `debug` |
 | `WORK_FILE` | no | Path to the operator playbook (default `work.md`) |
-| `PANEL_ENABLED` | no | `true` to start the management panel (default `false`) |
+| `PANEL_ENABLED` | no | `true` to start the CCT Panel web dashboard (default `false`) |
 | `PANEL_TOKEN` | when panel on | Shared secret required on every panel request/WS — startup fails if the panel is enabled without it |
 | `PANEL_HOST` | no | Bind address (default `127.0.0.1` — loopback) |
 | `PANEL_PORT` | no | Port (default `8787`) |
@@ -157,9 +170,9 @@ Send a voice note and it's transcribed, then run like a typed prompt. Choose a b
   ```
   Then set `VOSK_MODEL_PATH=/path/to/vosk-model-small-en-us-0.15` and `TRANSCRIBE_PROVIDER=vosk`. ffmpeg decodes Telegram's OGG/Opus to the 16kHz PCM Vosk expects. The small English model is fast on a CPU; larger models trade speed for accuracy.
 
-## Management panel
+## CCT Panel — the web dashboard
 
-An optional web dashboard, served **in the same process** as the bot (no extra service), for managing it from a browser. It's **off by default** because it can read host data and launch autonomous agents — the same reach as the bot itself.
+**CCT Panel** is the optional web dashboard, served **in the same process** as the bot (no extra service), for driving and managing everything from a browser. It's **off by default** because it can read host data and launch autonomous agents — the same reach as the bot itself.
 
 Enable it in `.env`:
 
@@ -281,7 +294,7 @@ src/
     providers.ts      local/proxy model-endpoint presets · providerModels.ts  model listing
     mainSettings.ts   main-agent model/provider override · agentControl.ts  service restart
     jsonStore.ts      atomic JSON store helper · audit.ts  append-only audit log
-  panel/              embedded management panel (optional, PANEL_ENABLED)
+  panel/              CCT Panel backend (optional, PANEL_ENABLED)
     server.ts         in-process Fastify: token auth, REST API, static SPA
     hub.ts            WebSocket fan-out (worker/chat/task events + health/log push)
   mcp/
@@ -302,7 +315,7 @@ src/
     vosk.ts            local offline transcription (ffmpeg decode + Vosk)
     files.ts           incoming file downloads + image decoding for vision
 
-panel/                management-panel frontend (React + Vite + Tailwind),
+panel/                CCT Panel frontend (React + Vite + Tailwind),
                       built to panel/dist and served by src/panel/server.ts
 ```
 
