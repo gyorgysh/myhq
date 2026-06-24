@@ -11,6 +11,7 @@ export type Tab =
   | "memory"
   | "vault"
   | "connectors"
+  | "updates"
   | "logs"
   | "sessions"
   | "schedules"
@@ -52,7 +53,10 @@ export const NAV: Group[] = [
   },
   {
     heading: "Others",
-    items: [{ id: "status", label: "Status", icon: "◉" }],
+    items: [
+      { id: "status", label: "Status", icon: "◉" },
+      { id: "updates", label: "Updates", icon: "⤓" },
+    ],
   },
 ];
 
@@ -148,7 +152,7 @@ export function Sidebar({
         >
           <span className="w-4 shrink-0 text-center">{THEME_ICON[theme]}</span>
           <span className={labelCls}>
-            {theme === "light" ? "Light" : theme === "dark" ? "Dark" : "Matrix"}
+            {theme === "light" ? "Light" : theme === "dark" ? "Dark" : "Hacker"}
           </span>
         </button>
         <button

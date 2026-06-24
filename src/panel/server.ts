@@ -1,10 +1,11 @@
 import { join } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { timingSafeEqual } from "node:crypto";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
-import { config, repoRoot } from "../config.js";
+import { config, repoRoot, allowedUserIds } from "../config.js";
+import { schedules, parseWhen } from "../schedule/manager.js";
 import { log, onLog, recentLogs } from "../logger.js";
 import { getHealth } from "../core/health.js";
 import { listSessions, listSchedules, usageSummary } from "../core/snapshot.js";
@@ -44,6 +45,15 @@ import { sessions } from "../session/manager.js";
 import { PanelHub } from "./hub.js";
 
 const STATIC_DIR = join(repoRoot, "panel", "dist");
+
+/** Version from package.json, read once at startup (for the Updates view). */
+const VERSION = (() => {
+  try {
+    return JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")).version ?? "?";
+  } catch {
+    return "?";
+  }
+})();
 
 /**
  * Start the embedded management panel. In-process so its handlers read the live
@@ -146,7 +156,7 @@ function workerView(w: Worker) {
 }
 
 function registerApi(app: FastifyInstance): void {
-  app.get("/api/me", async () => ({ ok: true, chatEnabled: chat.isEnabled() }));
+  app.get("/api/me", async () => ({ ok: true, chatEnabled: chat.isEnabled(), version: VERSION }));
 
   // --- main agent: runtime model/provider + lifecycle controls ---
   app.get("/api/agent", async () => ({
@@ -173,6 +183,26 @@ function registerApi(app: FastifyInstance): void {
   app.get("/api/status", async () => getStatus());
   app.get("/api/sessions", async () => ({ sessions: listSessions() }));
   app.get("/api/schedules", async () => ({ schedules: listSchedules() }));
+  app.post("/api/schedules", async (req, reply) => {
+    const { prompt, when, cwd, chatId } = (req.body ?? {}) as {
+      prompt?: string;
+      when?: string;
+      cwd?: string;
+      chatId?: number;
+    };
+    if (!prompt?.trim()) return reply.code(400).send({ error: "prompt required" });
+    const spec = parseWhen(when ?? "");
+    if (!spec) return reply.code(400).send({ error: "invalid schedule (use 30m, 2h, 1d, or HH:MM)" });
+    const target = chatId ?? [...allowedUserIds][0];
+    if (target === undefined) return reply.code(400).send({ error: "no allowed user to own the schedule" });
+    schedules.add(target, cwd?.trim() || config.WORKDIR, prompt.trim(), spec);
+    return { schedules: listSchedules() };
+  });
+  app.delete("/api/schedules/:id", async (req, reply) => {
+    if (!schedules.removeById((req.params as { id: string }).id))
+      return reply.code(404).send({ error: "not found" });
+    return { ok: true };
+  });
   app.get("/api/usage", async () => usageSummary());
   app.get("/api/audit", async () => ({ events: recentAudit() }));
   app.get("/api/logs", async () => ({ logs: recentLogs() }));

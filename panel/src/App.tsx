@@ -14,6 +14,7 @@ import { SkillsView } from "./components/Skills.tsx";
 import { MemoryView } from "./components/Memory.tsx";
 import { VaultView } from "./components/Vault.tsx";
 import { ConnectorsView } from "./components/Connectors.tsx";
+import { UpdatesView } from "./components/Updates.tsx";
 import { TasksView } from "./components/Tasks.tsx";
 import { WorkersView } from "./components/Workers.tsx";
 import { LogsView } from "./components/Logs.tsx";
@@ -138,6 +139,7 @@ export function App() {
           {tab === "chat" && <ChatView onAuthError={onAuthError} />}
           {tab === "health" && <HealthView />}
           {tab === "status" && <StatusView onAuthError={onAuthError} />}
+          {tab === "updates" && <UpdatesView onAuthError={onAuthError} />}
           {tab === "workers" && <WorkersView onAuthError={onAuthError} />}
           {tab === "tasks" && <TasksView onAuthError={onAuthError} />}
           {tab === "skills" && <SkillsView onAuthError={onAuthError} />}

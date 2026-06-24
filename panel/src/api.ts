@@ -296,10 +296,13 @@ export interface LogEntry {
 }
 
 export const api = {
-  me: () => get<{ ok: boolean; chatEnabled: boolean }>("/api/me"),
+  me: () => get<{ ok: boolean; chatEnabled: boolean; version: string }>("/api/me"),
   sessions: () => get<{ sessions: SessionView[] }>("/api/sessions"),
   logs: () => get<{ logs: LogEntry[] }>("/api/logs"),
   schedules: () => get<{ schedules: ScheduleView[] }>("/api/schedules"),
+  createSchedule: (s: { prompt: string; when: string; cwd?: string }) =>
+    req<{ schedules: ScheduleView[] }>("POST", "/api/schedules", s),
+  deleteSchedule: (id: string) => req<{ ok: boolean }>("DELETE", `/api/schedules/${id}`),
   usage: () => get<UsageSummary>("/api/usage"),
 
   prompt: () => get<PromptView>("/api/prompt"),

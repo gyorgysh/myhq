@@ -57,6 +57,16 @@ export class ScheduleManager {
     return s;
   }
 
+  /** Remove a schedule by id regardless of owner (panel management). */
+  removeById(id: string): boolean {
+    const before = this.schedules.length;
+    this.schedules = this.schedules.filter((s) => s.id !== id);
+    if (this.schedules.length === before) return false;
+    saveSchedules(this.schedules);
+    log.info("Schedule removed", { id });
+    return true;
+  }
+
   /** Remove a schedule owned by `chatId`. Returns true if one was removed. */
   remove(chatId: number, id: string): boolean {
     const before = this.schedules.length;
