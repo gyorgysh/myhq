@@ -5,6 +5,16 @@ import { resolveSecret } from "./vault.js";
 
 const TIMEOUT_MS = 6000;
 
+/** Public Anthropic/Claude status page (Statuspage.io). Needs no credentials. */
+const CLAUDE_STATUS_URL = "https://status.claude.com";
+
+export interface ServiceStatus {
+  indicator: "none" | "minor" | "major" | "critical" | "unknown";
+  description: string;
+  url: string;
+  error?: string;
+}
+
 /** Health of one model backend the bot can talk to. */
 export interface BackendStatus {
   id: string;
@@ -21,7 +31,33 @@ export interface BackendStatus {
 
 export interface StatusSnapshot {
   checkedAt: number;
+  /** Public Claude service status (no credentials required). */
+  service: ServiceStatus;
   backends: BackendStatus[];
+}
+
+/** Fetch the public Claude status page's overall indicator. */
+async function checkClaudeService(): Promise<ServiceStatus> {
+  const out: ServiceStatus = { indicator: "unknown", description: "", url: CLAUDE_STATUS_URL };
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(`${CLAUDE_STATUS_URL}/api/v2/status.json`, { signal: ctrl.signal });
+    if (!res.ok) {
+      out.error = `HTTP ${res.status}`;
+      return out;
+    }
+    const json = (await res.json()) as { status?: { indicator?: string; description?: string } };
+    const ind = json.status?.indicator;
+    out.indicator =
+      ind === "none" || ind === "minor" || ind === "major" || ind === "critical" ? ind : "unknown";
+    out.description = json.status?.description ?? "";
+  } catch (err) {
+    out.error = err instanceof Error ? err.message : String(err);
+  } finally {
+    clearTimeout(timer);
+  }
+  return out;
 }
 
 /** Well-known local backends to surface when running but not configured. */
@@ -108,13 +144,15 @@ export async function getStatus(): Promise<StatusSnapshot> {
   const localProbes = KNOWN_LOCAL.filter((l) => !configured.has(l.baseUrl)).map((l) =>
     probeLocal(l.name, l.baseUrl),
   );
-  const [anthropic, providerStatuses, localStatuses] = await Promise.all([
+  const [service, anthropic, providerStatuses, localStatuses] = await Promise.all([
+    checkClaudeService(),
     checkAnthropic(),
     Promise.all(providers.map(checkProvider)),
     Promise.all(localProbes),
   ]);
   return {
     checkedAt: Date.now(),
+    service,
     backends: [anthropic, ...providerStatuses, ...localStatuses.filter((s): s is BackendStatus => s !== null)],
   };
 }

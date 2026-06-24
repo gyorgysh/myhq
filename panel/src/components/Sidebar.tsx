@@ -25,7 +25,6 @@ export const NAV: Group[] = [
     heading: "Monitor",
     items: [
       { id: "health", label: "System", icon: "▦" },
-      { id: "status", label: "Status", icon: "◉" },
       { id: "sessions", label: "Sessions", icon: "◇" },
       { id: "usage", label: "Usage", icon: "↗" },
       { id: "logs", label: "Logs", icon: "≣" },
@@ -50,6 +49,10 @@ export const NAV: Group[] = [
       { id: "connectors", label: "Connectors", icon: "⊹" },
       { id: "prompt", label: "Prompt", icon: "❝" },
     ],
+  },
+  {
+    heading: "Others",
+    items: [{ id: "status", label: "Status", icon: "◉" }],
   },
 ];
 

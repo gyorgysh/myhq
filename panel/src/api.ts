@@ -218,8 +218,15 @@ export interface BackendStatus {
   models: string[];
   error?: string;
 }
+export interface ServiceStatus {
+  indicator: "none" | "minor" | "major" | "critical" | "unknown";
+  description: string;
+  url: string;
+  error?: string;
+}
 export interface StatusSnapshot {
   checkedAt: number;
+  service: ServiceStatus;
   backends: BackendStatus[];
 }
 

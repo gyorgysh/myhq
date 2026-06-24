@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, type BackendStatus } from "../api.ts";
+import { api, type BackendStatus, type ServiceStatus } from "../api.ts";
 import { usePoll } from "../lib/usePoll.ts";
 import { Badge, Card, Empty } from "./ui.tsx";
 
@@ -14,6 +14,7 @@ export function StatusView({ onAuthError }: { onAuthError: () => void }) {
 
   return (
     <div className="space-y-4">
+      {data && <ServiceBanner s={data.service} />}
       <Card title="Model backends">
         <p className="mb-3 text-sm text-fg-dim">
           Reachability, auth and model lists for the Anthropic API, every configured provider, and
@@ -33,6 +34,35 @@ export function StatusView({ onAuthError }: { onAuthError: () => void }) {
         )}
       </Card>
     </div>
+  );
+}
+
+function ServiceBanner({ s }: { s: ServiceStatus }) {
+  const ok = s.indicator === "none";
+  const bad = s.indicator === "major" || s.indicator === "critical";
+  const dot = ok ? "bg-emerald-500" : s.indicator === "minor" ? "bg-amber-500" : bad ? "bg-red-500" : "bg-fg-faint";
+  return (
+    <Card title="Claude service status">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
+          <span className="text-sm text-fg">
+            {s.error ? "Status page unreachable" : s.description || "Unknown"}
+          </span>
+        </div>
+        <a
+          href={s.url}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-fg-dim hover:text-fg-muted"
+        >
+          status.claude.com ↗
+        </a>
+      </div>
+      <p className="mt-1 text-xs text-fg-faint">
+        From the public status page — no API key required.
+      </p>
+    </Card>
   );
 }
 
