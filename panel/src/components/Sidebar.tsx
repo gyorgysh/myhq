@@ -9,6 +9,7 @@ export type Tab =
   | "skills"
   | "prompt"
   | "memory"
+  | "vault"
   | "logs"
   | "sessions"
   | "schedules"
@@ -42,6 +43,7 @@ export const NAV: Group[] = [
     items: [
       { id: "skills", label: "Skills", icon: "✦" },
       { id: "memory", label: "Memory", icon: "❋" },
+      { id: "vault", label: "Vault", icon: "⚷" },
       { id: "prompt", label: "Prompt", icon: "❝" },
     ],
   },

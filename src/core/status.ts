@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import { listProviders, type Provider } from "./providers.js";
 import { fetchProviderModels } from "./providerModels.js";
+import { resolveSecret } from "./vault.js";
 
 const TIMEOUT_MS = 6000;
 
@@ -81,7 +82,7 @@ async function checkProvider(p: Provider): Promise<BackendStatus> {
     models: [],
   };
   try {
-    out.models = await fetchProviderModels(p.baseUrl, p.authToken);
+    out.models = await fetchProviderModels(p.baseUrl, resolveSecret(p.authToken));
     out.reachable = true;
     out.authOk = true;
   } catch (err) {

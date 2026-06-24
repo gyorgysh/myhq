@@ -23,6 +23,7 @@ import { workers, describeWorkerSchedule, type Worker } from "../core/workers.js
 import { chat } from "../core/chat.js";
 import { memory } from "../core/memory.js";
 import { getStatus } from "../core/status.js";
+import { vault, importProviderSecrets, resolveSecret } from "../core/vault.js";
 import {
   listProviders,
   getProvider,
@@ -206,6 +207,26 @@ function registerApi(app: FastifyInstance): void {
     return { ok: true };
   });
 
+  // --- secret vault ---
+  app.get("/api/vault", async () => ({ secrets: vault.list() }));
+  app.post("/api/vault", async (req) => vault.create(req.body as never));
+  app.put("/api/vault/:id", async (req, reply) => {
+    const updated = vault.update((req.params as { id: string }).id, req.body as never);
+    if (!updated) return reply.code(404).send({ error: "not found" });
+    return updated;
+  });
+  app.delete("/api/vault/:id", async (req, reply) => {
+    if (!vault.remove((req.params as { id: string }).id))
+      return reply.code(404).send({ error: "not found" });
+    return { ok: true };
+  });
+  app.get("/api/vault/:id/reveal", async (req, reply) => {
+    const value = vault.reveal((req.params as { id: string }).id);
+    if (value === undefined) return reply.code(404).send({ error: "not found" });
+    return { value };
+  });
+  app.post("/api/vault/import", async () => importProviderSecrets());
+
   // --- on-disk .claude files ---
   app.get("/api/claude-files", async () => ({ roots: listClaudeFiles() }));
   app.get("/api/claude-files/content", async (req, reply) => {
@@ -316,7 +337,7 @@ function registerApi(app: FastifyInstance): void {
     const p = getProvider((req.params as { id: string }).id);
     if (!p) return reply.code(404).send({ error: "not found" });
     try {
-      return { models: await fetchProviderModels(p.baseUrl, p.authToken) };
+      return { models: await fetchProviderModels(p.baseUrl, resolveSecret(p.authToken)) };
     } catch (err) {
       return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
     }

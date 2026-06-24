@@ -184,6 +184,15 @@ export interface StatusSnapshot {
   backends: BackendStatus[];
 }
 
+export interface SecretView {
+  id: string;
+  name: string;
+  description: string;
+  hint: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface MemoryEntry {
   id: string;
   text: string;
@@ -288,6 +297,15 @@ export const api = {
   workerRuns: (id: string) => get<{ runs: WorkerRun[] }>(`/api/workers/${id}/runs`),
 
   status: () => get<StatusSnapshot>("/api/status"),
+
+  vault: () => get<{ secrets: SecretView[] }>("/api/vault"),
+  createSecret: (s: { name: string; value: string; description?: string }) =>
+    req<SecretView>("POST", "/api/vault", s),
+  updateSecret: (id: string, s: { name?: string; value?: string; description?: string }) =>
+    req<SecretView>("PUT", `/api/vault/${id}`, s),
+  deleteSecret: (id: string) => req<{ ok: boolean }>("DELETE", `/api/vault/${id}`),
+  revealSecret: (id: string) => get<{ value: string }>(`/api/vault/${id}/reveal`),
+  importSecrets: () => req<{ imported: number }>("POST", "/api/vault/import"),
 
   memories: (q?: string) =>
     get<{ memories: MemoryEntry[] }>(`/api/memories${q ? `?q=${encodeURIComponent(q)}` : ""}`),

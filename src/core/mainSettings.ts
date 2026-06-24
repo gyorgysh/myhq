@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import { loadJson, saveJson } from "./jsonStore.js";
 import { getProvider, listProviders } from "./providers.js";
+import { resolveSecret } from "./vault.js";
 import { audit } from "./audit.js";
 
 const FILE = "mainAgent.json";
@@ -54,7 +55,7 @@ export function resolveMainRun(): { model?: string; env?: Record<string, string 
   const env = provider
     ? {
         ANTHROPIC_BASE_URL: provider.baseUrl,
-        ANTHROPIC_AUTH_TOKEN: provider.authToken,
+        ANTHROPIC_AUTH_TOKEN: resolveSecret(provider.authToken),
         ANTHROPIC_API_KEY: undefined,
       }
     : undefined;

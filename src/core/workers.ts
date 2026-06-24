@@ -6,6 +6,7 @@ import type { ScheduleSpec } from "../schedule/store.js";
 import { loadJson, saveJson } from "./jsonStore.js";
 import { getSkill } from "./skills.js";
 import { getProvider } from "./providers.js";
+import { resolveSecret } from "./vault.js";
 import { audit } from "./audit.js";
 import { log } from "../logger.js";
 
@@ -202,7 +203,7 @@ export class WorkerManager {
     const env = provider
       ? {
           ANTHROPIC_BASE_URL: provider.baseUrl,
-          ANTHROPIC_AUTH_TOKEN: provider.authToken,
+          ANTHROPIC_AUTH_TOKEN: resolveSecret(provider.authToken),
           ANTHROPIC_API_KEY: undefined,
         }
       : undefined;
