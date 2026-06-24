@@ -169,6 +169,24 @@ export interface WorkerRun {
   output: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  ts: number;
+  error?: boolean;
+  costUsd?: number;
+}
+
+export interface ChatView {
+  messages: ChatMessage[];
+  cwd: string;
+  busy: boolean;
+  bypassAllowed: boolean;
+  auto: boolean;
+  hasContext: boolean;
+}
+
 export interface MainAgent {
   model: string;
   providerId: string;
@@ -197,6 +215,7 @@ export interface LogEntry {
 }
 
 export const api = {
+  me: () => get<{ ok: boolean; chatEnabled: boolean }>("/api/me"),
   sessions: () => get<{ sessions: SessionView[] }>("/api/sessions"),
   logs: () => get<{ logs: LogEntry[] }>("/api/logs"),
   schedules: () => get<{ schedules: ScheduleView[] }>("/api/schedules"),
@@ -241,6 +260,15 @@ export const api = {
   runWorker: (id: string) => req<WorkerRun>("POST", `/api/workers/${id}/run`),
   stopWorker: (id: string) => req<{ ok: boolean }>("POST", `/api/workers/${id}/stop`),
   workerRuns: (id: string) => get<{ runs: WorkerRun[] }>(`/api/workers/${id}/runs`),
+
+  chat: () => get<ChatView>("/api/chat"),
+  sendChat: (text: string) => req<ChatView>("POST", "/api/chat/send", { text }),
+  stopChat: () => req<{ ok: boolean }>("POST", "/api/chat/stop"),
+  clearChat: () => req<ChatView>("POST", "/api/chat/clear"),
+  chatSettings: (s: { cwd?: string; auto?: boolean }) =>
+    req<ChatView>("PUT", "/api/chat/settings", s),
+  approveChat: (approvalId: string, allow: boolean) =>
+    req<{ ok: boolean }>("POST", "/api/chat/approve", { approvalId, allow }),
 
   providers: () => get<{ providers: Provider[] }>("/api/providers"),
   createProvider: (p: Partial<Provider>) => req<Provider>("POST", "/api/providers", p),

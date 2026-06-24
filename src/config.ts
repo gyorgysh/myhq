@@ -66,6 +66,19 @@ const schema = z.object({
   // Shared secret required on every panel request + WS handshake. Required
   // whenever PANEL_ENABLED=true (enforced below).
   PANEL_TOKEN: z.string().optional(),
+  // Panel chat feature toggle. On by default when the panel runs; set false to
+  // hide the Chat view and reject its endpoints entirely.
+  PANEL_CHAT_ENABLED: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
+  // Panel chat: unlock "auto" (bypassPermissions) mode for the in-panel chat.
+  // Off by default — the chat then gates every risky tool behind an in-panel
+  // approve/deny prompt. Set true + restart to allow auto-run without prompts.
+  PANEL_CHAT_BYPASS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 // Fail closed: a panel with host access must never run without a token.

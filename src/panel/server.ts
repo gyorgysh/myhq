@@ -20,6 +20,7 @@ import {
   COLUMNS,
 } from "../core/tasks.js";
 import { workers, describeWorkerSchedule, type Worker } from "../core/workers.js";
+import { chat } from "../core/chat.js";
 import {
   listProviders,
   getProvider,
@@ -53,6 +54,8 @@ export async function startPanel(): Promise<(() => Promise<void>) | undefined> {
   const hub = new PanelHub();
   // Wire worker run events to all panel clients (worker tick already running).
   workers.start((m) => hub.broadcast(m));
+  // Wire the in-panel chat session's stream to all clients.
+  chat.start((m) => hub.broadcast(m));
   // Stream live log lines to every panel client.
   const unsubLog = onLog((entry) => hub.broadcast({ type: "log", entry }));
 
@@ -132,7 +135,7 @@ function workerView(w: Worker) {
 }
 
 function registerApi(app: FastifyInstance): void {
-  app.get("/api/me", async () => ({ ok: true }));
+  app.get("/api/me", async () => ({ ok: true, chatEnabled: chat.isEnabled() }));
 
   // --- main agent: runtime model/provider + lifecycle controls ---
   app.get("/api/agent", async () => ({
@@ -247,6 +250,34 @@ function registerApi(app: FastifyInstance): void {
     runs: workers.history((req.params as { id: string }).id),
   }));
   app.get("/api/runs", async () => ({ runs: workers.history() }));
+
+  // --- in-panel chat (dedicated Claude session) ---
+  app.get("/api/chat", async () => chat.view());
+  app.post("/api/chat/send", async (req, reply) => {
+    const { text } = (req.body ?? {}) as { text?: string };
+    const r = chat.send(typeof text === "string" ? text : "");
+    if (!r.ok) return reply.code(409).send({ error: r.error });
+    return chat.view();
+  });
+  app.post("/api/chat/stop", async () => {
+    chat.stop();
+    return { ok: true };
+  });
+  app.post("/api/chat/clear", async () => {
+    chat.clear();
+    return chat.view();
+  });
+  app.put("/api/chat/settings", async (req) => {
+    const { cwd, auto } = (req.body ?? {}) as { cwd?: string; auto?: boolean };
+    if (typeof cwd === "string") chat.setCwd(cwd);
+    if (typeof auto === "boolean") chat.setAuto(auto);
+    return chat.view();
+  });
+  app.post("/api/chat/approve", async (req, reply) => {
+    const { approvalId, allow } = (req.body ?? {}) as { approvalId?: string; allow?: boolean };
+    if (!approvalId) return reply.code(400).send({ error: "approvalId required" });
+    return { ok: chat.resolveApproval(approvalId, Boolean(allow)) };
+  });
 
   // --- model providers (local LM Studio/Ollama, proxies) ---
   app.get("/api/providers", async () => ({ providers: listProviders() }));
