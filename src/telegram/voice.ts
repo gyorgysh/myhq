@@ -1,18 +1,32 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { config } from "../config.js";
+import { transcribeVosk, voskConfigured } from "./vosk.js";
 
-/** True if voice transcription is configured (an API key is present). */
+/** True if voice transcription is configured for the selected provider. */
 export function voiceEnabled(): boolean {
-  return Boolean(config.OPENAI_API_KEY);
+  return config.TRANSCRIBE_PROVIDER === "vosk" ? voskConfigured() : Boolean(config.OPENAI_API_KEY);
+}
+
+/** A short hint telling the operator how to enable voice for their provider. */
+export function voiceSetupHint(): string {
+  return config.TRANSCRIBE_PROVIDER === "vosk"
+    ? "🎤 Voice isn't set up. Set VOSK_MODEL_PATH to a downloaded Vosk model (and install ffmpeg)."
+    : "🎤 Voice isn't set up. Add OPENAI_API_KEY to .env to enable transcription.";
+}
+
+/** Transcribe a voice/audio file using the configured backend (openai | vosk). */
+export async function transcribeAudio(filePath: string): Promise<string> {
+  return config.TRANSCRIBE_PROVIDER === "vosk"
+    ? transcribeVosk(filePath)
+    : transcribeOpenAI(filePath);
 }
 
 /**
- * Transcribe an audio file via an OpenAI-compatible /audio/transcriptions
- * endpoint. Telegram voice notes are OGG/Opus, which Whisper accepts directly.
- * Returns the recognized text (trimmed).
+ * Transcribe via an OpenAI-compatible /audio/transcriptions endpoint (OpenAI,
+ * Groq, …). Telegram voice notes are OGG/Opus, which Whisper accepts directly.
  */
-export async function transcribeAudio(filePath: string): Promise<string> {
+async function transcribeOpenAI(filePath: string): Promise<string> {
   if (!config.OPENAI_API_KEY) {
     throw new Error("Voice transcription is not configured (set OPENAI_API_KEY).");
   }

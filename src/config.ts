@@ -40,11 +40,17 @@ const schema = z.object({
   //   draft = Bot API 9.3 sendMessageDraft (plain preview), finalized with sendMessage
   //   edit  = legacy throttled editMessageText of a placeholder message
   STREAM_MODE: z.enum(["rich", "draft", "edit"]).default("rich"),
-  // Voice notes: transcribed via an OpenAI-compatible audio endpoint. Voice is
-  // simply disabled (with a hint) if no key is set.
+  // Voice notes. Two backends:
+  //   openai = OpenAI-compatible /audio/transcriptions (OpenAI, Groq, …)
+  //   vosk   = fully local, offline recognition (needs VOSK_MODEL_PATH + ffmpeg)
+  TRANSCRIBE_PROVIDER: z.enum(["openai", "vosk"]).default("openai"),
   OPENAI_API_KEY: z.string().optional(),
   TRANSCRIBE_MODEL: z.string().min(1).default("whisper-1"),
   TRANSCRIBE_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
+  // Local Vosk: path to an unpacked model dir (e.g. vosk-model-small-en-us-0.15).
+  VOSK_MODEL_PATH: z.string().optional(),
+  // ffmpeg binary used to decode OGG/Opus voice notes to 16kHz mono PCM.
+  FFMPEG_PATH: z.string().min(1).default("ffmpeg"),
 });
 
 function parseConfig() {

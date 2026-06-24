@@ -12,7 +12,7 @@ import { PermissionManager, bashLeadCmd } from "./telegram/permissions.js";
 import { downloadIncomingFile, isViewableImage, readImageInput } from "./telegram/files.js";
 import { isGitCallback, resolveGitCallback } from "./telegram/gitFlow.js";
 import { isProjectCallback, resolveProjectCallback } from "./telegram/projects.js";
-import { transcribeAudio, voiceEnabled } from "./telegram/voice.js";
+import { transcribeAudio, voiceEnabled, voiceSetupHint } from "./telegram/voice.js";
 import { schedules, type ScheduleRunner } from "./schedule/manager.js";
 import { escapeHtml } from "./telegram/formatting.js";
 import type { ImageInput } from "./claude/runner.js";
@@ -105,7 +105,7 @@ export function buildBot(): Telegraf {
   bot.on(message("voice"), async (ctx) => {
     const chatId = ctx.chat.id;
     if (!voiceEnabled()) {
-      await ctx.reply("🎤 Voice isn't set up. Add OPENAI_API_KEY to .env to enable transcription.");
+      await ctx.reply(voiceSetupHint());
       return;
     }
     const session = sessions.get(chatId);
