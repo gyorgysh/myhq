@@ -169,6 +169,21 @@ export interface WorkerRun {
   output: string;
 }
 
+export interface BackendStatus {
+  id: string;
+  name: string;
+  kind: "anthropic" | "provider" | "local";
+  baseUrl: string;
+  reachable: boolean;
+  authOk: boolean;
+  models: string[];
+  error?: string;
+}
+export interface StatusSnapshot {
+  checkedAt: number;
+  backends: BackendStatus[];
+}
+
 export interface MemoryEntry {
   id: string;
   text: string;
@@ -271,6 +286,8 @@ export const api = {
   runWorker: (id: string) => req<WorkerRun>("POST", `/api/workers/${id}/run`),
   stopWorker: (id: string) => req<{ ok: boolean }>("POST", `/api/workers/${id}/stop`),
   workerRuns: (id: string) => get<{ runs: WorkerRun[] }>(`/api/workers/${id}/runs`),
+
+  status: () => get<StatusSnapshot>("/api/status"),
 
   memories: (q?: string) =>
     get<{ memories: MemoryEntry[] }>(`/api/memories${q ? `?q=${encodeURIComponent(q)}` : ""}`),

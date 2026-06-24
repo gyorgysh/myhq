@@ -3,6 +3,7 @@ import type { Theme } from "../lib/useTheme.ts";
 export type Tab =
   | "chat"
   | "health"
+  | "status"
   | "workers"
   | "tasks"
   | "skills"
@@ -21,6 +22,7 @@ export const NAV: Group[] = [
     heading: "Monitor",
     items: [
       { id: "health", label: "System", icon: "▦" },
+      { id: "status", label: "Status", icon: "◉" },
       { id: "sessions", label: "Sessions", icon: "◇" },
       { id: "usage", label: "Usage", icon: "↗" },
       { id: "logs", label: "Logs", icon: "≣" },

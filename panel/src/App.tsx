@@ -5,6 +5,7 @@ import { Login } from "./components/Login.tsx";
 import { Sidebar, tabLabel, type Tab } from "./components/Sidebar.tsx";
 import { ChatView } from "./components/Chat.tsx";
 import { HealthView } from "./components/Health.tsx";
+import { StatusView } from "./components/Status.tsx";
 import { SessionsView } from "./components/Sessions.tsx";
 import { SchedulesView } from "./components/Schedules.tsx";
 import { UsageView } from "./components/Usage.tsx";
@@ -118,6 +119,7 @@ export function App() {
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
           {tab === "chat" && <ChatView onAuthError={onAuthError} />}
           {tab === "health" && <HealthView />}
+          {tab === "status" && <StatusView onAuthError={onAuthError} />}
           {tab === "workers" && <WorkersView onAuthError={onAuthError} />}
           {tab === "tasks" && <TasksView onAuthError={onAuthError} />}
           {tab === "skills" && <SkillsView onAuthError={onAuthError} />}

@@ -22,6 +22,7 @@ import {
 import { workers, describeWorkerSchedule, type Worker } from "../core/workers.js";
 import { chat } from "../core/chat.js";
 import { memory } from "../core/memory.js";
+import { getStatus } from "../core/status.js";
 import {
   listProviders,
   getProvider,
@@ -160,6 +161,7 @@ function registerApi(app: FastifyInstance): void {
 
   // --- read-only dashboards ---
   app.get("/api/health", async () => getHealth());
+  app.get("/api/status", async () => getStatus());
   app.get("/api/sessions", async () => ({ sessions: listSessions() }));
   app.get("/api/schedules", async () => ({ schedules: listSchedules() }));
   app.get("/api/usage", async () => usageSummary());
