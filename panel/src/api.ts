@@ -182,6 +182,16 @@ export interface WorkerRun {
   output: string;
 }
 
+export interface Connector {
+  id: string;
+  name: string;
+  description: string;
+  credential: string;
+  status: "coming-soon";
+  secretId?: string;
+  enabled: boolean;
+}
+
 export type HeartbeatMode = "off" | "alert" | "active";
 export interface HeartbeatConfig {
   mode: HeartbeatMode;
@@ -330,6 +340,10 @@ export const api = {
   workerRuns: (id: string) => get<{ runs: WorkerRun[] }>(`/api/workers/${id}/runs`),
 
   status: () => get<StatusSnapshot>("/api/status"),
+
+  connectors: () => get<{ connectors: Connector[] }>("/api/connectors"),
+  saveConnector: (id: string, c: { secretId?: string; enabled?: boolean }) =>
+    req<Connector>("PUT", `/api/connectors/${id}`, c),
 
   heartbeat: () => get<HeartbeatView>("/api/heartbeat"),
   saveHeartbeat: (c: Partial<HeartbeatConfig>) => req<HeartbeatView>("PUT", "/api/heartbeat", c),

@@ -27,6 +27,7 @@ import { chat } from "../core/chat.js";
 import { memory } from "../core/memory.js";
 import { getStatus } from "../core/status.js";
 import { heartbeat } from "../core/heartbeat.js";
+import { listConnectors, setConnector } from "../core/connectors.js";
 import { vault, importProviderSecrets, resolveSecret } from "../core/vault.js";
 import {
   listProviders,
@@ -220,6 +221,14 @@ function registerApi(app: FastifyInstance): void {
     if (!memory.remove((req.params as { id: string }).id))
       return reply.code(404).send({ error: "not found" });
     return { ok: true };
+  });
+
+  // --- external connectors (placeholders) ---
+  app.get("/api/connectors", async () => ({ connectors: listConnectors() }));
+  app.put("/api/connectors/:id", async (req, reply) => {
+    const updated = setConnector((req.params as { id: string }).id, (req.body ?? {}) as never);
+    if (!updated) return reply.code(404).send({ error: "not found" });
+    return updated;
   });
 
   // --- secret vault ---
