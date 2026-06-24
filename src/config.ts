@@ -40,6 +40,11 @@ const schema = z.object({
   //   draft = Bot API 9.3 sendMessageDraft (plain preview), finalized with sendMessage
   //   edit  = legacy throttled editMessageText of a placeholder message
   STREAM_MODE: z.enum(["rich", "draft", "edit"]).default("rich"),
+  // Voice notes: transcribed via an OpenAI-compatible audio endpoint. Voice is
+  // simply disabled (with a hint) if no key is set.
+  OPENAI_API_KEY: z.string().optional(),
+  TRANSCRIBE_MODEL: z.string().min(1).default("whisper-1"),
+  TRANSCRIBE_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
 });
 
 function parseConfig() {
