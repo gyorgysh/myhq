@@ -15,9 +15,18 @@ ok()  { printf '✓ %s\n' "$*"; }
 
 REF="${1:-$(git rev-parse --abbrev-ref HEAD)}"
 
+# `npm install` can rewrite package-lock.json (lockfile version, platform-
+# specific optional deps, npm version differences). That drift is noise, not a
+# real edit, and would otherwise block every update — so discard it first.
+if ! git diff --quiet -- package-lock.json 2>/dev/null; then
+  say "Discarding local package-lock.json drift (npm regenerates it)…"
+  git checkout -- package-lock.json 2>/dev/null || git restore -- package-lock.json
+fi
+
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   echo "✖ You have uncommitted changes. Commit or stash them first." >&2
   git status --short
+  echo "  (Tip: these are real source edits, not lockfile drift.)" >&2
   exit 1
 fi
 
