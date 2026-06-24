@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 #
-# update.sh — pull the latest code, reinstall deps, rebuild, and restart the
-# service if one is installed. Safe to run whether you run as a service or by
-# hand (it only restarts when a service is actually present).
+# update.sh — sync to the latest code, reinstall deps, rebuild (panel UI + bot),
+# and restart the service if one is installed. Safe to run whether you run as a
+# service or by hand (it only restarts when a service is actually present).
+#
+# It hard-resets the checkout to the remote ref: local edits to tracked files
+# are discarded, untracked extra files are left alone. This box mirrors the
+# remote — don't keep local-only commits here.
 #
 # Usage: ./scripts/update.sh [git-ref]   (defaults to the current branch)
 
@@ -15,26 +19,18 @@ ok()  { printf '✓ %s\n' "$*"; }
 
 REF="${1:-$(git rev-parse --abbrev-ref HEAD)}"
 
-# `npm install` can rewrite package-lock.json (lockfile version, platform-
-# specific optional deps, npm version differences). That drift is noise, not a
-# real edit, and would otherwise block every update — so discard it first.
-if ! git diff --quiet -- package-lock.json 2>/dev/null; then
-  say "Discarding local package-lock.json drift (npm regenerates it)…"
-  git checkout -- package-lock.json 2>/dev/null || git restore -- package-lock.json
-fi
-
-if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-  echo "✖ You have uncommitted changes. Commit or stash them first." >&2
-  git status --short
-  echo "  (Tip: these are real source edits, not lockfile drift.)" >&2
-  exit 1
-fi
-
-say "Fetching…"
-git fetch --prune origin
+# This box tracks the remote exactly. We hard-reset to the fetched ref instead
+# of `git pull`, which means:
+#   - local edits to *tracked* files (including regenerated package-lock.json
+#     drift from `npm install`) are discarded — no commit/stash dance needed;
+#   - *untracked* extra files in the tree (stray scripts, scratch output, the
+#     gitignored data/ dir) are left untouched and never block the update the
+#     way `git pull` does ("untracked files would be overwritten").
+say "Fetching origin/$REF…"
+git fetch --prune origin "$REF"
 BEFORE="$(git rev-parse HEAD)"
-say "Updating to origin/$REF…"
-git pull --ff-only origin "$REF"
+say "Resetting to origin/$REF (local changes to tracked files are discarded)…"
+git reset --hard FETCH_HEAD
 AFTER="$(git rev-parse HEAD)"
 
 if [ "$BEFORE" = "$AFTER" ]; then
@@ -45,7 +41,9 @@ fi
 
 say "Installing dependencies…"
 npm install
-say "Building…"
+# `npm run build` builds the panel UI first (panel/ deps + vite build) then the
+# bot (tsc), so the management panel is always rebuilt alongside the bot.
+say "Building (panel UI + bot)…"
 npm run build
 
 # Restart only if a service is installed for this machine.
