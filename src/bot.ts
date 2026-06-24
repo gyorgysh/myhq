@@ -8,9 +8,12 @@ import { createTelegramMcp } from "./mcp/sendFile.js";
 import { TelegramStreamer, type Streamer } from "./telegram/streamer.js";
 import { DraftStreamer } from "./telegram/draftStreamer.js";
 import { RichDraftStreamer } from "./telegram/richDraftStreamer.js";
-import { PermissionManager } from "./telegram/permissions.js";
+import { PermissionManager, bashLeadCmd } from "./telegram/permissions.js";
 import { downloadIncomingFile, isViewableImage, readImageInput } from "./telegram/files.js";
 import { isGitCallback, resolveGitCallback } from "./telegram/gitFlow.js";
+import { isProjectCallback, resolveProjectCallback } from "./telegram/projects.js";
+import { transcribeAudio, voiceEnabled } from "./telegram/voice.js";
+import { schedules, type ScheduleRunner } from "./schedule/manager.js";
 import { escapeHtml } from "./telegram/formatting.js";
 import type { ImageInput } from "./claude/runner.js";
 import { sessions } from "./session/manager.js";
@@ -35,6 +38,11 @@ export function buildBot(): Telegraf {
       log.debug("Git button pressed", { chatId: ctx.chat.id, data });
       const messageId = ctx.callbackQuery.message?.message_id;
       const toast = await resolveGitCallback(ctx.telegram, ctx.chat.id, data, messageId);
+      await ctx.answerCbQuery(toast.slice(0, 200)).catch(() => {});
+    } else if (data && isProjectCallback(data) && ctx.chat) {
+      log.debug("Project button pressed", { chatId: ctx.chat.id, data });
+      const messageId = ctx.callbackQuery.message?.message_id;
+      const toast = await resolveProjectCallback(ctx.telegram, ctx.chat.id, data, messageId);
       await ctx.answerCbQuery(toast.slice(0, 200)).catch(() => {});
     } else {
       await ctx.answerCbQuery().catch(() => {});
@@ -61,7 +69,7 @@ export function buildBot(): Telegraf {
       const images = isViewableImage(path) ? await imageInputs(path) : undefined;
       // Fire-and-forget: must NOT block the polling loop, or approval button
       // presses can never be fetched (Telegraf awaits handlers before getUpdates).
-      void runUserPrompt(permissions, ctx.chat.id, prompt, ctx.telegram, images);
+      void runUserPrompt(permissions, ctx.chat.id, prompt, ctx.telegram, { images });
     } catch (err) {
       log.error("File download failed", { chatId: ctx.chat.id, error: errText(err) });
       await ctx.reply(`⚠️ Could not download file: ${errText(err)}`);
@@ -84,10 +92,44 @@ export function buildBot(): Telegraf {
       const prompt = caption
         ? `${caption}\n\n(The user sent an image, also saved at: ${path})`
         : `The user sent this image (also saved at: ${path}).`;
-      void runUserPrompt(permissions, ctx.chat.id, prompt, ctx.telegram, await imageInputs(path));
+      void runUserPrompt(permissions, ctx.chat.id, prompt, ctx.telegram, {
+        images: await imageInputs(path),
+      });
     } catch (err) {
       log.error("Photo download failed", { chatId: ctx.chat.id, error: errText(err) });
       await ctx.reply(`⚠️ Could not download image: ${errText(err)}`);
+    }
+  });
+
+  // --- Voice notes (transcribe, then treat as a text prompt) ---
+  bot.on(message("voice"), async (ctx) => {
+    const chatId = ctx.chat.id;
+    if (!voiceEnabled()) {
+      await ctx.reply("🎤 Voice isn't set up. Add OPENAI_API_KEY to .env to enable transcription.");
+      return;
+    }
+    const session = sessions.get(chatId);
+    try {
+      const voice = ctx.message.voice;
+      const path = await downloadIncomingFile(
+        ctx.telegram,
+        voice.file_id,
+        `voice_${voice.file_unique_id}.ogg`,
+        session.cwd,
+      );
+      await ctx.telegram.sendChatAction(chatId, "typing").catch(() => {});
+      const text = await transcribeAudio(path);
+      if (!text) {
+        await ctx.reply("🎤 Couldn't make out any speech in that note.");
+        return;
+      }
+      log.info("Voice transcribed", { chatId, text: preview(text) });
+      // Echo the transcript so the user sees what was understood, then run it.
+      await ctx.replyWithHTML(`🎤 <i>${escapeHtml(text)}</i>`).catch(() => {});
+      void runUserPrompt(permissions, chatId, text, ctx.telegram);
+    } catch (err) {
+      log.error("Voice handling failed", { chatId, error: errText(err) });
+      await ctx.reply(`⚠️ Voice transcription failed: ${errText(err)}`);
     }
   });
 
@@ -102,6 +144,24 @@ export function buildBot(): Telegraf {
     log.error("Unhandled bot error", { updateType: ctx.updateType, error: errText(err) });
   });
 
+  // --- Scheduled prompts: run due jobs as autonomous turns, pushed to the chat ---
+  const runScheduled: ScheduleRunner = async (s) => {
+    if (sessions.get(s.chatId).busy) return false; // busy — retry next tick
+    log.info("Scheduled task firing", { chatId: s.chatId, id: s.id });
+    await bot.telegram
+      .sendMessage(s.chatId, `⏰ <b>Scheduled task</b>\n<i>${escapeHtml(s.prompt)}</i>`, {
+        parse_mode: "HTML",
+      })
+      .catch(() => {});
+    // Autonomous: no one is present to approve, and the user authored the job.
+    runUserPrompt(permissions, s.chatId, s.prompt, bot.telegram, {
+      autonomous: true,
+      cwd: s.cwd,
+    });
+    return true;
+  };
+  schedules.start(runScheduled);
+
   return bot;
 }
 
@@ -111,14 +171,23 @@ export function buildBot(): Telegraf {
  * approval button presses); the actual turn runs detached here. Guards against
  * unhandled rejections since no caller awaits it.
  */
+interface TurnOptions {
+  /** Images to include inline (vision). */
+  images?: ImageInput[];
+  /** Force bypassPermissions regardless of session mode (scheduled/unattended). */
+  autonomous?: boolean;
+  /** Run in this directory for this turn only (does not change session cwd). */
+  cwd?: string;
+}
+
 function runUserPrompt(
   permissions: PermissionManager,
   chatId: number,
   prompt: string,
   tg: Telegraf["telegram"],
-  images?: ImageInput[],
+  opts: TurnOptions = {},
 ): void {
-  handleUserPrompt(permissions, chatId, prompt, tg, images).catch((err) => {
+  handleUserPrompt(permissions, chatId, prompt, tg, opts).catch((err) => {
     const session = sessions.get(chatId);
     session.busy = false;
     session.abort = undefined;
@@ -133,14 +202,16 @@ async function handleUserPrompt(
   chatId: number,
   prompt: string,
   tg: Telegraf["telegram"],
-  images?: ImageInput[],
+  opts: TurnOptions = {},
 ): Promise<void> {
+  const { images, autonomous = false } = opts;
   const session = sessions.get(chatId);
   if (session.busy) {
     log.info("Prompt rejected — chat busy", { chatId });
     await tg.sendMessage(chatId, "⏳ Still working on the previous request. Send /stop to cancel.");
     return;
   }
+  const cwd = opts.cwd ?? session.cwd;
 
   log.info("Prompt received", {
     chatId,
@@ -181,7 +252,12 @@ async function handleUserPrompt(
     toolName: string,
     input: Record<string, unknown>,
   ): Promise<PermissionResult> => {
-    if (AUTO_ALLOWED_TOOLS.has(toolName) || session.sessionAllowedTools.has(toolName)) {
+    const lead = toolName === "Bash" ? bashLeadCmd(input) : undefined;
+    if (
+      AUTO_ALLOWED_TOOLS.has(toolName) ||
+      session.sessionAllowedTools.has(toolName) ||
+      (lead !== undefined && session.allowedBashCmds.has(lead))
+    ) {
       log.debug("Tool auto-allowed", { chatId, tool: toolName });
       return { behavior: "allow", updatedInput: input };
     }
@@ -190,9 +266,17 @@ async function handleUserPrompt(
     log.info("Approval resolved", { chatId, tool: toolName, choice });
     if (choice === "always") {
       session.sessionAllowedTools.add(toolName);
+      sessions.save();
       return { behavior: "allow", updatedInput: input };
     }
-    if (choice === "allow") return { behavior: "allow", updatedInput: input };
+    if (choice === "alwayscmd" && lead) {
+      session.allowedBashCmds.add(lead);
+      sessions.save();
+      return { behavior: "allow", updatedInput: input };
+    }
+    if (choice === "allow" || choice === "alwayscmd") {
+      return { behavior: "allow", updatedInput: input };
+    }
     return { behavior: "deny", message: "User denied this action." };
   };
 
@@ -200,11 +284,11 @@ async function handleUserPrompt(
     const res = await runTurn({
       prompt,
       images,
-      cwd: session.cwd,
+      cwd,
       resume: session.sessionId,
-      permissionMode: session.mode === "auto" ? "bypassPermissions" : "default",
+      permissionMode: autonomous || session.mode === "auto" ? "bypassPermissions" : "default",
       abortController: session.abort,
-      mcpServers: { telegram: createTelegramMcp(tg, chatId, session.cwd) },
+      mcpServers: { telegram: createTelegramMcp(tg, chatId, cwd) },
       canUseTool,
       onText: (delta) => streamer.appendText(delta),
       onToolUse: (name, input) => {

@@ -1,6 +1,7 @@
 import { config, allowedUserIds } from "./config.js";
 import { buildBot } from "./bot.js";
 import { sessions } from "./session/manager.js";
+import { schedules } from "./schedule/manager.js";
 import { log } from "./logger.js";
 
 async function main(): Promise<void> {
@@ -25,9 +26,12 @@ async function main(): Promise<void> {
     { command: "cd", description: "Change working directory" },
     { command: "pwd", description: "Show current directory" },
     { command: "status", description: "Show session info" },
+    { command: "projects", description: "Saved working dirs, switch between them" },
     { command: "diff", description: "Review changes, commit or discard" },
     { command: "commit", description: "Stage all changes and commit" },
     { command: "usage", description: "Show cost & activity" },
+    { command: "allowed", description: "Show always-allow rules" },
+    { command: "schedule", description: "Run a prompt on a timer" },
     { command: "stop", description: "Abort the running request" },
     { command: "mode", description: "safe (approval) or auto" },
     { command: "help", description: "Show help" },
@@ -48,7 +52,8 @@ async function main(): Promise<void> {
     }
     if (aborted) log.info("Aborted in-flight turns on shutdown", { count: aborted });
 
-    // Flush any debounced session/usage state before we go.
+    // Stop the scheduler and flush any debounced session/usage state before we go.
+    schedules.stop();
     sessions.flush();
 
     bot.stop(signal);
