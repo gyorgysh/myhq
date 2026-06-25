@@ -89,28 +89,29 @@ export async function sendModelMenu(
   const tick = (model: string, pId: string) =>
     model === current.model && pId === current.providerId ? "✓ " : "";
 
-  rows.push([{ text: "— Anthropic —", callback_data: "mdl:noop" }]);
+  // Section header buttons must have unique callback_data — Telegram rejects
+  // duplicate values across the whole keyboard with BUTTON_DATA_INVALID.
+  rows.push([{ text: "— Anthropic —", callback_data: "mdl:noop:anthropic" }]);
   for (const m of ANTHROPIC_MODELS) {
     rows.push([{ text: `${tick(m, "")}${m}`, callback_data: modelCbData(m, "") }]);
   }
 
-  // Provider sections — fetch models for each saved provider in parallel.
+  // Provider sections — fetch models for each saved provider sequentially so
+  // rows stay grouped (parallel pushes interleave sections unpredictably).
   const providers = listProviders();
-  await Promise.all(
-    providers.map(async (p) => {
-      let models: string[];
-      try {
-        models = await fetchProviderModels(p.baseUrl, resolveSecret(p.authToken));
-      } catch {
-        models = [];
-      }
-      if (models.length === 0) return;
-      rows.push([{ text: `— ${p.name} —`, callback_data: "mdl:noop" }]);
-      for (const m of models) {
-        rows.push([{ text: `${tick(m, p.id)}${m}`, callback_data: modelCbData(m, p.id) }]);
-      }
-    }),
-  );
+  for (const p of providers) {
+    let models: string[];
+    try {
+      models = await fetchProviderModels(p.baseUrl, resolveSecret(p.authToken));
+    } catch {
+      models = [];
+    }
+    if (models.length === 0) continue;
+    rows.push([{ text: `— ${p.name} —`, callback_data: `mdl:noop:${p.id}` }]);
+    for (const m of models) {
+      rows.push([{ text: `${tick(m, p.id)}${m}`, callback_data: modelCbData(m, p.id) }]);
+    }
+  }
 
   const effectiveLabel = view.effectiveModel + (view.providerName ? ` (${view.providerName})` : "");
   const text = `🧠 <b>Model</b>\nCurrent: <code>${escapeHtml(effectiveLabel)}</code>\n\nSelect a model to switch (takes effect on the next message):`;

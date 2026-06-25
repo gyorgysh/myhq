@@ -61,7 +61,7 @@ export function buildBot(): Telegraf {
       const toast = await resolveProjectCallback(ctx.telegram, ctx.chat.id, data, messageId);
       await ctx.answerCbQuery(toast.slice(0, 200)).catch(() => {});
     } else if (data && isModelCallback(data) && ctx.chat) {
-      if (data === "mdl:noop") {
+      if (data.startsWith("mdl:noop")) {
         await ctx.answerCbQuery().catch(() => {});
       } else {
         log.debug("Model button pressed", { chatId: ctx.chat.id, data });
