@@ -84,6 +84,19 @@ export function UpdatesView({
     // drops; the reconnect banner takes over from here.
   };
 
+  const restore = async () => {
+    if (!confirm(t("updates_restore_confirm"))) return;
+    setRunning(true);
+    setLines([]);
+    try {
+      await api.restoreUpdate();
+    } catch (e) {
+      if (e instanceof AuthError) onAuthError();
+    }
+    // Same as run(): the bot restarts on a serviced host; the reconnect banner
+    // takes over once the socket drops.
+  };
+
   const available = status?.available;
 
   return (
@@ -165,6 +178,19 @@ export function UpdatesView({
           </div>
         </Card>
       )}
+
+      {/* Recovery: restore code to the latest GitHub commit, keep data/config */}
+      <Card title={t("updates_recovery_title")}>
+        <p className="text-sm text-fg-dim">{t("updates_recovery_desc")}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <Button variant="danger" onClick={restore} disabled={running || status?.updating}>
+            {running || status?.updating ? t("updates_running") : t("updates_restore")}
+          </Button>
+          <span className="text-xs text-fg-faint">
+            {status?.serviceInstalled ? t("updates_will_restart") : t("updates_manual_restart")}
+          </span>
+        </div>
+      </Card>
 
       {/* Manual fallback */}
       <Card title={t("updates_manual_title")}>

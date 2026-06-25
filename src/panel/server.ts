@@ -56,7 +56,7 @@ import {
 import { fetchProviderModels } from "../core/providerModels.js";
 import { mainSettingsView, setMainSettings } from "../core/mainSettings.js";
 import { serviceInstalled, restartService } from "../core/agentControl.js";
-import { getUpdateStatus, checkForUpdate, runUpdate } from "../core/updateControl.js";
+import { getUpdateStatus, checkForUpdate, runUpdate, runRestore } from "../core/updateControl.js";
 import { recentAudit } from "../core/audit.js";
 import { sessions } from "../session/manager.js";
 import { PanelHub } from "./hub.js";
@@ -307,6 +307,13 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
     if (getUpdateStatus().updating) return { started: false };
     // Stream output to panel clients; don't await (the run may restart us).
     void runUpdate((line) => hub.broadcast({ type: "update", line })).catch(() => {});
+    return { started: true };
+  });
+  app.post("/api/update/restore", async () => {
+    if (getUpdateStatus().updating) return { started: false };
+    // Recovery: hard-reset code to the remote (keeps data/config), rebuild,
+    // restart. Stream to panel clients; don't await (the run may restart us).
+    void runRestore((line) => hub.broadcast({ type: "update", line })).catch(() => {});
     return { started: true };
   });
 

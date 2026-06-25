@@ -97,13 +97,35 @@ export function isUpdating(): boolean {
  * completes it). Spawned detached so the build survives our death.
  */
 export async function runUpdate(onLine: (line: string) => void): Promise<{ ok: boolean }> {
+  return runScript(onLine, "update");
+}
+
+/**
+ * Restore the checkout to the latest commit on its branch from GitHub — the
+ * recovery escape hatch when a local change (e.g. a self-update gone wrong)
+ * breaks the build or the panel. It runs the same scripts/update.sh, which
+ * hard-resets tracked files to the remote while leaving every untracked /
+ * gitignored path (data/, .env, vault, work.md) intact — so your data and
+ * config survive and only the code is reset. Available regardless of whether an
+ * update is "available" (the whole point is to discard broken local edits).
+ */
+export async function runRestore(onLine: (line: string) => void): Promise<{ ok: boolean }> {
+  return runScript(onLine, "restore");
+}
+
+async function runScript(
+  onLine: (line: string) => void,
+  mode: "update" | "restore",
+): Promise<{ ok: boolean }> {
   if (updating) {
-    onLine("An update is already in progress.");
+    onLine(`An ${mode} is already in progress.`);
     return { ok: false };
   }
   updating = true;
-  audit("update.run", {});
-  log.warn("Update requested — running scripts/update.sh");
+  audit(mode === "restore" ? "update.restore" : "update.run", {});
+  log.warn(
+    `${mode === "restore" ? "Restore" : "Update"} requested — running scripts/update.sh`,
+  );
   return new Promise((resolve) => {
     const child = spawn("bash", [UPDATE_SH], { cwd: repoRoot, detached: true });
     const handle = (buf: Buffer) => {

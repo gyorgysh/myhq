@@ -14,7 +14,7 @@ import { escapeHtml } from "./telegram/formatting.js";
 import type { UsageStat } from "./session/store.js";
 import { loadProbeResult, runProbe } from "./core/usageProbe.js";
 import { getPlanSettings, billingPeriodStart, daysUntilReset } from "./core/planSettings.js";
-import { checkForUpdate, runUpdate, isUpdating } from "./core/updateControl.js";
+import { checkForUpdate, runUpdate, runRestore, isUpdating } from "./core/updateControl.js";
 import { serviceInstalled } from "./core/agentControl.js";
 import { log } from "./logger.js";
 
@@ -68,6 +68,7 @@ function buildHelp(): string {
 /status: session info (cwd, model, autonomy, session id)
 /usage: plan, subscription limits, and API spend
 /update [now]: check for a new version, or apply it with <code>/update now</code>
+/restore [confirm]: reset code to the latest GitHub commit, keeping your data &amp; config
 /lang [code]: show or set response language (e.g. <code>/lang hu</code>)
 /help: this message
 
@@ -396,6 +397,38 @@ export function registerCommands(bot: Telegraf): void {
       // This only reaches the user on non-serviced hosts (we survive the run).
       if (!serviceInstalled()) {
         await ctx.reply(r.ok ? "✓ Update complete. Restart to apply." : "⚠️ Update failed — check /logs.").catch(() => {});
+      }
+    }).catch(() => {});
+  });
+
+  bot.command("restore", async (ctx) => {
+    const arg = ctx.message.text.split(/\s+/)[1]?.toLowerCase();
+    if (isUpdating()) {
+      await ctx.reply("⏳ An update/restore is already running.");
+      return;
+    }
+    // Destructive: discards local code edits. Require an explicit confirm so it
+    // can't fire by accident — this is the recovery path, not a routine action.
+    if (arg !== "confirm" && arg !== "now") {
+      await ctx.replyWithHTML(
+        "♻️ <b>Restore system</b>\n" +
+          "Resets the code to the latest commit on this branch from GitHub. " +
+          "Local code changes are <b>discarded</b>; your data, secrets, config, and work.md are <b>kept</b>.\n\n" +
+          `Send <code>/restore confirm</code> to proceed (fetch, rebuild${serviceInstalled() ? ", and restart" : ""}).`,
+      );
+      return;
+    }
+    await ctx.replyWithHTML(
+      "♻️ <b>Restoring from GitHub…</b>\n" +
+        (serviceInstalled()
+          ? "The bot will restart when the build finishes."
+          : "Restart your manual run afterward to pick up the restored code."),
+    );
+    log.warn("Restore triggered from Telegram", { chatId: ctx.chat.id });
+    // Fire-and-forget: on a serviced host this process is replaced mid-run.
+    void runRestore((line) => log.info(`[restore] ${line}`)).then(async (r) => {
+      if (!serviceInstalled()) {
+        await ctx.reply(r.ok ? "✓ Restore complete. Restart to apply." : "⚠️ Restore failed — check /logs.").catch(() => {});
       }
     }).catch(() => {});
   });

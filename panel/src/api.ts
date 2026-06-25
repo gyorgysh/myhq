@@ -511,6 +511,7 @@ export const api = {
   updateStatus: () => get<UpdateStatus>("/api/update"),
   checkUpdate: () => req<UpdateStatus>("POST", "/api/update/check"),
   runUpdate: () => req<{ started: boolean }>("POST", "/api/update/run"),
+  restoreUpdate: () => req<{ started: boolean }>("POST", "/api/update/restore"),
 
   claudeUsage: () => get<ClaudeUsageSnapshot>("/api/claude-usage"),
 

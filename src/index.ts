@@ -53,6 +53,7 @@ async function main(): Promise<void> {
     { command: "mode", description: "supervised | standard | full" },
     { command: "lang", description: "Set response language" },
     { command: "council", description: "Put an idea to a Lead council vote" },
+    { command: "restore", description: "Restore code to latest GitHub commit (keeps data)" },
     { command: "help", description: "Show help" },
   ]);
 

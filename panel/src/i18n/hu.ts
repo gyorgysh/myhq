@@ -562,6 +562,12 @@ export const hu: Translations = {
   updates_output: "Frissítés kimenete",
   updates_manual_title: "Kézi frissítés",
   updates_manual_desc: "A gazdagépen parancssorból is frissíthetsz:",
+  updates_recovery_title: "Rendszer visszaállítása",
+  updates_recovery_desc:
+    "Visszaállítja a kódot az ág legutóbbi GitHub commitjára. Eldobja a helyi kódváltoztatásokat (pl. egy elrontott önfrissítést), de megtartja az adatokat, titkokat, konfigurációt és a work.md fájlt. Akkor használd, ha egy változtatás elrontotta a panelt vagy a buildet — Telegramról is indítható a /restore paranccsal.",
+  updates_restore: "Visszaállítás GitHubról",
+  updates_restore_confirm:
+    "Visszaállítod a kódot a legutóbbi GitHub commitra? A helyi kódváltoztatások elvesznek; az adatok és a konfiguráció megmaradnak. A bot újraépül és újraindul.",
 
   // Kanban alapértelmezett oszlopnevek (csak átnevezetlen állapotban fordítva)
   col_planned: "Tervezett",
