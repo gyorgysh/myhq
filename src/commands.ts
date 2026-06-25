@@ -16,36 +16,68 @@ import { loadProbeResult } from "./core/usageProbe.js";
 import { getPlanSettings, billingPeriodStart, daysUntilReset } from "./core/planSettings.js";
 import { log } from "./logger.js";
 
-const HELP = `🤖 <b>Claude Code over Telegram</b>
+function buildStart(firstName?: string): string {
+  const A = config.ATLAS_NAME;
+  const B = config.BRAND_NAME;
+  const hey = firstName ? `Hey ${escapeHtml(firstName)}` : "Hey";
+  return `👋 <b>${hey} — I'm ${A}, your ${B} coordinator.</b>
 
-Just send a message and I'll run it through Claude Code in your working directory, streaming the reply live. Risky tools (Bash/Write/Edit) ask for your approval first.
+I run as a real Claude Code agent on this machine. I can read files, write code, run commands, check services, and ship things. Replies stream live as I work. Risky actions — anything that writes or executes — pause for your approval first.
 
-<b>Commands</b>
-/new — start a fresh conversation (clear context)
-/cd &lt;path&gt; — change working directory
-/pwd — show current directory
-/status — show session info
-/projects — saved working dirs, switch between them
-/diff — review the working-tree diff, then commit or discard
-/commit &lt;message&gt; — stage all changes and commit
-/usage — show cost &amp; activity for this chat
-/allow &lt;Tool&gt; · /allowed · /disallow — manage always-allow rules
-/schedule — run a prompt on a timer (e.g. <code>/schedule add 2h | check disk</code>)
+<b>Talk to me like a person:</b>
+<i>"What's eating all the disk space?"</i>
+<i>"Deploy the site and let me know when it's done."</i>
+<i>"Summarize any errors from the last hour of logs."</i>
+
+I coordinate a crew of specialist Leads (DevOps, Finance, Research, whatever you configure). Use /council to put a decision to a full team vote, or message a Lead directly if they have their own bot.
+
+You can send me files and photos — I see images inline. Voice notes are transcribed and run as prompts.
+
+/help for the full command list.`;
+}
+
+function buildHelp(): string {
+  const A = config.ATLAS_NAME;
+  return `🤖 <b>${escapeHtml(A)} — Commands</b>
+
+<b>Conversation</b>
+/new — fresh context (clear session)
 /stop — abort the running request
-/mode supervised|standard|full — set approval level
-/lang — set response language
-/council — put an idea to a lead council vote
+
+<b>Files &amp; Git</b>
+/cd &lt;path&gt; — change working directory
+/pwd — current directory
+/projects — switch between saved working dirs
+/diff — review the working-tree diff with Commit / Discard buttons
+/commit &lt;message&gt; — stage all changes and commit
+
+<b>Autonomy</b>
+/mode supervised|standard|full — approval level for this chat
+/allow &lt;Tool&gt; · /allowed · /disallow &lt;Tool|all&gt; — persistent tool allow-rules
+
+<b>Crew</b>
+/council &lt;idea&gt; — put a proposal to a full Lead council vote
+
+<b>Scheduling</b>
+/schedule add &lt;when&gt; | &lt;prompt&gt; — timed autonomous run (<code>30m</code>, <code>2h</code>, <code>HH:MM</code>)
+/schedule list · /schedule rm &lt;id&gt;
+
+<b>Info</b>
+/status — session info (cwd, model, autonomy, session id)
+/usage — plan, subscription limits, and API spend
+/lang [code] — show or set response language (e.g. <code>/lang hu</code>)
 /help — this message
 
-You can also upload files or photos (I can see images), or send a voice note.`;
+Send files or photos (seen inline as vision input), or voice notes (transcribed and run as prompts).`;
+}
 
 export function registerCommands(bot: Telegraf): void {
   bot.start(async (ctx) => {
-    await ctx.replyWithHTML(HELP);
+    await ctx.replyWithHTML(buildStart(ctx.from?.first_name));
   });
 
   bot.help(async (ctx) => {
-    await ctx.replyWithHTML(HELP);
+    await ctx.replyWithHTML(buildHelp());
   });
 
   bot.command("new", async (ctx) => {

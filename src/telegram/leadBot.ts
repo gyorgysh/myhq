@@ -79,8 +79,12 @@ export class LeadBot {
     // /help
     bot.command("help", async (ctx) => {
       await ctx.replyWithHTML(
-        `<b>${lead.name}</b> — ${lead.portfolio ?? "Lead"}\n\n` +
-          `/status — session info\n/stop — abort running request\n/mode safe|auto — permission mode`,
+        `🤖 <b>${lead.name}</b>${lead.portfolio ? ` — ${lead.portfolio}` : ""}\n\n` +
+          `/status — session info (cwd, model, autonomy)\n` +
+          `/stop — abort the running request\n` +
+          `/mode supervised|standard|full — approval level\n` +
+          `/lang [code] — show or set response language\n` +
+          `/help — this message`,
       );
     });
 
