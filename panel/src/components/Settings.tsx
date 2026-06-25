@@ -434,6 +434,19 @@ function PlanBudgetSettings({ onAuthError }: { onAuthError: () => void }) {
     }
   };
 
+  const testReport = async () => {
+    setBusy(true);
+    try {
+      const { sent } = await api.testReport();
+      setStatus(sent ? t("plan_report_sent") : t("plan_report_failed"));
+      setTimeout(() => setStatus(null), 3000);
+    } catch (e) {
+      if (e instanceof AuthError) onAuthError();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const runCheck = async () => {
     setProbeRunning(true);
     await api.runProbe().catch(() => {});
@@ -614,7 +627,7 @@ function PlanBudgetSettings({ onAuthError }: { onAuthError: () => void }) {
           <p className="mt-0.5 mb-1.5 text-xs text-fg-faint">
             {t("plan_report_desc")}
           </p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {INTERVAL_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
@@ -628,6 +641,17 @@ function PlanBudgetSettings({ onAuthError }: { onAuthError: () => void }) {
                 {t(opt.labelKey)}
               </button>
             ))}
+          </div>
+          {/* Preview / test send — info block */}
+          <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-line bg-input/40 px-3 py-2">
+            <p className="text-xs text-fg-faint">{t("plan_report_test_hint")}</p>
+            <button
+              onClick={testReport}
+              disabled={busy}
+              className="shrink-0 rounded-md border border-line px-2.5 py-1 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-2 disabled:opacity-50"
+            >
+              {t("plan_report_test")}
+            </button>
           </div>
         </div>
 

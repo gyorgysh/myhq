@@ -490,6 +490,7 @@ export const api = {
 
   plan: () => get<PlanView>("/api/plan"),
   savePlan: (s: Partial<PlanSettings>) => req<PlanSettings>("PUT", "/api/plan", s),
+  testReport: () => req<{ sent: boolean }>("POST", "/api/plan/report-test"),
 
   claudeUsage: () => get<ClaudeUsageSnapshot>("/api/claude-usage"),
 

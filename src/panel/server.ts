@@ -288,6 +288,8 @@ function registerApi(app: FastifyInstance): void {
     return heartbeat.view();
   });
   app.post("/api/heartbeat/run", async () => heartbeat.runOnce("panel"));
+  // Send a usage/cost report to Telegram right now (panel "Test" button).
+  app.post("/api/plan/report-test", async () => heartbeat.sendCostReport());
 
   // --- durable memory ---
   app.get("/api/memories", async (req) => {

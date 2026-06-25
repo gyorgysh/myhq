@@ -10,6 +10,7 @@ import {
   daysUntilReset,
 } from "./planSettings.js";
 import { usageSummary } from "./snapshot.js";
+import { loadProbeResult, runProbe } from "./usageProbe.js";
 
 const FILE = "heartbeat.json";
 const TICK_MS = 60_000; // wake-up granularity; actual cadence is config.intervalMs
@@ -40,6 +41,20 @@ export interface HeartbeatConfig {
 interface Signal {
   key: string;
   text: string;
+}
+
+/** Compact "time until reset" for usage-limit reports (e.g. "2h 13m", "5 days"). */
+function fmtCountdown(ms: number): string {
+  if (ms <= 0) return "now";
+  const totalMin = Math.ceil(ms / 60_000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h >= 24) {
+    const d = Math.floor(h / 24);
+    return `${d} day${d === 1 ? "" : "s"}`;
+  }
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
 }
 
 interface AlertRecord {
@@ -211,34 +226,93 @@ export class HeartbeatManager {
     return out;
   }
 
-  /** Send a periodic cost report if the interval has elapsed. */
+  /** Send a periodic cost report if the configured interval has elapsed. */
   async maybeSendCostReport(): Promise<void> {
-    if (!this.deps) return;
     const plan = getPlanSettings();
     if (!plan.costCheckIntervalMs) return;
     const now = Date.now();
     if (now - (plan.lastCostCheckAt ?? 0) < plan.costCheckIntervalMs) return;
     // Mark first so a slow send doesn't double-fire.
     setPlanSettings({ lastCostCheckAt: now });
+    await this.sendCostReport();
+  }
+
+  /**
+   * Build and send a usage report now, regardless of the configured interval.
+   * Used by the periodic tick and by the panel "Test" button.
+   *
+   * Pro/Max subscribers get a subscription-limits report (the dollar "spend vs
+   * cap" figure is a misleading token-cost estimate for flat-rate plans), while
+   * API (pay-per-token) users get the billing-period spend report.
+   */
+  async sendCostReport(): Promise<{ sent: boolean }> {
+    if (!this.deps) return { sent: false };
     try {
-      const summary = usageSummary();
-      const periodStart = billingPeriodStart(plan.billingDay);
-      const periodCost = summary.daily
-        .filter((d) => d.day >= periodStart)
-        .reduce((acc, d) => acc + d.costUsd, 0);
-      const days = daysUntilReset(plan.billingDay);
-      const pct = plan.monthlyCap > 0 ? (periodCost / plan.monthlyCap) * 100 : 0;
-      const planLabel = plan.plan === "pro" ? "Claude Pro" : plan.plan === "max" ? "Claude Max" : "API";
-      const lines = [
-        `📊 Usage report (${planLabel})`,
-        `Period spend: $${periodCost.toFixed(2)} / $${plan.monthlyCap} (${pct.toFixed(0)}%)`,
-        `Today: $${summary.today.costUsd.toFixed(4)} · ${summary.today.turns} turns`,
-        `Billing resets in ${days} day${days === 1 ? "" : "s"}.`,
-      ];
-      await this.deps.notify(lines.join("\n"));
+      const text = await this.buildCostReport();
+      await this.deps.notify(text);
+      return { sent: true };
     } catch (err) {
       log.warn("Cost report failed", { error: err instanceof Error ? err.message : String(err) });
+      return { sent: false };
     }
+  }
+
+  private async buildCostReport(): Promise<string> {
+    const plan = getPlanSettings();
+    const summary = usageSummary();
+
+    // Prefer live OAuth probe data; refresh it when missing or stale.
+    let probe = loadProbeResult();
+    const ageMs = probe ? Date.now() - new Date(probe.probedAt).getTime() : Infinity;
+    if (!probe || ageMs > 5 * 60_000) {
+      probe = await runProbe().catch(() => probe);
+    }
+
+    const isSubscriber =
+      probe?.account?.hasPro || probe?.account?.hasMax || plan.plan === "pro" || plan.plan === "max";
+
+    const planLabel = probe?.account?.hasMax
+      ? "Claude Max"
+      : probe?.account?.hasPro
+        ? "Claude Pro"
+        : plan.plan === "max"
+          ? "Claude Max"
+          : plan.plan === "pro"
+            ? "Claude Pro"
+            : "API";
+
+    if (isSubscriber) {
+      // Subscription-limits report (mirrors /usage), no dollar cap.
+      const lines = [`📊 Usage report (${planLabel})`];
+      if (probe?.source === "oauth" && probe.limits.length > 0) {
+        for (const lim of probe.limits) {
+          const msLeft = Math.max(0, new Date(lim.resetsAt).getTime() - Date.now());
+          const sev = lim.severity === "critical" ? "🔴" : lim.severity === "warning" ? "🟡" : "🟢";
+          lines.push(`${sev} ${lim.label}: ${lim.percent}% · resets in ${fmtCountdown(msLeft)}`);
+        }
+      } else {
+        lines.push("No live subscription-limit data available.");
+      }
+      lines.push(`Today: ${summary.today.turns} turn${summary.today.turns === 1 ? "" : "s"}`);
+      return lines.join("\n");
+    }
+
+    // API (pay-per-token): billing-period spend report.
+    const periodStart = billingPeriodStart(plan.billingDay);
+    const periodCost = summary.daily
+      .filter((d) => d.day >= periodStart)
+      .reduce((acc, d) => acc + d.costUsd, 0);
+    const days = daysUntilReset(plan.billingDay);
+    const pct = plan.monthlyCap > 0 ? (periodCost / plan.monthlyCap) * 100 : 0;
+    const lines = [
+      `📊 Usage report (${planLabel})`,
+      plan.monthlyCap > 0
+        ? `Period spend: $${periodCost.toFixed(2)} / $${plan.monthlyCap} (${pct.toFixed(0)}%)`
+        : `Period spend: $${periodCost.toFixed(2)}`,
+      `Today: $${summary.today.costUsd.toFixed(4)} · ${summary.today.turns} turns`,
+      `Billing resets in ${days} day${days === 1 ? "" : "s"}.`,
+    ];
+    return lines.join("\n");
   }
 
   /** Deterministic alerts, deduped by signal key within the cooldown window. */
