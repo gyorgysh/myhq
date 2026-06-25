@@ -30,6 +30,19 @@ export function usd(n: number): string {
   return `$${n.toFixed(n < 1 ? 4 : 2)}`;
 }
 
+/**
+ * Turn a raw usage-probe error into something readable. A rate-limit (429) is
+ * by far the most common, so collapse its noisy "URL → 429: {json}" form into a
+ * plain explanation; anything else is passed through as-is.
+ */
+export function friendlyProbeError(error?: string): string | undefined {
+  if (!error) return undefined;
+  if (/\b429\b/.test(error) || /rate[_ ]?limit/i.test(error)) {
+    return "Rate limited by Anthropic — showing the last known values; it retries automatically.";
+  }
+  return error;
+}
+
 export function relTime(epochMs: number): string {
   const diff = epochMs - Date.now();
   const abs = Math.abs(diff);

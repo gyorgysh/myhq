@@ -8,7 +8,7 @@ import {
   type UsageLimitWindow,
 } from "../api.ts";
 import { Bar, Card, Button, Empty, Metric } from "./ui.tsx";
-import { bytes, bytesPerSec, duration, relTime } from "../lib/format.ts";
+import { bytes, bytesPerSec, duration, relTime, friendlyProbeError } from "../lib/format.ts";
 import { useI18n } from "../lib/useI18n.ts";
 import type { TranslationKey } from "../i18n/en.ts";
 
@@ -255,11 +255,11 @@ function ClaudeUsageCard() {
         <p className="text-sm text-fg-faint">{t("health_no_probe")}</p>
       ) : (
         <div className="space-y-5">
-          {/* Error / fallback notice */}
-          {probe.source === "fallback" && (
-            <p className="text-xs text-amber-400">
-              {probe.error ?? t("health_oauth_fallback")}
-            </p>
+          {/* Error / fallback / stale notice */}
+          {(probe.error || probe.stale || probe.source === "fallback") && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+              {friendlyProbeError(probe.error) ?? t("health_oauth_fallback")}
+            </div>
           )}
 
           {/* The 2 limit bars */}
@@ -272,9 +272,13 @@ function ClaudeUsageCard() {
           ) : (
             <p className="text-sm text-fg-faint">
               {t("health_no_live_limit")}{" "}
-              {probe.source === "fallback"
-                ? t("health_oauth_not_found")
-                : t("health_no_active_limits")}
+              {/* Only blame the keychain when that's actually the cause — not when
+                  a refresh just failed (e.g. rate limited). */}
+              {probe.error
+                ? null
+                : probe.source === "fallback"
+                  ? t("health_oauth_not_found")
+                  : t("health_no_active_limits")}
             </p>
           )}
 

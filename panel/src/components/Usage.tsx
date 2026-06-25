@@ -8,7 +8,7 @@ import {
 } from "../api.ts";
 import { usePoll } from "../lib/usePoll.ts";
 import { Card, Button, Empty, Metric } from "./ui.tsx";
-import { ms, usd, relTime } from "../lib/format.ts";
+import { ms, usd, relTime, friendlyProbeError } from "../lib/format.ts";
 import { useI18n } from "../lib/useI18n.ts";
 import type { TranslationKey } from "../i18n/en.ts";
 
@@ -227,7 +227,7 @@ function LiveLimitsCard({
         <p className="text-sm text-fg-faint">{t("usage_no_data")}</p>
       ) : probe.source === "fallback" ? (
         <p className="text-sm text-amber-400">
-          {probe.error ?? t("usage_oauth_unavailable")}
+          {friendlyProbeError(probe.error) ?? t("usage_oauth_unavailable")}
         </p>
       ) : probe.limits.length === 0 ? (
         <p className="text-sm text-fg-faint">{t("usage_no_active_limits")}</p>
@@ -235,7 +235,7 @@ function LiveLimitsCard({
         <div className="space-y-5">
           {(probe.stale || probe.error) && (
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
-              {probe.error ?? t("usage_oauth_unavailable")}
+              {friendlyProbeError(probe.error) ?? t("usage_oauth_unavailable")}
             </div>
           )}
           <div className="grid gap-6 sm:grid-cols-2">
