@@ -452,7 +452,7 @@ async function handleUserPrompt(
             await tg.deleteMessage(chatId, id).catch(() => {});
           }
           await sendExpandableQuote(tg, chatId, bulk).catch(() => {});
-          await tg.sendMessage(chatId, reply, { link_preview_options: { is_disabled: true } }).catch(() => {});
+          await sendFormattedMarkdown(tg, chatId, reply).catch(() => {});
         }
       }
     }

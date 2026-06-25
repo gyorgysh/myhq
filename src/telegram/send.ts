@@ -81,7 +81,7 @@ export async function sendExpandableQuote(
   chatId: number,
   text: string,
 ): Promise<number | undefined> {
-  const plain = stripTags(text).trim();
+  const plain = stripMarkdown(text).trim();
   if (!plain) return undefined;
   // Telegram caps entity messages at 4096 chars; truncate gracefully.
   const capped = plain.length > 4000 ? `${plain.slice(0, 4000)}…` : plain;
@@ -106,4 +106,25 @@ export function stripTags(html: string): string {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&");
+}
+
+/** Strip common Markdown syntax to produce readable plain text. */
+export function stripMarkdown(md: string): string {
+  return md
+    // fenced code blocks → keep content, drop fences
+    .replace(/```[^\n]*\n([\s\S]*?)```/g, "$1")
+    // inline code
+    .replace(/`([^`]+)`/g, "$1")
+    // headings
+    .replace(/^#{1,6}\s+/gm, "")
+    // bold / italic (**, __, *, _)
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/([*_])(.*?)\1/g, "$2")
+    // blockquotes
+    .replace(/^>\s?/gm, "")
+    // horizontal rules
+    .replace(/^[-*_]{3,}\s*$/gm, "")
+    // links [text](url) → text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .trim();
 }
