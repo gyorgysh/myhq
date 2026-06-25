@@ -1,0 +1,61 @@
+MyHQ — Dual License
+
+Copyright (c) 2025 Gyorgy (gyorgy.sh)
+
+--------------------------------------------------------------------------------
+PART 1 — GNU AFFERO GENERAL PUBLIC LICENSE v3 (AGPLv3)
+--------------------------------------------------------------------------------
+
+This software is licensed under the GNU Affero General Public License,
+version 3, as published by the Free Software Foundation, for the following
+permitted uses:
+
+  - Personal, non-commercial use
+  - Research, education, and academic work
+  - Open-source projects that are themselves licensed under AGPLv3 or a
+    compatible copyleft license
+  - Contributions back to this repository
+
+The full text of the AGPLv3 is available at:
+https://www.gnu.org/licenses/agpl-3.0.txt
+
+Under the AGPLv3 you must:
+  - Make your modifications available under the same license
+  - Provide access to the complete corresponding source code to any user who
+    interacts with the software over a network
+
+--------------------------------------------------------------------------------
+PART 2 — COMMERCIAL LICENSE
+--------------------------------------------------------------------------------
+
+A separate Commercial License is required if you:
+
+  - Use, deploy, or distribute MyHQ (or any derivative work) as part of a
+    product or service offered to paying customers
+  - Use MyHQ within a for-profit organisation's internal operations or
+    infrastructure
+  - Bundle, white-label, or resell MyHQ or any substantial portion of it
+  - Remove or replace the licensing, attribution, or branding in a commercial
+    context
+
+To obtain a Commercial License, contact:
+
+  Gyorgy
+  gyorgy@pueev.com
+  https://gyorgy.sh
+
+Commercial licenses are available under terms agreed in writing. Using MyHQ
+in a commercial context without a Commercial License is a violation of this
+agreement.
+
+--------------------------------------------------------------------------------
+DISCLAIMER
+--------------------------------------------------------------------------------
+
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM,
+OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.

@@ -406,4 +406,8 @@ Created by **Gyorgy**. [gyorgy.sh](https://gyorgy.sh) · [github.com/gyorgysh](h
 
 ## License
 
-MIT
+**AGPLv3 for personal and open-source use. Commercial License required for business use.**
+
+Free to use, modify, and contribute for personal projects, research, and open-source work under the [GNU AGPLv3](LICENSE). If you use MyHQ commercially (as part of a product, service, or for-profit organisation), a separate Commercial License is required.
+
+Contact [gyorgy@pueev.com](mailto:gyorgy@pueev.com) or [gyorgy.sh](https://gyorgy.sh) to discuss commercial licensing.
