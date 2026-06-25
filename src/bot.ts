@@ -384,6 +384,9 @@ async function handleUserPrompt(
       isError: res.isError,
       chars: res.text?.length ?? 0,
     });
+    if (res.isError && res.text) {
+      await tg.sendMessage(chatId, friendlyError(new Error(res.text))).catch(() => {});
+    }
 
     // Auto skill extraction (fire-and-forget, gated by env var).
     if (!res.isError && res.toolCalls?.length) {
