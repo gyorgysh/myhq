@@ -45,6 +45,8 @@ Environment=PATH=$NODE_DIR:/usr/local/bin:/usr/bin:/bin
 ExecStart=$NODE_BIN $APP_DIR/dist/index.js
 Restart=on-failure
 RestartSec=3
+# Allow up to 85 s for graceful drain (30 s turn wait + 40 s hold + 3 s backstop).
+TimeoutStopSec=85
 
 [Install]
 WantedBy=multi-user.target

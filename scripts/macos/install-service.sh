@@ -43,7 +43,7 @@ cat > "$PLIST" <<EOF
   <key>KeepAlive</key><true/>
   <key>StandardOutPath</key><string>${LOG}</string>
   <key>StandardErrorPath</key><string>${LOG}</string>
-  <key>ExitTimeOut</key><integer>40</integer>
+  <key>ExitTimeOut</key><integer>85</integer>
 </dict>
 </plist>
 EOF

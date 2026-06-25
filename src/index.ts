@@ -85,14 +85,19 @@ async function main(): Promise<void> {
     const finish = () => {
       if (done) return;
       done = true;
-      log.info("All turns finished — flushing and exiting");
       clearTimeout(deadline);
-      sessions.flush();
-      void stopPanel?.();
-      bot.stop(signal);
-      for (const lb of leadBots) lb.stop(signal);
-      // Short backstop in case bot.stop() stalls.
-      setTimeout(() => { log.info("Forcing exit"); process.exit(0); }, 3000).unref();
+      log.info("All turns finished — waiting 40 s before exit");
+      // 40-second hold lets OS-level hooks (file watchers, launchd hooks, etc.)
+      // observe the idle state before the process disappears.
+      setTimeout(() => {
+        log.info("Flushing and exiting");
+        sessions.flush();
+        void stopPanel?.();
+        bot.stop(signal);
+        for (const lb of leadBots) lb.stop(signal);
+        // Short backstop in case bot.stop() stalls.
+        setTimeout(() => { log.info("Forcing exit"); process.exit(0); }, 3000).unref();
+      }, 40_000).unref();
     };
 
     const deadline = setTimeout(() => {
