@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# Linux/systemd installer. Creates /etc/systemd/system/telegram-agent.service,
+# Linux/systemd installer. Creates /etc/systemd/system/myhq.service,
 # builds the project, enables + starts it, and drops a scoped passwordless
 # sudoers rule so the service user (and thus the agent) can restart THIS service.
 
 set -euo pipefail
 
-SERVICE=telegram-agent
+SERVICE=myhq
 APP_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 
 if ! command -v systemctl >/dev/null 2>&1; then

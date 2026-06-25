@@ -2,6 +2,7 @@ import type { Theme } from "../lib/useTheme.ts";
 
 export type Tab =
   | "chat"
+  | "crew"
   | "health"
   | "status"
   | "workers"
@@ -35,6 +36,7 @@ export const NAV: Group[] = [
     heading: "Operate",
     items: [
       { id: "chat", label: "Chat", icon: "❯" },
+      { id: "crew", label: "Crew", icon: "⬡" },
       { id: "workers", label: "Agents", icon: "◈" },
       { id: "tasks", label: "Tasks", icon: "▤" },
       { id: "schedules", label: "Schedules", icon: "◷" },
@@ -107,7 +109,7 @@ export function Sidebar({
       <div className="flex h-14 items-center gap-2 border-b border-line px-4">
         <span className="mono text-sm font-medium text-fg">
           <span className="text-accent">%</span>
-          <span className={`ml-1.5 ${labelCls}`}>cct panel</span>
+          <span className={`ml-1.5 ${labelCls}`}>myhq</span>
           <span className="ml-0.5 animate-pulse text-accent">▮</span>
         </span>
       </div>

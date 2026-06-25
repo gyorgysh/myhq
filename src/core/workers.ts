@@ -46,6 +46,11 @@ export interface Worker {
   updatedAt: number;
   lastRunAt?: number;
   lastRunId?: string;
+  // MyHQ hierarchy fields
+  role?: "lead" | "assistant";
+  portfolio?: string; // e.g. "Finance", "DevOps", "Research"
+  parentId?: string; // assistant → id of its Lead
+  telegramToken?: string; // vault:<id> reference for the lead's own bot
 }
 
 export interface WorkerRun {
@@ -103,6 +108,11 @@ export class WorkerManager {
     return this.workers.find((w) => w.id === id);
   }
 
+  /** All workers with role === "lead" that have a telegramToken set. */
+  leads(): Worker[] {
+    return this.workers.filter((w) => w.role === "lead" && w.telegramToken && w.enabled);
+  }
+
   create(input: WorkerInput): Worker {
     const now = Date.now();
     const worker: Worker = {
@@ -116,6 +126,10 @@ export class WorkerManager {
       skillId: input.skillId || undefined,
       schedule: parseSchedule(input.when),
       enabled: input.enabled ?? true,
+      role: input.role || undefined,
+      portfolio: input.portfolio?.trim() || undefined,
+      parentId: input.parentId || undefined,
+      telegramToken: input.telegramToken?.trim() || undefined,
       createdAt: now,
       updatedAt: now,
     };
@@ -137,6 +151,10 @@ export class WorkerManager {
     if (input.skillId !== undefined) w.skillId = input.skillId || undefined;
     if (input.enabled !== undefined) w.enabled = input.enabled;
     if (input.when !== undefined) w.schedule = parseSchedule(input.when);
+    if (input.role !== undefined) w.role = input.role || undefined;
+    if (input.portfolio !== undefined) w.portfolio = input.portfolio.trim() || undefined;
+    if (input.parentId !== undefined) w.parentId = input.parentId || undefined;
+    if (input.telegramToken !== undefined) w.telegramToken = input.telegramToken.trim() || undefined;
     w.updatedAt = Date.now();
     this.persist();
     audit("worker.update", { id });
@@ -289,6 +307,10 @@ export interface WorkerInput {
   /** Schedule token: "30m", "2h", "HH:MM", or "" / undefined for manual-only. */
   when?: string;
   enabled?: boolean;
+  role?: "lead" | "assistant";
+  portfolio?: string;
+  parentId?: string;
+  telegramToken?: string;
 }
 
 function parseSchedule(when?: string): WorkerSchedule | undefined {

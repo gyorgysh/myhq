@@ -19,6 +19,7 @@ import { transcribeAudio, voiceEnabled, voiceSetupHint } from "./telegram/voice.
 import { schedules, type ScheduleRunner } from "./schedule/manager.js";
 import { heartbeat } from "./core/heartbeat.js";
 import { resolveMainRun } from "./core/mainSettings.js";
+import { workers } from "./core/workers.js";
 import { escapeHtml, normalizeAgentText } from "./telegram/formatting.js";
 import type { ImageInput } from "./claude/runner.js";
 import { sessions } from "./session/manager.js";
@@ -317,6 +318,18 @@ async function handleUserPrompt(
   // Runtime model/provider override for the main agent (panel-configurable).
   const mainRun = resolveMainRun();
 
+  // Build crew roster for Atlas's context (Lead workers only).
+  const leads = workers.list().filter((w) => w.role === "lead" && w.enabled);
+  const crew =
+    leads.length > 0
+      ? leads
+          .map(
+            (w) =>
+              `- ${w.name}${w.portfolio ? ` (${w.portfolio} Lead)` : ""}${w.systemPrompt ? `: ${w.systemPrompt.split("\n")[0]}` : ""}`,
+          )
+          .join("\n")
+      : undefined;
+
   try {
     const res = await runTurn({
       prompt,
@@ -325,6 +338,7 @@ async function handleUserPrompt(
       resume: session.sessionId,
       model: mainRun.model,
       env: mainRun.env,
+      crew,
       permissionMode: autonomous || session.mode === "auto" ? "bypassPermissions" : "default",
       abortController: session.abort,
       mcpServers: {

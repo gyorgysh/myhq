@@ -4,6 +4,7 @@ import { useTheme } from "./lib/useTheme.ts";
 import { Login } from "./components/Login.tsx";
 import { Sidebar, tabLabel, isTab, type Tab } from "./components/Sidebar.tsx";
 import { ChatView } from "./components/Chat.tsx";
+import { CrewView } from "./components/Crew.tsx";
 import { HealthView } from "./components/Health.tsx";
 import { StatusView } from "./components/Status.tsx";
 import { SessionsView } from "./components/Sessions.tsx";
@@ -130,13 +131,14 @@ export function App() {
           </button>
           <span className="mono text-sm font-medium text-fg">
             <span className="text-accent">%</span>
-            <span className="ml-1.5">cct panel</span>
+            <span className="ml-1.5">myhq</span>
             <span className="ml-0.5 text-fg-dim">/ {tabLabel(tab).toLowerCase()}</span>
           </span>
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
           {tab === "chat" && <ChatView onAuthError={onAuthError} />}
+          {tab === "crew" && <CrewView onAuthError={onAuthError} />}
           {tab === "health" && <HealthView />}
           {tab === "status" && <StatusView onAuthError={onAuthError} />}
           {tab === "updates" && <UpdatesView onAuthError={onAuthError} />}
@@ -167,7 +169,7 @@ export function App() {
             </a>
             <span className="text-fg-faint/50">·</span>
             <a
-              href="https://github.com/gyorgysh/claude-code-telegram"
+              href="https://github.com/gyorgysh/myhq"
               target="_blank"
               rel="noreferrer"
               className="text-fg-dim hover:text-fg-muted"

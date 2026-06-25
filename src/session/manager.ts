@@ -1,3 +1,4 @@
+import { dirname, isAbsolute, resolve } from "node:path";
 import { config } from "../config.js";
 import {
   emptyUsage,
@@ -35,9 +36,17 @@ export interface Session {
 export class SessionManager {
   private sessions = new Map<number, Session>();
   private saveTimer?: NodeJS.Timeout;
+  private stateFile: string;
 
-  constructor() {
-    for (const p of loadState()) {
+  /** `stateFile` defaults to STATE_FILE; a bare filename resolves next to it
+   *  (so e.g. lead bots can keep their own state alongside the main one). */
+  constructor(stateFile?: string) {
+    this.stateFile = stateFile
+      ? isAbsolute(stateFile)
+        ? stateFile
+        : resolve(dirname(config.STATE_FILE), stateFile)
+      : config.STATE_FILE;
+    for (const p of loadState(this.stateFile)) {
       this.sessions.set(p.chatId, {
         chatId: p.chatId,
         sessionId: p.sessionId,
@@ -117,7 +126,7 @@ export class SessionManager {
     if (this.saveTimer) return;
     this.saveTimer = setTimeout(() => {
       this.saveTimer = undefined;
-      saveState(this.all().map(toPersisted));
+      saveState(this.all().map(toPersisted), this.stateFile);
     }, 500);
     this.saveTimer.unref?.();
   }
@@ -128,7 +137,7 @@ export class SessionManager {
       clearTimeout(this.saveTimer);
       this.saveTimer = undefined;
     }
-    saveState(this.all().map(toPersisted));
+    saveState(this.all().map(toPersisted), this.stateFile);
   }
 }
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# cct-install.sh — one-shot installer/wizard for claude-code-telegram.
+# myhq-install.sh — one-shot installer/wizard for claude-code-telegram.
 #
-#   curl -fsSL https://gyorgy.sh/cct-install.sh | bash
+#   curl -fsSL https://gyorgy.sh/myhq-install.sh | bash
 #
 # Self-contained: it does NOT assume the repo is checked out. It installs the
 # prerequisites (Homebrew on macOS; Node 20+, git, and the Claude Code CLI on
@@ -10,15 +10,15 @@
 # the repo, builds it, walks you through .env, and finally asks whether to run
 # as a background service or by hand.
 #
-# Non-interactive overrides (env vars): CCT_REPO, CCT_DIR, CCT_BRANCH,
-# CCT_TOKEN, CCT_USER_IDS, CCT_API_KEY, CCT_MODE=service|manual,
-# CCT_VOICE=none|api|vosk, CCT_OPENAI_KEY, CCT_YES=1.
+# Non-interactive overrides (env vars): MYHQ_REPO, MYHQ_DIR, MYHQ_BRANCH,
+# MYHQ_TOKEN, MYHQ_USER_IDS, MYHQ_API_KEY, MYHQ_MODE=service|manual,
+# MYHQ_VOICE=none|api|vosk, MYHQ_OPENAI_KEY, MYHQ_YES=1.
 
 set -euo pipefail
 
-REPO_URL="${CCT_REPO:-https://github.com/gyorgysh/claude-code-telegram.git}"
-BRANCH="${CCT_BRANCH:-main}"
-DEFAULT_DIR="${CCT_DIR:-$HOME/claude-code-telegram}"
+REPO_URL="${MYHQ_REPO:-https://github.com/gyorgysh/claude-code-telegram.git}"
+BRANCH="${MYHQ_BRANCH:-main}"
+DEFAULT_DIR="${MYHQ_DIR:-$HOME/claude-code-telegram}"
 TUTORIAL="https://gyorgy.sh/blog/claude-code-telegram"
 MIN_NODE=20
 
@@ -49,11 +49,11 @@ ask() {
   printf '%s' "${ans:-$def}"
 }
 
-# confirm "Question" "Y|N" -> returns 0 for yes. CCT_YES=1 auto-accepts; with no
+# confirm "Question" "Y|N" -> returns 0 for yes. MYHQ_YES=1 auto-accepts; with no
 # terminal we decline (so an unattended pipe never does anything destructive).
 confirm() {
   local prompt="$1" def="${2:-Y}" ans=""
-  [ "${CCT_YES:-0}" = "1" ] && return 0
+  [ "${MYHQ_YES:-0}" = "1" ] && return 0
   [ -z "$TTY" ] && return 1
   local hint="[Y/n]"; [ "$def" = "N" ] && hint="[y/N]"
   printf '%s %s ' "$prompt" "$hint" >"$TTY"
@@ -275,9 +275,9 @@ configure_env() {
   cp "$APP_DIR/.env.example" "$env"
 
   local token ids key
-  token="${CCT_TOKEN:-$(ask "Telegram bot token (from @BotFather)" "")}"
-  ids="${CCT_USER_IDS:-$(ask "Allowed Telegram user id(s), comma-separated (from @userinfobot)" "")}"
-  key="${CCT_API_KEY:-}"
+  token="${MYHQ_TOKEN:-$(ask "Telegram bot token (from @BotFather)" "")}"
+  ids="${MYHQ_USER_IDS:-$(ask "Allowed Telegram user id(s), comma-separated (from @userinfobot)" "")}"
+  key="${MYHQ_API_KEY:-}"
   if [ -z "$key" ] && ! command -v claude >/dev/null 2>&1; then
     key="$(ask "Anthropic API key (leave blank to use 'claude' CLI login)" "")"
   fi
@@ -305,7 +305,7 @@ set_env() {
 # --- voice (optional) -------------------------------------------------------
 configure_voice() {
   local env="$APP_DIR/.env"
-  local choice="${CCT_VOICE:-}"
+  local choice="${MYHQ_VOICE:-}"
   if [ -z "$choice" ]; then
     printf '\n%s\n' "${B}Voice notes?${R} ${DIM}(transcribe Telegram voice messages into prompts)${R}" >"${TTY:-/dev/stdout}"
     printf '%s\n' "  ${B}1)${R} Skip" >"${TTY:-/dev/stdout}"
@@ -318,7 +318,7 @@ configure_voice() {
 
   case "$choice" in
     api)
-      local key; key="${CCT_OPENAI_KEY:-$(ask "Transcription API key (OpenAI or Groq)" "")}"
+      local key; key="${MYHQ_OPENAI_KEY:-$(ask "Transcription API key (OpenAI or Groq)" "")}"
       set_env "$env" TRANSCRIBE_PROVIDER openai
       [ -n "$key" ] && set_env "$env" OPENAI_API_KEY "$key"
       say "For Groq's free tier, set TRANSCRIBE_BASE_URL + TRANSCRIBE_MODEL in .env (see its comments)."
@@ -361,7 +361,7 @@ install_vosk_model() {
 
 # --- run mode ---------------------------------------------------------------
 choose_run_mode() {
-  local mode="${CCT_MODE:-}"
+  local mode="${MYHQ_MODE:-}"
   if [ -z "$mode" ]; then
     printf '\n%s\n' "${B}How should the bot run?${R}" >"${TTY:-/dev/stdout}"
     printf '%s\n' "  ${B}1)${R} Install as a background service ${DIM}(recommended — always on, restarts on crash/boot)${R}" >"${TTY:-/dev/stdout}"

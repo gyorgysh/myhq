@@ -239,7 +239,7 @@ export function registerCommands(bot: Telegraf): void {
     await ctx.replyWithHTML(
       `<b>Status</b>\n` +
         `📂 <code>${s.cwd}</code>\n` +
-        `🧠 model: <code>${config.CLAUDE_MODEL}</code>\n` +
+        `🧠 Atlas · <code>${config.CLAUDE_MODEL}</code>\n` +
         `🔒 mode: <b>${s.mode}</b>\n` +
         `🔗 session: <code>${s.sessionId ?? "(new)"}</code>\n` +
         `⚙️ ${s.busy ? "running…" : "idle"}`,

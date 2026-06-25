@@ -62,6 +62,8 @@ export interface RunOptions {
   env?: Record<string, string | undefined>;
   /** Extra worker/persona instructions appended to the system prompt. */
   systemPromptAppend?: string;
+  /** Roster of MyHQ Leads, folded into the system prompt for coordination. */
+  crew?: string;
   /** "default" = interactive approval; "bypassPermissions" = autonomous. */
   permissionMode: "default" | "bypassPermissions";
   abortController: AbortController;
@@ -107,7 +109,7 @@ export async function runTurn(opts: RunOptions): Promise<RunResult> {
       // Only override the child env when asked (e.g. a local-model provider);
       // otherwise the SDK defaults to process.env.
       env: opts.env ? { ...process.env, ...opts.env } : undefined,
-      systemPrompt: systemPrompt(opts.systemPromptAppend, memoryBlock),
+      systemPrompt: systemPrompt(opts.systemPromptAppend, memoryBlock, opts.crew),
       permissionMode: opts.permissionMode,
       includePartialMessages: true,
       abortController: opts.abortController,

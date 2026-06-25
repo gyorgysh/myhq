@@ -91,11 +91,11 @@ export function MainAgentCard({ onAuthError }: { onAuthError: () => void }) {
 
   return (
     <Card
-      title="Main agent"
+      title="Atlas"
       right={<Badge tone="blue">{agent.effectiveModel}</Badge>}
     >
       <p className="mb-3 text-sm text-fg-dim">
-        The agent driving Telegram chats. Changes apply on the next message (a fresh
+        Atlas, the agent driving Telegram chats. Changes apply on the next message (a fresh
         <code> claude </code> process starts per turn).
       </p>
 

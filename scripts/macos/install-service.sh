@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-LABEL=sh.gyorgy.telegram-agent
+LABEL=sh.gyorgy.myhq
 APP_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 LOG_DIR="$HOME/Library/Logs"

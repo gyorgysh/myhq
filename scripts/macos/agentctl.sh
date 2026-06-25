@@ -4,7 +4,7 @@
 # Usage: agentctl.sh {start|stop|restart|status|logs}
 
 set -euo pipefail
-LABEL=sh.gyorgy.telegram-agent
+LABEL=sh.gyorgy.myhq
 PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 LOG="$HOME/Library/Logs/${LABEL}.log"
 

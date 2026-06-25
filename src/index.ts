@@ -4,6 +4,8 @@ import { sessions } from "./session/manager.js";
 import { schedules } from "./schedule/manager.js";
 import { heartbeat } from "./core/heartbeat.js";
 import { startPanel } from "./panel/server.js";
+import { workers } from "./core/workers.js";
+import { LeadBot } from "./telegram/leadBot.js";
 import { log } from "./logger.js";
 
 async function main(): Promise<void> {
@@ -12,6 +14,10 @@ async function main(): Promise<void> {
   }
 
   const bot = buildBot();
+
+  // Start lead bots for any Lead worker with a telegramToken.
+  const leadBots: LeadBot[] = workers.leads().map((w) => new LeadBot(w));
+  await Promise.all(leadBots.map((lb) => lb.start()));
 
   // Optional embedded management panel (off unless PANEL_ENABLED=true).
   const stopPanel = await startPanel();
@@ -64,6 +70,7 @@ async function main(): Promise<void> {
     void stopPanel?.();
 
     bot.stop(signal);
+    for (const lb of leadBots) lb.stop(signal);
 
     // Backstop: if some handle still pins the loop, exit anyway rather than
     // wait for the service-manager kill. unref so this timer itself can't

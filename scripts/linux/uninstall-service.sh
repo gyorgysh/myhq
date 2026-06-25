@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-SERVICE=telegram-agent
+SERVICE=myhq
 UNIT="/etc/systemd/system/${SERVICE}.service"
 SUDOERS="/etc/sudoers.d/${SERVICE}"
 

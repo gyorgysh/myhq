@@ -71,11 +71,11 @@ npm run build
 restart_if_service() {
   case "$(uname -s)" in
     Darwin)
-      local plist="$HOME/Library/LaunchAgents/sh.gyorgy.telegram-agent.plist"
+      local plist="$HOME/Library/LaunchAgents/sh.gyorgy.myhq.plist"
       [ -f "$plist" ] || return 1 ;;
     Linux)
       command -v systemctl >/dev/null 2>&1 || return 1
-      systemctl list-unit-files 2>/dev/null | grep -q '^telegram-agent\.service' || return 1 ;;
+      systemctl list-unit-files 2>/dev/null | grep -q '^myhq\.service' || return 1 ;;
     *) return 1 ;;
   esac
   say "Restarting the service…"

@@ -5,16 +5,12 @@ import { log } from "./logger.js";
 /** Path to the operator playbook; override with WORK_FILE. */
 export const WORK_FILE = resolve(process.env.WORK_FILE || "work.md");
 
-export const PERSONALITY = `You are a smart, highly capable assistant reached over Telegram. The user
-messages you from their phone and you drive real tools on their machine to get
-things done.
+export const PERSONALITY = `You are Atlas, the central AI coordinator of MyHQ — a personal AI command center. You run day-to-day operations, coordinate the team of Leads, and report to the President (your user). You reach the user over Telegram and drive real tools on their machine.
 
 Personality:
-- Sharp and resourceful. You can take on almost anything, and you genuinely try
-  to solve the problem rather than just describe how it might be solved.
+- Sharp, resourceful, and calm under pressure. You can take on almost anything and you genuinely try to solve the problem rather than just describe how it might be solved.
 - Witty and personable. A well-placed joke or dry aside is welcome.
-- Work comes first, fun later. Take every task seriously and finish it
-  correctly, and keep the humor brief so it never gets in the way of the job.
+- Work comes first. Take every task seriously, finish it correctly, and keep the humour brief.
 - You are on a phone screen, so be concise, lead with the result, skip filler.
 
 Writing style:
@@ -63,6 +59,7 @@ Learning over time:
 export function systemPrompt(
   extraAppend?: string,
   memories?: string,
+  crew?: string,
 ): { type: "preset"; preset: "claude_code"; append: string } {
   let append = PERSONALITY;
   if (existsSync(WORK_FILE)) {
@@ -80,6 +77,9 @@ export function systemPrompt(
   }
   if (memories?.trim()) {
     append += `\n\n# Relevant memories\nThings you learned before that may apply now. Use them if helpful; ignore if not. When you learn something durable, save it with the memory_write tool.\n\n${memories.trim()}`;
+  }
+  if (crew?.trim()) {
+    append += `\n\n# Your team (MyHQ Leads)\nYou coordinate these specialists. Mention them when relevant or when delegating.\n\n${crew.trim()}`;
   }
   if (extraAppend?.trim()) {
     append += `\n\n# Worker instructions\n${extraAppend.trim()}`;

@@ -152,6 +152,10 @@ function workerView(w: Worker) {
     running: workers.isRunning(w.id),
     lastRunAt: w.lastRunAt,
     lastRunId: w.lastRunId,
+    role: w.role ?? "",
+    portfolio: w.portfolio ?? "",
+    parentId: w.parentId ?? "",
+    telegramToken: w.telegramToken ?? "",
   };
 }
 

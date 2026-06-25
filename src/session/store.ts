@@ -43,10 +43,10 @@ export function emptyUsage(): Usage {
   return { total: { turns: 0, costUsd: 0, durationMs: 0 }, daily: {} };
 }
 
-/** Read persisted sessions from STATE_FILE; returns [] if absent or unreadable. */
-export function loadState(): PersistedSession[] {
+/** Read persisted sessions from the state file; returns [] if absent or unreadable. */
+export function loadState(file: string = config.STATE_FILE): PersistedSession[] {
   try {
-    const raw = readFileSync(config.STATE_FILE, "utf8");
+    const raw = readFileSync(file, "utf8");
     const parsed = JSON.parse(raw) as StateFile;
     if (!parsed || !Array.isArray(parsed.sessions)) return [];
     return parsed.sessions.map(normalize);
@@ -58,14 +58,14 @@ export function loadState(): PersistedSession[] {
   }
 }
 
-/** Atomically write all sessions to STATE_FILE (temp file + rename). */
-export function saveState(sessions: PersistedSession[]): void {
+/** Atomically write all sessions to the state file (temp file + rename). */
+export function saveState(sessions: PersistedSession[], file: string = config.STATE_FILE): void {
   const data: StateFile = { version: 1, sessions: sessions.map(prune) };
   try {
-    mkdirSync(dirname(config.STATE_FILE), { recursive: true });
-    const tmp = `${config.STATE_FILE}.tmp`;
+    mkdirSync(dirname(file), { recursive: true });
+    const tmp = `${file}.tmp`;
     writeFileSync(tmp, JSON.stringify(data, null, 2));
-    renameSync(tmp, config.STATE_FILE);
+    renameSync(tmp, file);
   } catch (err) {
     log.error("Failed to persist state", { error: errText(err) });
   }

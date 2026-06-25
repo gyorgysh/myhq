@@ -1,7 +1,7 @@
 // Thin client over the panel's /api + /ws. The token lives in localStorage and
 // is sent as a Bearer header (REST) or ?token= query (WebSocket).
 
-const TOKEN_KEY = "cct.panel.token";
+const TOKEN_KEY = "myhq.panel.token";
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -168,6 +168,10 @@ export interface Worker {
   running: boolean;
   lastRunAt?: number;
   lastRunId?: string;
+  role?: "" | "lead" | "assistant";
+  portfolio?: string;
+  parentId?: string;
+  telegramToken?: string;
 }
 
 export interface WorkerRun {

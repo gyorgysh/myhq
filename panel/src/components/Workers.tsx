@@ -14,6 +14,10 @@ const emptyForm = {
   systemPrompt: "",
   skillId: "",
   when: "",
+  role: "" as "" | "lead" | "assistant",
+  portfolio: "",
+  parentId: "",
+  telegramToken: "",
 };
 type Form = typeof emptyForm;
 
@@ -85,7 +89,7 @@ export function WorkersView({ onAuthError }: { onAuthError: () => void }) {
       <Providers onAuthError={onAuthError} onChange={load} />
 
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-fg-dim">Sub-agent workers</h2>
+        <h2 className="text-sm font-semibold text-fg-dim">Your Crew</h2>
         {!creating && (
           <Button variant="primary" onClick={() => setCreating(true)}>
             + New worker
@@ -98,6 +102,7 @@ export function WorkersView({ onAuthError }: { onAuthError: () => void }) {
           <WorkerForm
             skills={skills}
             providers={providers}
+            workers={workers}
             initial={emptyForm}
             onCancel={() => setCreating(false)}
             onSubmit={async (form) => {
@@ -113,17 +118,42 @@ export function WorkersView({ onAuthError }: { onAuthError: () => void }) {
       {workers.length === 0 && !creating ? (
         <Empty>No workers yet. Create a persistent autonomous agent.</Empty>
       ) : (
-        workers.map((w) => (
-          <WorkerRow
-            key={w.id}
-            worker={w}
-            skills={skills}
-            providers={providers}
-            live={live[w.id]}
-            onChange={load}
-            onAuthError={onAuthError}
-          />
-        ))
+        (() => {
+          const leads = workers.filter((w) => w.role === "lead");
+          const assistants = workers.filter((w) => w.role === "assistant");
+          const specialists = workers.filter(
+            (w) => !w.role || (w.role !== "lead" && w.role !== "assistant"),
+          );
+          const row = (w: Worker) => (
+            <WorkerRow
+              key={w.id}
+              worker={w}
+              skills={skills}
+              providers={providers}
+              workers={workers}
+              live={live[w.id]}
+              onChange={load}
+              onAuthError={onAuthError}
+            />
+          );
+          const parented = new Set<string>();
+          return (
+            <>
+              {leads.map((lead) => {
+                const kids = assistants.filter((a) => a.parentId === lead.id);
+                kids.forEach((k) => parented.add(k.id));
+                return (
+                  <div key={lead.id} className="space-y-4">
+                    {row(lead)}
+                    {kids.length > 0 && <div className="ml-4 space-y-4">{kids.map(row)}</div>}
+                  </div>
+                );
+              })}
+              {assistants.filter((a) => !parented.has(a.id)).map(row)}
+              {specialists.map(row)}
+            </>
+          );
+        })()
       )}
     </div>
   );
@@ -133,6 +163,7 @@ function WorkerRow({
   worker,
   skills,
   providers,
+  workers,
   live,
   onChange,
   onAuthError,
@@ -140,6 +171,7 @@ function WorkerRow({
   worker: Worker;
   skills: Named[];
   providers: Named[];
+  workers: Worker[];
   live?: LiveRun;
   onChange: () => void;
   onAuthError: () => void;
@@ -179,6 +211,9 @@ function WorkerRow({
     <Card>
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium text-fg">{worker.name}</span>
+        {worker.role === "lead" && <Badge tone="blue">Lead</Badge>}
+        {worker.role === "assistant" && <Badge tone="zinc">Assistant</Badge>}
+        {worker.portfolio && <Badge>{worker.portfolio}</Badge>}
         <Badge tone={worker.schedule === "manual" ? "zinc" : "blue"}>{worker.schedule}</Badge>
         {worker.model && <Badge>{shortModel(worker.model)}</Badge>}
         {providerName && <Badge tone="blue">⌂ {providerName}</Badge>}
@@ -212,6 +247,7 @@ function WorkerRow({
           <WorkerForm
             skills={skills}
             providers={providers}
+            workers={workers}
             initial={{
               name: worker.name,
               cwd: worker.cwd,
@@ -221,6 +257,10 @@ function WorkerRow({
               systemPrompt: worker.systemPrompt,
               skillId: worker.skillId,
               when: worker.when,
+              role: worker.role ?? "",
+              portfolio: worker.portfolio ?? "",
+              parentId: worker.parentId ?? "",
+              telegramToken: worker.telegramToken ?? "",
             }}
             enabled={worker.enabled}
             onCancel={() => setEditing(false)}
@@ -296,6 +336,7 @@ function LiveOutput({ live }: { live?: LiveRun }) {
 function WorkerForm({
   skills,
   providers,
+  workers,
   initial,
   enabled: initialEnabled = true,
   onCancel,
@@ -304,6 +345,7 @@ function WorkerForm({
 }: {
   skills: Named[];
   providers: Named[];
+  workers: Worker[];
   initial: Form;
   enabled?: boolean;
   onCancel: () => void;
@@ -435,6 +477,57 @@ function WorkerForm({
             placeholder="30m · 2h · 09:00"
           />
         </div>
+        <div>
+          <Label>Role</Label>
+          <Select
+            value={form.role}
+            onChange={(e) =>
+              setForm({ ...form, role: e.target.value as Form["role"] })
+            }
+          >
+            <option value="">Specialist</option>
+            <option value="lead">Lead</option>
+            <option value="assistant">Assistant</option>
+          </Select>
+        </div>
+        {(form.role === "lead" || form.role === "assistant") && (
+          <div>
+            <Label>Portfolio</Label>
+            <Input
+              value={form.portfolio}
+              onChange={(e) => setForm({ ...form, portfolio: e.target.value })}
+              placeholder="Finance, DevOps, Research…"
+            />
+          </div>
+        )}
+        {form.role === "assistant" && (
+          <div>
+            <Label>Parent Lead</Label>
+            <Select
+              value={form.parentId}
+              onChange={(e) => setForm({ ...form, parentId: e.target.value })}
+            >
+              <option value="">— none —</option>
+              {workers
+                .filter((w) => w.role === "lead")
+                .map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+            </Select>
+          </div>
+        )}
+        {form.role === "lead" && (
+          <div>
+            <Label>Telegram token</Label>
+            <Input
+              value={form.telegramToken}
+              onChange={(e) => setForm({ ...form, telegramToken: e.target.value })}
+              placeholder="vault:<secret-id>"
+            />
+          </div>
+        )}
         <div className="flex items-end">
           <label className="flex items-center gap-2 text-sm text-fg-muted">
             <input

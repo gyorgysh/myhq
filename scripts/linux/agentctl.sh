@@ -4,7 +4,7 @@
 # Usage: agentctl.sh {start|stop|restart|status|logs|enable|disable}
 
 set -euo pipefail
-SERVICE=telegram-agent
+SERVICE=myhq
 
 command -v systemctl >/dev/null 2>&1 || { echo "✖ systemd not found." >&2; exit 1; }
 
