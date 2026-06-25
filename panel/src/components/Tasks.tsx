@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
-import { api, AuthError, type Column, type Priority, type Task, type Wip } from "../api.ts";
+import { api, AuthError, type Column, type ColumnDef, type Priority, type Task, type Wip } from "../api.ts";
 import { useTaskEvents, type LiveTask } from "../lib/useTaskEvents.ts";
 import { Button, Empty, Input, TextArea } from "./ui.tsx";
 
-const COLUMN_META: Record<Column, { label: string; tone: string }> = {
-  backlog: { label: "Backlog", tone: "text-fg-dim" },
-  doing: { label: "In progress", tone: "text-accent" },
-  done: { label: "Done", tone: "text-emerald-400" },
-};
+function colTone(col: ColumnDef, idx: number): string {
+  if (idx === 0) return "text-fg-dim";
+  const last = (c: string) => col.id.toLowerCase().includes(c);
+  if (last("done") || last("complete") || last("finish")) return "text-emerald-400";
+  if (idx === 1) return "text-accent";
+  return "text-fg-muted";
+}
 
 const PRIO_DOT: Record<Priority, string> = {
   high: "bg-red-500",
@@ -19,9 +21,11 @@ const DAY = 86_400_000;
 
 export function TasksView({ onAuthError }: { onAuthError: () => void }) {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [columns, setColumns] = useState<Column[]>(["backlog", "doing", "done"]);
+  const [columns, setColumns] = useState<ColumnDef[]>([]);
   const [wip, setWip] = useState<Wip>({});
   const [dragId, setDragId] = useState<string | null>(null);
+  const [renamingCol, setRenamingCol] = useState<string | null>(null);
+  const [renameVal, setRenameVal] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const load = () =>
@@ -44,7 +48,7 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
   const inColumn = (c: Column) =>
     tasks.filter((t) => t.column === c).sort((a, b) => a.order - b.order);
 
-  const drop = async (target: Column, beforeId: string | null) => {
+  const drop = async (target: Column, beforeId: string | null): Promise<void> => {
     if (!dragId) return;
     const moved = tasks.find((t) => t.id === dragId);
     setDragId(null);
@@ -67,69 +71,142 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
     }
   };
 
-  const editWip = async (col: Column) => {
-    const cur = wip[col];
-    const input = prompt(`WIP limit for "${COLUMN_META[col].label}" (blank to clear):`, cur ? String(cur) : "");
+  const editWip = async (col: ColumnDef) => {
+    const cur = wip[col.id];
+    const input = prompt(`WIP limit for "${col.name}" (blank to clear):`, cur ? String(cur) : "");
     if (input === null) return;
     const limit = input.trim() === "" ? null : Number(input);
     if (limit !== null && Number.isNaN(limit)) return;
-    const r = await api.setWip(col, limit);
+    const r = await api.setWip(col.id, limit);
     setWip(r.wip);
+  };
+
+  const addColumn = async () => {
+    const name = prompt("New column name:");
+    if (!name?.trim()) return;
+    await api.addColumn(name.trim());
+    await load();
+  };
+
+  const startRename = (col: ColumnDef) => {
+    setRenamingCol(col.id);
+    setRenameVal(col.name);
+  };
+
+  const commitRename = async (id: string) => {
+    if (renameVal.trim()) await api.renameColumn(id, renameVal.trim());
+    setRenamingCol(null);
+    await load();
+  };
+
+  const removeColumn = async (col: ColumnDef) => {
+    const count = inColumn(col.id).length;
+    if (count > 0) {
+      alert(`Move the ${count} card(s) out of "${col.name}" first.`);
+      return;
+    }
+    if (!confirm(`Remove column "${col.name}"?`)) return;
+    await api.removeColumn(col.id).catch((e: Error) => alert(e.message));
+    await load();
   };
 
   if (error) return <Empty>Failed to load: {error}</Empty>;
 
+  const gridCols =
+    columns.length <= 3 ? "md:grid-cols-3" :
+    columns.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3 lg:grid-cols-5";
+
   return (
-    <div className="grid gap-4 md:grid-cols-3">
-      {columns.map((col) => {
-        const cards = inColumn(col);
-        const limit = wip[col];
-        const over = limit != null && cards.length > limit;
-        return (
-          <div
-            key={col}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => drop(col, null)}
-            className="flex flex-col rounded-xl border border-line bg-surface p-3"
+    <div>
+      <div className={`grid gap-4 ${gridCols}`}>
+        {columns.map((col, idx) => {
+          const cards = inColumn(col.id);
+          const limit = wip[col.id];
+          const over = limit != null && cards.length > limit;
+          const tone = colTone(col, idx);
+          return (
+            <div
+              key={col.id}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => drop(col.id, null)}
+              className="flex flex-col rounded-xl border border-line bg-surface p-3"
+            >
+              <div className="mb-3 flex items-center justify-between gap-1">
+                {renamingCol === col.id ? (
+                  <input
+                    autoFocus
+                    value={renameVal}
+                    onChange={(e) => setRenameVal(e.target.value)}
+                    onBlur={() => commitRename(col.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void commitRename(col.id);
+                      if (e.key === "Escape") setRenamingCol(null);
+                    }}
+                    className="flex-1 rounded bg-input px-1 py-0.5 text-xs font-semibold uppercase tracking-wider text-fg outline-none"
+                  />
+                ) : (
+                  <h3
+                    className={`flex-1 cursor-pointer text-xs font-semibold uppercase tracking-wider ${tone} hover:opacity-80`}
+                    onClick={() => startRename(col)}
+                    title="Click to rename"
+                  >
+                    {col.name}
+                  </h3>
+                )}
+                <button
+                  onClick={() => editWip(col)}
+                  title="Set WIP limit"
+                  className={`tabular shrink-0 rounded px-1.5 text-xs ${over ? "bg-red-500/15 text-red-400" : "text-fg-faint hover:text-fg-dim"}`}
+                >
+                  {cards.length}
+                  {limit != null && ` / ${limit}`}
+                </button>
+                <button
+                  onClick={() => removeColumn(col)}
+                  title="Remove column (must be empty)"
+                  className="shrink-0 text-xs text-fg-faint hover:text-red-400 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="flex flex-1 flex-col gap-2">
+                {cards.map((t) => (
+                  <Card
+                    key={t.id}
+                    task={t}
+                    live={live[t.id]}
+                    onDragStart={() => setDragId(t.id)}
+                    onDropBefore={() => drop(col.id, t.id)}
+                    onChange={load}
+                    onAuthError={onAuthError}
+                  />
+                ))}
+              </div>
+
+              <AddCard column={col.id} onAdded={load} onAuthError={onAuthError} />
+            </div>
+          );
+        })}
+
+        {/* Add column button */}
+        <div className="flex items-start">
+          <button
+            onClick={addColumn}
+            className="mt-0 flex items-center gap-1.5 rounded-xl border border-dashed border-line px-3 py-2 text-xs text-fg-faint hover:border-fg-dim hover:text-fg-dim transition-colors"
           >
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className={`text-xs font-semibold uppercase tracking-wider ${COLUMN_META[col].tone}`}>
-                {COLUMN_META[col].label}
-              </h3>
-              <button
-                onClick={() => editWip(col)}
-                title="Set WIP limit"
-                className={`tabular rounded px-1.5 text-xs ${over ? "bg-red-500/15 text-red-400" : "text-fg-faint hover:text-fg-dim"}`}
-              >
-                {cards.length}
-                {limit != null && ` / ${limit}`}
-              </button>
-            </div>
-
-            <div className="flex flex-1 flex-col gap-2">
-              {cards.map((t) => (
-                <Card
-                  key={t.id}
-                  task={t}
-                  live={live[t.id]}
-                  onDragStart={() => setDragId(t.id)}
-                  onDropBefore={() => drop(col, t.id)}
-                  onChange={load}
-                  onAuthError={onAuthError}
-                />
-              ))}
-            </div>
-
-            <AddCard column={col} onAdded={load} onAuthError={onAuthError} />
-          </div>
-        );
-      })}
+            <span>+</span>
+            <span>Add column</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
 function ageBorder(task: Task): string {
-  if (task.column === "done") return "border-line";
+  const col = task.column.toLowerCase();
+  if (col === "done" || col.includes("done") || col.includes("complete")) return "border-line";
   const age = Date.now() - task.updatedAt;
   if (age > 14 * DAY) return "border-l-2 border-l-red-500/60 border-line";
   if (age > 7 * DAY) return "border-l-2 border-l-amber-500/50 border-line";
@@ -272,7 +349,7 @@ function Card({
         </div>
       )}
 
-      {!running && task.column !== "done" && (
+      {!running && !task.column.toLowerCase().includes("done") && (
         <button
           onClick={delegate}
           className="mt-2 w-full rounded border border-line py-1 text-xs text-fg-dim hover:bg-surface-2 hover:text-fg"

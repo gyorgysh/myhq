@@ -1,11 +1,15 @@
 import { randomBytes } from "node:crypto";
 import { loadJson, saveJson } from "./jsonStore.js";
 import { audit } from "./audit.js";
+import { isValidColumn, getColumnIds } from "./columnConfig.js";
 
 const FILE = "tasks.json";
 
-export const COLUMNS = ["backlog", "doing", "done"] as const;
-export type Column = (typeof COLUMNS)[number];
+/** Column id is now an arbitrary string defined by the column config store. */
+export type Column = string;
+
+/** @deprecated Use listColumns() from columnConfig.ts for the full column list. */
+export const COLUMNS = getColumnIds();
 
 export const PRIORITIES = ["low", "normal", "high"] as const;
 export type Priority = (typeof PRIORITIES)[number];
@@ -41,7 +45,7 @@ interface TaskFile {
   version: 1;
   tasks: Task[];
   /** Optional WIP limit per column (advisory; surfaced in the panel). */
-  wip?: Partial<Record<Column, number>>;
+  wip?: Record<string, number>;
 }
 
 function loadFile(): TaskFile {
@@ -55,13 +59,13 @@ function load(): Task[] {
   return loadFile().tasks;
 }
 
-function persist(tasks: Task[], wip?: Partial<Record<Column, number>>): void {
+function persist(tasks: Task[], wip?: Record<string, number>): void {
   const current = loadFile();
   saveJson<TaskFile>(FILE, { version: 1, tasks, wip: wip ?? current.wip });
 }
 
 function isColumn(v: unknown): v is Column {
-  return typeof v === "string" && (COLUMNS as readonly string[]).includes(v);
+  return typeof v === "string" && isValidColumn(v);
 }
 
 function isPriority(v: unknown): v is Priority {
@@ -72,12 +76,11 @@ export function listTasks(): Task[] {
   return load().sort((a, b) => a.order - b.order);
 }
 
-export function getWip(): Partial<Record<Column, number>> {
+export function getWip(): Record<string, number> {
   return loadFile().wip ?? {};
 }
 
-export function setWip(column: string, limit: number | null): Partial<Record<Column, number>> {
-  if (!isColumn(column)) return getWip();
+export function setWip(column: string, limit: number | null): Record<string, number> {
   const wip = { ...getWip() };
   if (limit == null || limit <= 0) delete wip[column];
   else wip[column] = Math.floor(limit);
@@ -85,6 +88,9 @@ export function setWip(column: string, limit: number | null): Partial<Record<Col
   audit("task.wip", { column, limit });
   return wip;
 }
+
+/** Re-export column list for callers that only import tasks.ts. */
+export { listColumns, getColumnIds } from "./columnConfig.js";
 
 /** Update just the delegation state of a card (used by the task runner). */
 export function setDelegate(id: string, delegate: TaskDelegation | undefined): Task | undefined {
@@ -105,7 +111,8 @@ export function createTask(input: {
   parentId?: string;
 }): Task {
   const now = Date.now();
-  const column = isColumn(input.column) ? input.column : "backlog";
+  const validCols = getColumnIds();
+  const column = isColumn(input.column) ? input.column : (validCols[0] ?? "backlog");
   const tasks = load();
   // New card goes to the end of its column.
   const maxOrder = Math.max(0, ...tasks.filter((t) => t.column === column).map((t) => t.order));

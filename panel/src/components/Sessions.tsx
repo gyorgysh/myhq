@@ -16,7 +16,7 @@ export function SessionsView({ onAuthError }: { onAuthError: () => void }) {
         <Card key={s.chatId}>
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-sm text-fg">chat {s.chatId}</span>
-            <Badge tone={s.mode === "auto" ? "amber" : "zinc"}>{s.mode}</Badge>
+            <Badge tone={s.autonomy === "full" ? "amber" : s.autonomy === "supervised" ? "blue" : "zinc"}>{s.autonomy}</Badge>
             {s.busy && <Badge tone="blue">busy</Badge>}
             {s.hasContext && <Badge tone="green">context</Badge>}
             <span className="ml-auto tabular text-xs text-fg-dim">

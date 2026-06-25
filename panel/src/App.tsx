@@ -3,6 +3,8 @@ import { api, clearToken, getToken } from "./api.ts";
 import { useTheme } from "./lib/useTheme.ts";
 import { Login } from "./components/Login.tsx";
 import { Sidebar, tabLabel, isTab, type Tab } from "./components/Sidebar.tsx";
+import { useI18n } from "./lib/useI18n.ts";
+import type { TranslationKey } from "./i18n/en.ts";
 import { ChatView } from "./components/Chat.tsx";
 import { CrewView } from "./components/Crew.tsx";
 import { HealthView } from "./components/Health.tsx";
@@ -20,6 +22,7 @@ import { TasksView } from "./components/Tasks.tsx";
 import { WorkersView } from "./components/Workers.tsx";
 import { LogsView } from "./components/Logs.tsx";
 import { HeartbeatView_ } from "./components/Heartbeat.tsx";
+import { SettingsView } from "./components/Settings.tsx";
 
 /** Tab from the URL path (e.g. /status), falling back to health. */
 function tabFromPath(): Tab {
@@ -29,13 +32,15 @@ function tabFromPath(): Tab {
 
 export function App() {
   const [authed, setAuthed] = useState(Boolean(getToken()));
-  const [tab, setTab] = useState<Tab>(tabFromPath);
+  const [tab, setTab] = useState<Tab | "settings">(tabFromPath);
   const [drawer, setDrawer] = useState(false);
   const [chatEnabled, setChatEnabled] = useState(true);
+  const [brandName, setBrandName] = useState("MyHQ");
   const { theme, toggle, set } = useTheme();
+  const { t } = useI18n();
 
   // Switch tab and reflect it in the URL (so a refresh reloads the same view).
-  const select = (t: Tab) => {
+  const select = (t: Tab | "settings") => {
     setTab(t);
     setDrawer(false);
     if (location.pathname !== `/${t}`) history.pushState(null, "", `/${t}`);
@@ -44,7 +49,10 @@ export function App() {
   // Learn which optional features are on (chat can be disabled via env).
   useEffect(() => {
     if (!authed) return;
-    api.me().then((m) => setChatEnabled(m.chatEnabled)).catch(() => {});
+    api.me().then((m) => {
+      setChatEnabled(m.chatEnabled);
+      if (m.brandName) setBrandName(m.brandName);
+    }).catch(() => {});
   }, [authed]);
 
   // Keep the tab in sync with the URL on back/forward navigation.
@@ -57,6 +65,7 @@ export function App() {
   // Don't strand the user on a hidden tab.
   useEffect(() => {
     if (!chatEnabled && tab === "chat") select("health");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatEnabled, tab]);
 
   // Hidden easter egg: flipping the light/dark theme 9 times unlocks (and the
@@ -95,6 +104,7 @@ export function App() {
           onToggleTheme={onToggleTheme}
           onSignOut={onAuthError}
           chatEnabled={chatEnabled}
+          brandName={brandName}
         />
       </aside>
 
@@ -114,6 +124,7 @@ export function App() {
               onSignOut={onAuthError}
               chatEnabled={chatEnabled}
               expanded
+              brandName={brandName}
             />
           </aside>
         </div>
@@ -131,8 +142,10 @@ export function App() {
           </button>
           <span className="mono text-sm font-medium text-fg">
             <span className="text-accent">%</span>
-            <span className="ml-1.5">myhq</span>
-            <span className="ml-0.5 text-fg-dim">/ {tabLabel(tab).toLowerCase()}</span>
+            <span className="ml-1.5">{brandName}</span>
+            <span className="ml-0.5 text-fg-dim">
+              / {tab === "settings" ? t("nav_settings").toLowerCase() : t(tabLabel(tab as Tab) as TranslationKey).toLowerCase()}
+            </span>
           </span>
         </header>
 
@@ -154,6 +167,7 @@ export function App() {
           {tab === "schedules" && <SchedulesView onAuthError={onAuthError} />}
           {tab === "heartbeat" && <HeartbeatView_ onAuthError={onAuthError} />}
           {tab === "usage" && <UsageView onAuthError={onAuthError} />}
+          {tab === "settings" && <SettingsView onAuthError={onAuthError} />}
 
           {tab !== "chat" && (
           <footer className="mt-10 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-fg-faint">

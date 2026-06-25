@@ -74,7 +74,7 @@ export interface Health {
 export interface SessionView {
   chatId: number;
   cwd: string;
-  mode: "safe" | "auto";
+  autonomy: Autonomy;
   busy: boolean;
   hasContext: boolean;
   projects: string[];
@@ -107,16 +107,6 @@ export interface PromptView {
   exists: boolean;
 }
 
-export interface Skill {
-  id: string;
-  name: string;
-  description: string;
-  prompt: string;
-  cwd?: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
 export interface ClaudeFile {
   path: string;
   rel: string;
@@ -128,7 +118,9 @@ export interface ClaudeRoot {
   files: ClaudeFile[];
 }
 
-export type Column = "backlog" | "doing" | "done";
+/** Column id is now any string defined by the column config (no longer a fixed union). */
+export type Column = string;
+export interface ColumnDef { id: string; name: string; order: number; }
 export type Priority = "low" | "normal" | "high";
 export interface TaskDelegation {
   status: "running" | "ok" | "error" | "stopped";
@@ -150,7 +142,7 @@ export interface Task {
   createdAt: number;
   updatedAt: number;
 }
-export type Wip = Partial<Record<Column, number>>;
+export type Wip = Record<string, number | undefined>;
 
 export interface Worker {
   id: string;
@@ -172,6 +164,152 @@ export interface Worker {
   portfolio?: string;
   parentId?: string;
   telegramToken?: string;
+  persona?: string;
+  autonomy?: Autonomy;
+  language?: string;
+}
+
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  prompt: string;
+  cwd?: string;
+  useCount: number;
+  archived?: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type PlanType = "pro" | "max" | "api";
+
+export interface ClaudeAccount {
+  loggedIn: boolean;
+  email?: string;
+  subscriptionType?: string;
+  authMethod?: string;
+}
+
+export interface ClaudeDailyActivity {
+  date: string;
+  messageCount: number;
+  sessionCount: number;
+  toolCallCount: number;
+}
+
+export interface ClaudeModelTokens {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  costUSD: number;
+}
+
+export interface ClaudeUsageWindow {
+  count: number;
+  baseline: number;
+  pctOfBaseline: number;
+  resetsAt: string;
+  resetsLabel: string;
+  resetsInMs: number;
+}
+
+export interface ClaudeActiveSession {
+  pid: number;
+  sessionId: string;
+  cwd: string;
+  startedAt: number;
+  status: string;
+}
+
+export interface ClaudeUsageSnapshot {
+  account: ClaudeAccount;
+  lastRecordedDay?: ClaudeDailyActivity;
+  todayDate: string;
+  hasTodayData: boolean;
+  daily: ClaudeUsageWindow;
+  weekly: ClaudeUsageWindow;
+  activeSessions: ClaudeActiveSession[];
+  recentDays: ClaudeDailyActivity[];
+  lastDayTokens: Record<string, ClaudeModelTokens>;
+  totalMessages: number;
+  totalSessions: number;
+  firstSessionDate?: string;
+  fetchedAt: number;
+}
+
+export interface PlanSettings {
+  plan: PlanType;
+  monthlyCap: number;
+  billingDay: number;
+  alertThresholdPct: number;
+  dailyCapUsd?: number;
+  weeklyCapUsd?: number;
+  costCheckIntervalMs?: number;
+  lastCostCheckAt?: number;
+  probeIntervalMs: number;
+}
+
+export interface UsageLimitWindow {
+  percent: number;
+  resetsAt: string;
+  resetsInMs: number;
+  label: string;
+  severity: "normal" | "warning" | "critical";
+}
+
+export interface ProbeAccount {
+  email?: string;
+  fullName?: string;
+  hasPro: boolean;
+  hasMax: boolean;
+  subscriptionStatus?: string;
+  subscriptionType?: string;
+}
+
+export interface ProbeResult {
+  probedAt?: string;
+  source: "oauth" | "fallback" | "none";
+  error?: string;
+  account?: ProbeAccount;
+  limits: UsageLimitWindow[];
+  extraUsageEnabled?: boolean;
+  activity?: {
+    lastDate: string;
+    messageCount: number;
+    toolCallCount: number;
+    sessionCount: number;
+    weeklyMessageCount: number;
+  };
+}
+
+export interface PlanView extends PlanSettings {
+  periodStart: string;
+  periodCostUsd: number;
+  daysUntilReset: number;
+  dailyAvgUsd: number;
+  estimatedMonthlyUsd: number;
+  pctUsed: number;
+}
+
+export interface MaintenanceStats {
+  lastRunAt?: number;
+  memoriesCompacted: number;
+  memoriesDeleted: number;
+  memoriesMerged: number;
+  skillsArchived: number;
+}
+
+export interface DelegationRecord {
+  ts: number;
+  fromAgentId?: string;
+  toAgentId?: string;
+  leadName?: string;
+  task?: string;
+  summary?: string;
+  outputTail?: string;
+  durationMs?: number;
+  costUsd?: number;
+  type?: string;
 }
 
 export interface WorkerRun {
@@ -243,11 +381,14 @@ export interface SecretView {
   updatedAt: number;
 }
 
+export type MemoryTier = "hot" | "warm" | "cold";
+
 export interface MemoryEntry {
   id: string;
   text: string;
   tags: string[];
   salience: number;
+  tier: MemoryTier;
   useCount: number;
   createdAt: number;
   updatedAt: number;
@@ -272,6 +413,8 @@ export interface ChatView {
   hasContext: boolean;
 }
 
+export type Autonomy = "supervised" | "standard" | "full";
+
 export interface MainAgent {
   model: string;
   providerId: string;
@@ -280,6 +423,9 @@ export interface MainAgent {
   providerBaseUrl?: string;
   providers: Array<{ id: string; name: string }>;
   serviceInstalled: boolean;
+  persona: string;
+  autonomy: Autonomy;
+  defaultLanguage: string;
 }
 
 export interface Provider {
@@ -300,7 +446,8 @@ export interface LogEntry {
 }
 
 export const api = {
-  me: () => get<{ ok: boolean; chatEnabled: boolean; version: string }>("/api/me"),
+  me: () =>
+    get<{ ok: boolean; chatEnabled: boolean; version: string; atlasName: string; brandName: string }>("/api/me"),
   sessions: () => get<{ sessions: SessionView[] }>("/api/sessions"),
   logs: () => get<{ logs: LogEntry[] }>("/api/logs"),
   schedules: () => get<{ schedules: ScheduleView[] }>("/api/schedules"),
@@ -323,7 +470,7 @@ export const api = {
   saveClaudeFile: (path: string, content: string) =>
     req<{ ok: boolean }>("PUT", "/api/claude-files/content", { path, content }),
 
-  tasks: () => get<{ tasks: Task[]; columns: Column[]; wip: Wip }>("/api/tasks"),
+  tasks: () => get<{ tasks: Task[]; columns: ColumnDef[]; wip: Wip }>("/api/tasks"),
   createTask: (t: { title: string; notes?: string; column?: Column; priority?: Priority }) =>
     req<Task>("POST", "/api/tasks", t),
   updateTask: (id: string, t: Partial<Task>) => req<Task>("PATCH", `/api/tasks/${id}`, t),
@@ -334,9 +481,21 @@ export const api = {
     req<{ wip: Wip }>("PUT", "/api/tasks/wip", { column, limit }),
   delegateTask: (id: string) => req<{ ok: boolean }>("POST", `/api/tasks/${id}/delegate`),
   stopTask: (id: string) => req<{ ok: boolean }>("POST", `/api/tasks/${id}/stop`),
+  addColumn: (name: string) => req<ColumnDef>("POST", "/api/tasks/columns", { name }),
+  renameColumn: (id: string, name: string) => req<ColumnDef>("PUT", `/api/tasks/columns/${id}`, { name }),
+  removeColumn: (id: string) => req<{ ok: boolean }>("DELETE", `/api/tasks/columns/${id}`),
+
+  plan: () => get<PlanView>("/api/plan"),
+  savePlan: (s: Partial<PlanSettings>) => req<PlanSettings>("PUT", "/api/plan", s),
+
+  claudeUsage: () => get<ClaudeUsageSnapshot>("/api/claude-usage"),
+
+  usageProbe: () => get<ProbeResult>("/api/usage-probe"),
+  runProbe: () => req<{ ok: boolean; message: string }>("POST", "/api/usage-probe/run"),
 
   agent: () => get<MainAgent>("/api/agent"),
-  saveAgent: (s: { model?: string; providerId?: string }) => req<MainAgent>("PUT", "/api/agent", s),
+  saveAgent: (s: { model?: string; providerId?: string; persona?: string; autonomy?: Autonomy; defaultLanguage?: string }) =>
+    req<MainAgent>("PUT", "/api/agent", s),
   resetAgent: () => req<{ sessions: number; aborted: number }>("POST", "/api/agent/reset"),
   restartAgent: () => req<{ ok: boolean; restarting: boolean }>("POST", "/api/agent/restart"),
 
@@ -372,13 +531,32 @@ export const api = {
   revealSecret: (id: string) => get<{ value: string }>(`/api/vault/${id}/reveal`),
   importSecrets: () => req<{ imported: number }>("POST", "/api/vault/import"),
 
-  memories: (q?: string) =>
-    get<{ memories: MemoryEntry[] }>(`/api/memories${q ? `?q=${encodeURIComponent(q)}` : ""}`),
-  createMemory: (m: { text: string; tags?: string[]; salience?: number }) =>
+  memories: (q?: string, all?: boolean) =>
+    get<{ memories: MemoryEntry[] }>(
+      `/api/memories${q ? `?q=${encodeURIComponent(q)}${all ? "&all=true" : ""}` : ""}`,
+    ),
+  createMemory: (m: { text: string; tags?: string[]; salience?: number; tier?: MemoryTier }) =>
     req<MemoryEntry>("POST", "/api/memories", m),
-  updateMemory: (id: string, m: { text?: string; tags?: string[]; salience?: number }) =>
+  updateMemory: (id: string, m: { text?: string; tags?: string[]; salience?: number; tier?: MemoryTier }) =>
     req<MemoryEntry>("PUT", `/api/memories/${id}`, m),
+  setMemoryTier: (id: string, tier: MemoryTier) =>
+    req<MemoryEntry>("PATCH", `/api/memories/${id}/tier`, { tier }),
   deleteMemory: (id: string) => req<{ ok: boolean }>("DELETE", `/api/memories/${id}`),
+
+  maintenance: () => get<MaintenanceStats>("/api/maintenance"),
+  runMaintenance: () => req<MaintenanceStats>("POST", "/api/maintenance/run"),
+
+  delegations: (limit?: number) =>
+    get<{ delegations: DelegationRecord[] }>(
+      `/api/delegations${limit ? `?limit=${limit}` : ""}`,
+    ),
+
+  council: (limit?: number) =>
+    get<{ sessions: Record<string, unknown>[] }>(
+      `/api/council${limit ? `?limit=${limit}` : ""}`,
+    ),
+
+  languages: () => get<{ languages: Record<string, string> }>("/api/languages"),
 
   chat: () => get<ChatView>("/api/chat"),
   sendChat: (text: string) => req<ChatView>("POST", "/api/chat/send", { text }),

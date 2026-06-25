@@ -1,4 +1,5 @@
 import { sessions } from "../session/manager.js";
+import type { Autonomy } from "../session/manager.js";
 import { schedules } from "../schedule/manager.js";
 import { describeSpec } from "../schedule/manager.js";
 import type { UsageStat } from "../session/store.js";
@@ -7,7 +8,7 @@ import type { UsageStat } from "../session/store.js";
 export interface SessionView {
   chatId: number;
   cwd: string;
-  mode: "safe" | "auto";
+  autonomy: Autonomy;
   busy: boolean;
   hasContext: boolean;
   projects: string[];
@@ -39,7 +40,7 @@ export function listSessions(): SessionView[] {
   return sessions.all().map((s) => ({
     chatId: s.chatId,
     cwd: s.cwd,
-    mode: s.mode,
+    autonomy: s.autonomy,
     busy: s.busy,
     hasContext: Boolean(s.sessionId),
     projects: s.projects,

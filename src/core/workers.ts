@@ -1,16 +1,17 @@
 import { randomBytes } from "node:crypto";
-import { runTurn } from "../claude/runner.js";
+import { runTurn, AUTO_ALLOWED_TOOLS } from "../claude/runner.js";
 import { memoryMcp } from "../mcp/memory.js";
 import { tasksMcp } from "../mcp/tasks.js";
 import { skillsMcp } from "../mcp/skills.js";
 import { nextRun, parseWhen, describeSpec } from "../schedule/manager.js";
 import type { ScheduleSpec } from "../schedule/store.js";
 import { loadJson, saveJson } from "./jsonStore.js";
-import { getSkill } from "./skills.js";
+import { getSkill, recordSkillUse } from "./skills.js";
 import { getProvider } from "./providers.js";
 import { resolveSecret } from "./vault.js";
 import { audit } from "./audit.js";
 import { log } from "../logger.js";
+import type { Autonomy } from "../session/manager.js";
 
 const FILE = "workers.json";
 const RUNS_FILE = "workerRuns.json";
@@ -51,6 +52,20 @@ export interface Worker {
   portfolio?: string; // e.g. "Finance", "DevOps", "Research"
   parentId?: string; // assistant → id of its Lead
   telegramToken?: string; // vault:<id> reference for the lead's own bot
+  /**
+   * Character and tone. Injected into the system prompt after the base personality.
+   * Separate from systemPrompt (domain knowledge / task instructions).
+   */
+  persona?: string;
+  /**
+   * Autonomy level for runs.
+   * supervised = only AUTO_ALLOWED_TOOLS pass, risky tools denied.
+   * standard   = AUTO_ALLOWED_TOOLS pass, risky tools denied (unattended).
+   * full       = bypass all permissions (default — current behaviour).
+   */
+  autonomy?: Autonomy;
+  /** BCP 47 language tag for this worker's preferred response language. */
+  language?: string;
 }
 
 export interface WorkerRun {
@@ -130,6 +145,9 @@ export class WorkerManager {
       portfolio: input.portfolio?.trim() || undefined,
       parentId: input.parentId || undefined,
       telegramToken: input.telegramToken?.trim() || undefined,
+      persona: input.persona?.trim() || undefined,
+      autonomy: input.autonomy || undefined,
+      language: input.language?.trim() || undefined,
       createdAt: now,
       updatedAt: now,
     };
@@ -155,6 +173,9 @@ export class WorkerManager {
     if (input.portfolio !== undefined) w.portfolio = input.portfolio.trim() || undefined;
     if (input.parentId !== undefined) w.parentId = input.parentId || undefined;
     if (input.telegramToken !== undefined) w.telegramToken = input.telegramToken.trim() || undefined;
+    if (input.persona !== undefined) w.persona = input.persona.trim() || undefined;
+    if (input.autonomy !== undefined) w.autonomy = input.autonomy || undefined;
+    if (input.language !== undefined) w.language = input.language.trim() || undefined;
     w.updatedAt = Date.now();
     this.persist();
     audit("worker.update", { id });
@@ -216,6 +237,7 @@ export class WorkerManager {
 
   private async execute(w: Worker, run: WorkerRun, abort: AbortController): Promise<void> {
     const skill = w.skillId ? getSkill(w.skillId) : undefined;
+    if (skill && w.skillId) recordSkillUse(w.skillId);
     const append = [skill?.prompt, w.systemPrompt].filter(Boolean).join("\n\n") || undefined;
     // Point the run at a local model server / proxy if a provider is set.
     // Clear ANTHROPIC_API_KEY so the auth token (not a stale key) is used.
@@ -227,6 +249,14 @@ export class WorkerManager {
           ANTHROPIC_API_KEY: undefined,
         }
       : undefined;
+
+    const autonomy = w.autonomy ?? "full";
+    // For unattended workers there is no human to approve tool calls, so:
+    //   full       → bypassPermissions (default — current behaviour).
+    //   standard   → auto-allow safe tools, deny risky ones silently.
+    //   supervised → deny everything that isn't in AUTO_ALLOWED_TOOLS.
+    const permissionMode = autonomy === "full" ? "bypassPermissions" : "default";
+
     try {
       const res = await runTurn({
         prompt: w.prompt,
@@ -234,10 +264,16 @@ export class WorkerManager {
         model: w.model,
         env,
         systemPromptAppend: append,
-        permissionMode: "bypassPermissions",
+        persona: w.persona,
+        language: w.language,
+        permissionMode,
         abortController: abort,
         mcpServers: { memory: memoryMcp, tasks: tasksMcp, skills: skillsMcp },
-        canUseTool: async (_name, input) => ({ behavior: "allow", updatedInput: input }),
+        canUseTool: async (toolName, input) => {
+          // supervised/standard: only AUTO_ALLOWED_TOOLS pass for unattended workers.
+          if (AUTO_ALLOWED_TOOLS.has(toolName)) return { behavior: "allow", updatedInput: input };
+          return { behavior: "deny", message: "Tool not permitted for unattended worker." };
+        },
         onText: (delta) => {
           run.output = (run.output + delta).slice(-OUTPUT_CAP);
           this.broadcast({ type: "worker", event: "delta", runId: run.id, workerId: w.id, delta });
@@ -311,6 +347,9 @@ export interface WorkerInput {
   portfolio?: string;
   parentId?: string;
   telegramToken?: string;
+  persona?: string;
+  autonomy?: Autonomy;
+  language?: string;
 }
 
 function parseSchedule(when?: string): WorkerSchedule | undefined {

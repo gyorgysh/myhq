@@ -2,6 +2,9 @@ import { existsSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import type { Telegraf } from "telegraf";
 import { mainSettingsView } from "./core/mainSettings.js";
+import { config } from "./config.js";
+import { AGENT_LANGUAGES, isValidLanguage, languageName } from "./core/languages.js";
+import { runCouncil, formatCouncilTelegram } from "./core/council.js";
 import { sessions } from "./session/manager.js";
 import { sendDiff } from "./telegram/gitFlow.js";
 import { sendProjectsMenu } from "./telegram/projects.js";
@@ -27,7 +30,9 @@ Just send a message and I'll run it through Claude Code in your working director
 /allow &lt;Tool&gt; · /allowed · /disallow — manage always-allow rules
 /schedule — run a prompt on a timer (e.g. <code>/schedule add 2h | check disk</code>)
 /stop — abort the running request
-/mode safe|auto — interactive approval (default) or autonomous
+/mode supervised|standard|full — set approval level
+/lang — set response language
+/council — put an idea to a lead council vote
 /help — this message
 
 You can also upload files or photos (I can see images), or send a voice note.`;
@@ -239,8 +244,8 @@ export function registerCommands(bot: Telegraf): void {
     await ctx.replyWithHTML(
       `<b>Status</b>\n` +
         `📂 <code>${s.cwd}</code>\n` +
-        `🧠 Atlas · <code>${mainSettingsView().effectiveModel}</code>\n` +
-        `🔒 mode: <b>${s.mode}</b>\n` +
+        `🧠 ${config.ATLAS_NAME} · <code>${mainSettingsView().effectiveModel}</code>\n` +
+        `🔒 autonomy: <b>${s.autonomy}</b>\n` +
         `🔗 session: <code>${s.sessionId ?? "(new)"}</code>\n` +
         `⚙️ ${s.busy ? "running…" : "idle"}`,
     );
@@ -260,17 +265,84 @@ export function registerCommands(bot: Telegraf): void {
   bot.command("mode", async (ctx) => {
     const s = sessions.get(ctx.chat.id);
     const arg = ctx.message.text.split(/\s+/)[1]?.toLowerCase();
-    if (arg === "safe" || arg === "auto") {
-      s.mode = arg;
+    if (arg === "supervised" || arg === "standard" || arg === "full") {
+      s.autonomy = arg;
       sessions.save();
-      log.info("Command /mode", { chatId: ctx.chat.id, mode: arg });
-      await ctx.reply(
-        arg === "auto"
-          ? "⚠️ Autonomous mode: tools run without approval."
-          : "🔒 Safe mode: risky tools require approval.",
-      );
+      log.info("Command /mode", { chatId: ctx.chat.id, autonomy: arg });
+      const msg: Record<string, string> = {
+        supervised: "🔒 Supervised: all tools require approval, no auto-allow.",
+        standard: "⚖️ Standard: safe tools auto-allowed, risky tools prompt.",
+        full: "⚠️ Full: all tools run without approval (autonomous).",
+      };
+      await ctx.reply(msg[arg]);
+    } else if (arg === "safe") {
+      s.autonomy = "standard";
+      sessions.save();
+      await ctx.reply("⚖️ Standard mode (was: safe). Safe tools auto-allowed, risky tools prompt.");
+    } else if (arg === "auto") {
+      s.autonomy = "full";
+      sessions.save();
+      await ctx.reply("⚠️ Full mode (was: auto). Tools run without approval.");
     } else {
-      await ctx.reply(`Current mode: ${s.mode}. Usage: /mode safe|auto`);
+      await ctx.reply(
+        `Current autonomy: ${s.autonomy}. Usage: /mode supervised|standard|full`,
+      );
+    }
+  });
+
+  bot.command("lang", async (ctx) => {
+    const s = sessions.get(ctx.chat.id);
+    const arg = ctx.message.text.split(/\s+/)[1]?.toLowerCase();
+
+    if (!arg) {
+      const current = s.language ?? config.DEFAULT_LANGUAGE;
+      const list = Object.entries(AGENT_LANGUAGES)
+        .map(([k, v]) => `<code>${k}</code> ${v}`)
+        .join("  ·  ");
+      await ctx.replyWithHTML(
+        `🌐 Current language: <b>${languageName(current)}</b> (<code>${current}</code>)\n\n` +
+          `Available:\n${list}\n\nUsage: <code>/lang hu</code>`,
+      );
+      return;
+    }
+
+    if (!isValidLanguage(arg)) {
+      await ctx.reply(`Unknown language code: ${arg}. Send /lang to see available codes.`);
+      return;
+    }
+
+    s.language = arg;
+    sessions.save();
+    log.info("Command /lang", { chatId: ctx.chat.id, language: arg });
+    await ctx.reply(
+      arg === "en"
+        ? `🌐 Language set to English.`
+        : `🌐 Language set to ${languageName(arg)}. The agent will respond in ${languageName(arg)} from now on.`,
+    );
+  });
+
+  bot.command("council", async (ctx) => {
+    const proposal = ctx.message.text.replace(/^\/council(@\S+)?\s*/, "").trim();
+    if (!proposal) {
+      await ctx.reply("Usage: /council <your idea or proposal>\nExample: /council Should we migrate the database to PostgreSQL?");
+      return;
+    }
+    log.info("Command /council", { chatId: ctx.chat.id, proposal: proposal.slice(0, 80) });
+    const ack = await ctx.replyWithHTML(`🗳 <b>Calling the council…</b>\n<i>${escapeHtml(proposal.slice(0, 120))}</i>`);
+    try {
+      const session = await runCouncil(proposal);
+      const msg = formatCouncilTelegram(session);
+      // Delete the ack and send the full result.
+      await ctx.telegram.deleteMessage(ctx.chat.id, ack.message_id).catch(() => {});
+      await ctx.replyWithHTML(
+        msg
+          .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+          .replace(/_(.+?)_/g, "<i>$1</i>"),
+      );
+    } catch (err) {
+      log.error("Council command failed", { chatId: ctx.chat.id, error: err instanceof Error ? err.message : String(err) });
+      await ctx.telegram.deleteMessage(ctx.chat.id, ack.message_id).catch(() => {});
+      await ctx.reply("⚠️ Council vote failed. Check that you have enabled Lead workers configured.");
     }
   });
 }

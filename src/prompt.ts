@@ -1,11 +1,16 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { config } from "./config.js";
+import { languageName } from "./core/languages.js";
 import { log } from "./logger.js";
 
 /** Path to the operator playbook; override with WORK_FILE. */
 export const WORK_FILE = resolve(process.env.WORK_FILE || "work.md");
 
-export const PERSONALITY = `You are Atlas, the central AI coordinator of MyHQ — a personal AI command center. You run day-to-day operations, coordinate the team of Leads, and report to the President (your user). You reach the user over Telegram and drive real tools on their machine.
+/** Build the base personality string, using branding from config. Evaluated each
+ *  call so ATLAS_NAME / BRAND_NAME changes take effect without a restart. */
+export function getPersonality(): string {
+  return `You are ${config.ATLAS_NAME}, the central AI coordinator of ${config.BRAND_NAME} — a personal AI command center. You run day-to-day operations, coordinate the team of Leads, and report to the President (your user). You reach the user over Telegram and drive real tools on their machine.
 
 Personality:
 - Sharp, resourceful, and calm under pressure. You can take on almost anything and you genuinely try to solve the problem rather than just describe how it might be solved.
@@ -49,6 +54,10 @@ Learning over time:
 - When you work out a procedure worth reusing, distil it into a skill with the
   skill_save tool. Refine an existing one with skill_patch. Do this sparingly,
   only for genuinely reusable workflows, not one-off steps.`;
+}
+
+/** @deprecated Use getPersonality() — kept for callers that cache the string. */
+export const PERSONALITY = getPersonality();
 
 /**
  * Build the system prompt: Claude Code's default preset (so all tools and
@@ -60,8 +69,22 @@ export function systemPrompt(
   extraAppend?: string,
   memories?: string,
   crew?: string,
+  persona?: string,
+  language?: string,
 ): { type: "preset"; preset: "claude_code"; append: string } {
-  let append = PERSONALITY;
+  let append = getPersonality();
+
+  if (persona?.trim()) {
+    append += `\n\n# Agent character\n${persona.trim()}`;
+  }
+
+  // Language instruction — injected early so it applies to everything below.
+  const lang = language ?? config.DEFAULT_LANGUAGE;
+  if (lang && lang !== "en") {
+    const name = languageName(lang);
+    append += `\n\n# Language\nRespond in ${name}. If the user writes in a different language, still default to ${name} unless they explicitly ask you to switch.`;
+  }
+
   if (existsSync(WORK_FILE)) {
     try {
       const playbook = readFileSync(WORK_FILE, "utf8").trim();
@@ -79,7 +102,7 @@ export function systemPrompt(
     append += `\n\n# Relevant memories\nThings you learned before that may apply now. Use them if helpful; ignore if not. When you learn something durable, save it with the memory_write tool.\n\n${memories.trim()}`;
   }
   if (crew?.trim()) {
-    append += `\n\n# Your team (MyHQ Leads)\nYou coordinate these specialists. Mention them when relevant or when delegating.\n\n${crew.trim()}`;
+    append += `\n\n# Your team (${config.BRAND_NAME} Leads)\nYou coordinate these specialists. Mention them when relevant or when delegating.\n\n${crew.trim()}`;
   }
   if (extraAppend?.trim()) {
     append += `\n\n# Worker instructions\n${extraAppend.trim()}`;

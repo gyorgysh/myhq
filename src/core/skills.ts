@@ -14,6 +14,11 @@ export interface Skill {
   prompt: string;
   /** Optional default working directory when run directly. */
   cwd?: string;
+  /** How many times this skill has been applied in a worker run. */
+  useCount: number;
+  /** Archived by maintenance: hidden from suggestions and system prompt injection
+   *  but restorable from the panel. Skills with useCount > 0 are never auto-archived. */
+  archived?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -24,15 +29,20 @@ interface SkillFile {
 }
 
 function load(): Skill[] {
-  return loadJson<SkillFile>(FILE, { version: 1, skills: [] }).skills;
+  return loadJson<SkillFile>(FILE, { version: 1, skills: [] }).skills.map(normalize);
+}
+
+function normalize(s: Skill): Skill {
+  return { ...s, useCount: s.useCount ?? 0, archived: s.archived ?? false };
 }
 
 function persist(skills: Skill[]): void {
   saveJson<SkillFile>(FILE, { version: 1, skills });
 }
 
-export function listSkills(): Skill[] {
-  return load().sort((a, b) => a.name.localeCompare(b.name));
+export function listSkills(includeArchived = false): Skill[] {
+  const all = load().sort((a, b) => a.name.localeCompare(b.name));
+  return includeArchived ? all : all.filter((s) => !s.archived);
 }
 
 export function getSkill(id: string): Skill | undefined {
@@ -54,6 +64,8 @@ export function createSkill(input: SkillInput): Skill {
     description: input.description?.trim() ?? "",
     prompt: input.prompt,
     cwd: input.cwd?.trim() || undefined,
+    useCount: 0,
+    archived: false,
     createdAt: now,
     updatedAt: now,
   };
@@ -64,7 +76,7 @@ export function createSkill(input: SkillInput): Skill {
   return skill;
 }
 
-export function updateSkill(id: string, input: Partial<SkillInput>): Skill | undefined {
+export function updateSkill(id: string, input: Partial<SkillInput & { archived?: boolean }>): Skill | undefined {
   const skills = load();
   const skill = skills.find((s) => s.id === id);
   if (!skill) return undefined;
@@ -72,10 +84,20 @@ export function updateSkill(id: string, input: Partial<SkillInput>): Skill | und
   if (input.description !== undefined) skill.description = input.description.trim();
   if (input.prompt !== undefined) skill.prompt = input.prompt;
   if (input.cwd !== undefined) skill.cwd = input.cwd.trim() || undefined;
+  if (input.archived !== undefined) skill.archived = input.archived;
   skill.updatedAt = Date.now();
   persist(skills);
   audit("skill.update", { id, name: skill.name });
   return skill;
+}
+
+/** Increment useCount for a skill (called when a worker run starts with it). */
+export function recordSkillUse(id: string): void {
+  const skills = load();
+  const skill = skills.find((s) => s.id === id);
+  if (!skill) return;
+  skill.useCount = (skill.useCount ?? 0) + 1;
+  persist(skills);
 }
 
 export function deleteSkill(id: string): boolean {

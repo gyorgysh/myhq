@@ -64,6 +64,13 @@ export interface RunOptions {
   systemPromptAppend?: string;
   /** Roster of MyHQ Leads, folded into the system prompt for coordination. */
   crew?: string;
+  /**
+   * Character and tone override (persona). Injected into the system prompt after
+   * the base personality block, before work.md and worker instructions.
+   */
+  persona?: string;
+  /** BCP 47 language tag the agent responds in (e.g. "en", "hu"). */
+  language?: string;
   /** "default" = interactive approval; "bypassPermissions" = autonomous. */
   permissionMode: "default" | "bypassPermissions";
   abortController: AbortController;
@@ -80,6 +87,8 @@ export interface RunResult {
   text?: string;
   costUsd?: number;
   durationMs?: number;
+  /** Tool calls made during this turn (for auto-skill extraction). */
+  toolCalls?: Array<{ name: string; input: unknown }>;
 }
 
 /** Drive one Claude Code turn, fanning SDK events out to the provided callbacks. */
@@ -109,7 +118,7 @@ export async function runTurn(opts: RunOptions): Promise<RunResult> {
       // Only override the child env when asked (e.g. a local-model provider);
       // otherwise the SDK defaults to process.env.
       env: opts.env ? { ...process.env, ...opts.env } : undefined,
-      systemPrompt: systemPrompt(opts.systemPromptAppend, memoryBlock, opts.crew),
+      systemPrompt: systemPrompt(opts.systemPromptAppend, memoryBlock, opts.crew, opts.persona, opts.language),
       permissionMode: opts.permissionMode,
       includePartialMessages: true,
       abortController: opts.abortController,
@@ -128,6 +137,7 @@ export async function runTurn(opts: RunOptions): Promise<RunResult> {
   }) as unknown as AsyncIterable<SdkMessage>;
 
   let result: RunResult = { isError: false };
+  const toolCalls: Array<{ name: string; input: unknown }> = [];
 
   try {
     for await (const msg of response) {
@@ -140,6 +150,7 @@ export async function runTurn(opts: RunOptions): Promise<RunResult> {
         for (const block of msg.message.content ?? []) {
           if (block.type === "tool_use" && block.name) {
             opts.onToolUse(block.name, block.input);
+            toolCalls.push({ name: block.name, input: block.input });
           }
         }
       } else if (isResult(msg)) {
@@ -148,6 +159,7 @@ export async function runTurn(opts: RunOptions): Promise<RunResult> {
           text: msg.result,
           costUsd: msg.total_cost_usd,
           durationMs: msg.duration_ms,
+          toolCalls,
         };
       }
     }

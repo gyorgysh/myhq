@@ -3,6 +3,9 @@ import { buildBot } from "./bot.js";
 import { sessions } from "./session/manager.js";
 import { schedules } from "./schedule/manager.js";
 import { heartbeat } from "./core/heartbeat.js";
+import { maintenance } from "./core/maintenance.js";
+import { startProbeScheduler, stopProbeScheduler } from "./core/usageProbe.js";
+import { getPlanSettings } from "./core/planSettings.js";
 import { startPanel } from "./panel/server.js";
 import { workers } from "./core/workers.js";
 import { LeadBot } from "./telegram/leadBot.js";
@@ -21,6 +24,9 @@ async function main(): Promise<void> {
 
   // Optional embedded management panel (off unless PANEL_ENABLED=true).
   const stopPanel = await startPanel();
+
+  maintenance.start();
+  startProbeScheduler(getPlanSettings().probeIntervalMs);
 
   const me = await bot.telegram.getMe();
   log.info("Configuration loaded", {
@@ -44,7 +50,9 @@ async function main(): Promise<void> {
     { command: "allowed", description: "Show always-allow rules" },
     { command: "schedule", description: "Run a prompt on a timer" },
     { command: "stop", description: "Abort the running request" },
-    { command: "mode", description: "safe (approval) or auto" },
+    { command: "mode", description: "supervised | standard | full" },
+    { command: "lang", description: "Set response language" },
+    { command: "council", description: "Put an idea to a Lead council vote" },
     { command: "help", description: "Show help" },
   ]);
 
@@ -66,6 +74,8 @@ async function main(): Promise<void> {
     // Stop the scheduler and flush any debounced session/usage state before we go.
     schedules.stop();
     heartbeat.stop();
+    maintenance.stop();
+    stopProbeScheduler();
     sessions.flush();
     void stopPanel?.();
 

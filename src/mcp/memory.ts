@@ -30,9 +30,15 @@ export const memoryMcp = createSdkMcpServer({
           .max(1)
           .optional()
           .describe("Importance 0..1 (default 0.5). Use higher for durable preferences."),
+        tier: z
+          .enum(["hot", "warm", "cold"])
+          .optional()
+          .describe(
+            "Recall tier. hot = injected every turn. warm = keyword-recalled (default). cold = panel-only.",
+          ),
       },
       async (args) => {
-        const e = memory.create({ text: args.text, tags: args.tags, salience: args.salience });
+        const e = memory.create({ text: args.text, tags: args.tags, salience: args.salience, tier: args.tier });
         return { content: [{ type: "text", text: `Remembered (id ${e.id}).` }] };
       },
     ),

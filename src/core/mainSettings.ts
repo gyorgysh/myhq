@@ -3,6 +3,7 @@ import { loadJson, saveJson } from "./jsonStore.js";
 import { getProvider, listProviders } from "./providers.js";
 import { resolveSecret } from "./vault.js";
 import { audit } from "./audit.js";
+import type { Autonomy } from "../session/manager.js";
 
 const FILE = "mainAgent.json";
 
@@ -13,6 +14,24 @@ interface MainSettings {
   model?: string;
   /** Provider for a local/proxy endpoint; "" = Anthropic via process env. */
   providerId?: string;
+  /**
+   * Character and tone override for Atlas. If set, injected into the system
+   * prompt after the base personality block. Separate from systemPrompt (domain
+   * knowledge). Example: "formal and precise, no jokes".
+   */
+  persona?: string;
+  /**
+   * Default autonomy level for Atlas.
+   * supervised = all tools prompt the user.
+   * standard   = safe tools auto-allowed, risky tools prompt (default).
+   * full       = bypass all permissions.
+   */
+  autonomy?: Autonomy;
+  /**
+   * BCP 47 language tag for Atlas's default response language.
+   * Per-session /lang overrides this. Falls back to DEFAULT_LANGUAGE env var.
+   */
+  defaultLanguage?: string;
 }
 
 interface MainFile {
@@ -35,21 +54,39 @@ export function mainSettingsView() {
     providerName: provider?.name,
     providerBaseUrl: provider?.baseUrl,
     providers: listProviders().map((p) => ({ id: p.id, name: p.name })),
+    persona: s.persona ?? "",
+    autonomy: s.autonomy ?? "standard",
+    defaultLanguage: s.defaultLanguage ?? config.DEFAULT_LANGUAGE,
   };
 }
 
-export function setMainSettings(patch: { model?: string; providerId?: string }): void {
+export function setMainSettings(patch: {
+  model?: string;
+  providerId?: string;
+  persona?: string;
+  autonomy?: Autonomy;
+  defaultLanguage?: string;
+}): void {
   const s = load();
   if (patch.model !== undefined) s.model = patch.model.trim() || undefined;
   if (patch.providerId !== undefined) s.providerId = patch.providerId || undefined;
+  if (patch.persona !== undefined) s.persona = patch.persona.trim() || undefined;
+  if (patch.autonomy !== undefined) s.autonomy = patch.autonomy || undefined;
+  if (patch.defaultLanguage !== undefined) s.defaultLanguage = patch.defaultLanguage || undefined;
   saveJson<MainFile>(FILE, { version: 1, settings: s });
   audit("mainAgent.update", { model: s.model, providerId: s.providerId });
 }
 
-/** Per-turn overrides for a main (bot) turn: model + provider env, if set.
+/** Per-turn overrides for a main (bot) turn: model + provider env + persona, if set.
  *  Mirrors how workers resolve a provider, so main turns can run on a local
  *  model too. Returns empty object when nothing is overridden. */
-export function resolveMainRun(): { model?: string; env?: Record<string, string | undefined> } {
+export function resolveMainRun(): {
+  model?: string;
+  env?: Record<string, string | undefined>;
+  persona?: string;
+  autonomy: Autonomy;
+  defaultLanguage?: string;
+} {
   const s = load();
   const provider = s.providerId ? getProvider(s.providerId) : undefined;
   const env = provider
@@ -59,5 +96,11 @@ export function resolveMainRun(): { model?: string; env?: Record<string, string 
         ANTHROPIC_API_KEY: undefined,
       }
     : undefined;
-  return { model: s.model || undefined, env };
+  return {
+    model: s.model || undefined,
+    env,
+    persona: s.persona || undefined,
+    autonomy: s.autonomy ?? "standard",
+    defaultLanguage: s.defaultLanguage || undefined,
+  };
 }

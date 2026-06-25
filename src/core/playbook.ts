@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { PERSONALITY, WORK_FILE } from "../prompt.js";
+import { getPersonality, WORK_FILE } from "../prompt.js";
 import { audit } from "./audit.js";
 
 export interface PromptView {
@@ -24,7 +24,7 @@ export function getPrompt(): PromptView {
       /* unreadable — surface as empty */
     }
   }
-  return { personality: PERSONALITY, workFile: WORK_FILE, work, exists };
+  return { personality: getPersonality(), workFile: WORK_FILE, work, exists };
 }
 
 /** Overwrite the operator playbook. Takes effect on the next turn (re-read live). */

@@ -3,6 +3,13 @@ import { listTasks } from "./tasks.js";
 import { loadJson, saveJson } from "./jsonStore.js";
 import { audit } from "./audit.js";
 import { log } from "../logger.js";
+import {
+  getPlanSettings,
+  setPlanSettings,
+  billingPeriodStart,
+  daysUntilReset,
+} from "./planSettings.js";
+import { usageSummary } from "./snapshot.js";
 
 const FILE = "heartbeat.json";
 const TICK_MS = 60_000; // wake-up granularity; actual cadence is config.intervalMs
@@ -111,6 +118,8 @@ export class HeartbeatManager {
   }
 
   private async maybeTick(): Promise<void> {
+    // Always run the cost report check regardless of heartbeat mode.
+    void this.maybeSendCostReport();
     const { mode, intervalMs } = this.state.config;
     if (mode === "off" || this.running) return;
     const now = Date.now();
@@ -168,7 +177,57 @@ export class HeartbeatManager {
         out.push({ key: `stale:${t.id}`, text: `Task "${t.title}" stalled in Doing for ${days}d` });
       }
     }
+    // Cost/budget alert.
+    try {
+      const plan = getPlanSettings();
+      if (plan.alertThresholdPct > 0 && plan.monthlyCap > 0) {
+        const summary = usageSummary();
+        const periodStart = billingPeriodStart(plan.billingDay);
+        const periodCost = summary.daily
+          .filter((d) => d.day >= periodStart)
+          .reduce((acc, d) => acc + d.costUsd, 0);
+        const pct = (periodCost / plan.monthlyCap) * 100;
+        if (pct >= plan.alertThresholdPct) {
+          out.push({
+            key: "cost:cap",
+            text: `Spend this billing period: $${periodCost.toFixed(2)} of $${plan.monthlyCap} (${pct.toFixed(0)}%)`,
+          });
+        }
+      }
+    } catch {
+      // Non-fatal if plan check fails.
+    }
     return out;
+  }
+
+  /** Send a periodic cost report if the interval has elapsed. */
+  async maybeSendCostReport(): Promise<void> {
+    if (!this.deps) return;
+    const plan = getPlanSettings();
+    if (!plan.costCheckIntervalMs) return;
+    const now = Date.now();
+    if (now - (plan.lastCostCheckAt ?? 0) < plan.costCheckIntervalMs) return;
+    // Mark first so a slow send doesn't double-fire.
+    setPlanSettings({ lastCostCheckAt: now });
+    try {
+      const summary = usageSummary();
+      const periodStart = billingPeriodStart(plan.billingDay);
+      const periodCost = summary.daily
+        .filter((d) => d.day >= periodStart)
+        .reduce((acc, d) => acc + d.costUsd, 0);
+      const days = daysUntilReset(plan.billingDay);
+      const pct = plan.monthlyCap > 0 ? (periodCost / plan.monthlyCap) * 100 : 0;
+      const planLabel = plan.plan === "pro" ? "Claude Pro" : plan.plan === "max" ? "Claude Max" : "API";
+      const lines = [
+        `📊 Usage report (${planLabel})`,
+        `Period spend: $${periodCost.toFixed(2)} / $${plan.monthlyCap} (${pct.toFixed(0)}%)`,
+        `Today: $${summary.today.costUsd.toFixed(4)} · ${summary.today.turns} turns`,
+        `Billing resets in ${days} day${days === 1 ? "" : "s"}.`,
+      ];
+      await this.deps.notify(lines.join("\n"));
+    } catch (err) {
+      log.warn("Cost report failed", { error: err instanceof Error ? err.message : String(err) });
+    }
   }
 
   /** Deterministic alerts, deduped by signal key within the cooldown window. */

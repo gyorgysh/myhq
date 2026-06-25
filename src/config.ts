@@ -36,6 +36,21 @@ const schema = z.object({
   CLAUDE_MODEL: z.string().min(1).default("claude-opus-4-8"),
   ANTHROPIC_API_KEY: z.string().optional(),
   APPROVAL_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
+  // Branding overrides (allows white-labelling / self-hosting with a different name).
+  ATLAS_NAME: z.string().min(1).default("Atlas"),
+  BRAND_NAME: z.string().min(1).default("MyHQ"),
+  // Default language for agent responses (BCP 47 tag, e.g. "en", "hu", "fr").
+  DEFAULT_LANGUAGE: z.string().min(2).default("en"),
+  // Auto-generate skills from expensive/long turns (off by default).
+  AUTO_SKILL_GENERATION: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  // Maintenance scheduler: daily run time in HH:MM (server-local 24h). Disabled if unset.
+  MAINTENANCE_CRON: z.string().optional(),
+  // Memory compaction thresholds.
+  MEMORY_MAX_ENTRIES: z.coerce.number().int().positive().default(500),
+  COLD_MAX: z.coerce.number().int().positive().default(200),
   // How replies stream back:
   //   rich  = Bot API 10.1 sendRichMessageDraft -> sendRichMessage (structured markdown)
   //   draft = Bot API 9.3 sendMessageDraft (plain preview), finalized with sendMessage

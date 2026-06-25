@@ -6,6 +6,16 @@ import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import { config, repoRoot, allowedUserIds } from "../config.js";
 import { schedules, parseWhen } from "../schedule/manager.js";
+import { maintenance } from "../core/maintenance.js";
+import { getClaudeUsage } from "../core/claudeUsage.js";
+import { loadProbeResult, runProbe, startProbeScheduler } from "../core/usageProbe.js";
+import {
+  getPlanSettings,
+  setPlanSettings,
+  billingPeriodStart,
+  daysUntilReset,
+} from "../core/planSettings.js";
+import { AGENT_LANGUAGES } from "../core/languages.js";
 import { log, onLog, recentLogs } from "../logger.js";
 import { getHealth } from "../core/health.js";
 import { listSessions, listSchedules, usageSummary } from "../core/snapshot.js";
@@ -20,8 +30,14 @@ import {
   deleteTask,
   getWip,
   setWip,
-  COLUMNS,
 } from "../core/tasks.js";
+import {
+  listColumns,
+  addColumn,
+  renameColumn,
+  removeColumn,
+  reorderColumns,
+} from "../core/columnConfig.js";
 import { taskDelegator } from "../core/taskRunner.js";
 import { workers, describeWorkerSchedule, type Worker } from "../core/workers.js";
 import { chat } from "../core/chat.js";
@@ -156,11 +172,22 @@ function workerView(w: Worker) {
     portfolio: w.portfolio ?? "",
     parentId: w.parentId ?? "",
     telegramToken: w.telegramToken ?? "",
+    persona: w.persona ?? "",
+    autonomy: w.autonomy ?? "full",
+    language: w.language ?? "",
   };
 }
 
 function registerApi(app: FastifyInstance): void {
-  app.get("/api/me", async () => ({ ok: true, chatEnabled: chat.isEnabled(), version: VERSION }));
+  app.get("/api/me", async () => ({
+    ok: true,
+    chatEnabled: chat.isEnabled(),
+    version: VERSION,
+    atlasName: config.ATLAS_NAME,
+    brandName: config.BRAND_NAME,
+    defaultLanguage: config.DEFAULT_LANGUAGE,
+    languages: AGENT_LANGUAGES,
+  }));
 
   // --- main agent: runtime model/provider + lifecycle controls ---
   app.get("/api/agent", async () => ({
@@ -168,8 +195,20 @@ function registerApi(app: FastifyInstance): void {
     serviceInstalled: serviceInstalled(),
   }));
   app.put("/api/agent", async (req) => {
-    const { model, providerId } = (req.body ?? {}) as { model?: string; providerId?: string };
-    setMainSettings({ model, providerId });
+    const { model, providerId, persona, autonomy, defaultLanguage } = (req.body ?? {}) as {
+      model?: string;
+      providerId?: string;
+      persona?: string;
+      autonomy?: string;
+      defaultLanguage?: string;
+    };
+    setMainSettings({
+      model,
+      providerId,
+      persona,
+      autonomy: autonomy as "supervised" | "standard" | "full" | undefined,
+      defaultLanguage,
+    });
     return mainSettingsView();
   });
   // Abort in-flight turns and clear all conversation context (fresh slate).
@@ -219,7 +258,10 @@ function registerApi(app: FastifyInstance): void {
   });
 
   // --- prompt library (skills) ---
-  app.get("/api/skills", async () => ({ skills: listSkills() }));
+  app.get("/api/skills", async (req) => {
+    const q = req.query as { archived?: string };
+    return { skills: listSkills(q.archived === "true") };
+  });
   app.post("/api/skills", async (req) => createSkill(req.body as never));
   app.put("/api/skills/:id", async (req, reply) => {
     const updated = updateSkill((req.params as { id: string }).id, req.body as never);
@@ -242,12 +284,21 @@ function registerApi(app: FastifyInstance): void {
 
   // --- durable memory ---
   app.get("/api/memories", async (req) => {
-    const q = (req.query as { q?: string }).q;
-    return { memories: q ? memory.search(q, 50) : memory.list() };
+    const { q, all } = req.query as { q?: string; all?: string };
+    if (q) return { memories: all === "true" ? memory.searchAll(q, 50) : memory.search(q, 50) };
+    return { memories: memory.list() };
   });
   app.post("/api/memories", async (req) => memory.create(req.body as never));
   app.put("/api/memories/:id", async (req, reply) => {
     const updated = memory.update((req.params as { id: string }).id, req.body as never);
+    if (!updated) return reply.code(404).send({ error: "not found" });
+    return updated;
+  });
+  app.patch("/api/memories/:id/tier", async (req, reply) => {
+    const { tier } = (req.body ?? {}) as { tier?: string };
+    if (tier !== "hot" && tier !== "warm" && tier !== "cold")
+      return reply.code(400).send({ error: "tier must be hot, warm, or cold" });
+    const updated = memory.setTier((req.params as { id: string }).id, tier);
     if (!updated) return reply.code(404).send({ error: "not found" });
     return updated;
   });
@@ -303,7 +354,32 @@ function registerApi(app: FastifyInstance): void {
   });
 
   // --- task board ---
-  app.get("/api/tasks", async () => ({ tasks: listTasks(), columns: COLUMNS, wip: getWip() }));
+  app.get("/api/tasks", async () => ({ tasks: listTasks(), columns: listColumns(), wip: getWip() }));
+  // Column config CRUD
+  app.get("/api/tasks/columns", async () => ({ columns: listColumns() }));
+  app.post("/api/tasks/columns", async (req, reply) => {
+    const { name } = (req.body ?? {}) as { name?: string };
+    if (!name?.trim()) return reply.code(400).send({ error: "name required" });
+    return addColumn(name);
+  });
+  app.put("/api/tasks/columns/:id", async (req, reply) => {
+    const { name } = (req.body ?? {}) as { name?: string };
+    const updated = renameColumn((req.params as { id: string }).id, name ?? "");
+    if (!updated) return reply.code(404).send({ error: "not found" });
+    return updated;
+  });
+  app.delete("/api/tasks/columns/:id", async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    // Refuse if any task is in this column.
+    const inCol = listTasks().filter((t) => t.column === id);
+    if (inCol.length > 0) return reply.code(409).send({ error: `${inCol.length} task(s) still in this column. Move them first.` });
+    if (!removeColumn(id)) return reply.code(404).send({ error: "not found" });
+    return { ok: true };
+  });
+  app.post("/api/tasks/columns/reorder", async (req) => {
+    const { ids } = (req.body ?? {}) as { ids?: string[] };
+    return { columns: reorderColumns(ids ?? []) };
+  });
   app.put("/api/tasks/wip", async (req) => {
     const { column, limit } = (req.body ?? {}) as { column?: string; limit?: number | null };
     return { wip: setWip(column ?? "", limit ?? null) };
@@ -388,6 +464,94 @@ function registerApi(app: FastifyInstance): void {
     const { approvalId, allow } = (req.body ?? {}) as { approvalId?: string; allow?: boolean };
     if (!approvalId) return reply.code(400).send({ error: "approvalId required" });
     return { ok: chat.resolveApproval(approvalId, Boolean(allow)) };
+  });
+
+  // --- claude cli usage (legacy stats-cache.json path) ---
+  app.get("/api/claude-usage", async () => getClaudeUsage());
+
+  // --- usage probe (OAuth API: real session/weekly limits + profile) ---
+  app.get("/api/usage-probe", async () => loadProbeResult() ?? { source: "none", limits: [] });
+  app.post("/api/usage-probe/run", async () => {
+    // Kick off async; return immediately so the button feels responsive.
+    void runProbe();
+    return { ok: true, message: "Probe started" };
+  });
+
+  // --- plan / budget settings ---
+  app.get("/api/plan", async () => {
+    const s = getPlanSettings();
+    const summary = usageSummary();
+    const periodStart = billingPeriodStart(s.billingDay);
+    // Sum daily costs from the billing period start through today.
+    const periodCost = summary.daily
+      .filter((d) => d.day >= periodStart)
+      .reduce((acc, d) => acc + d.costUsd, 0);
+    const daysSoFar = Math.max(
+      1,
+      Math.ceil((Date.now() - new Date(periodStart).getTime()) / 86_400_000),
+    );
+    const dailyAvg = periodCost / daysSoFar;
+    return {
+      ...s,
+      periodStart,
+      periodCostUsd: periodCost,
+      daysUntilReset: daysUntilReset(s.billingDay),
+      dailyAvgUsd: dailyAvg,
+      estimatedMonthlyUsd: dailyAvg * 30,
+      pctUsed: s.monthlyCap > 0 ? (periodCost / s.monthlyCap) * 100 : 0,
+    };
+  });
+  app.put("/api/plan", async (req) => {
+    const patch = (req.body ?? {}) as Parameters<typeof setPlanSettings>[0];
+    const s = setPlanSettings(patch);
+    // Restart probe scheduler if the interval changed.
+    if (patch.probeIntervalMs !== undefined) startProbeScheduler(s.probeIntervalMs);
+    return s;
+  });
+
+  // --- maintenance scheduler ---
+  app.get("/api/maintenance", async () => maintenance.view());
+  app.post("/api/maintenance/run", async () => maintenance.runOnce());
+
+  // --- language catalogue ---
+  app.get("/api/languages", async () => ({ languages: AGENT_LANGUAGES }));
+
+  // --- council vote log ---
+  app.get("/api/council", async (req) => {
+    const limitParam = (req.query as { limit?: string }).limit;
+    const limit = Math.min(parseInt(limitParam ?? "20", 10), 100);
+    const file = join(config.WORKDIR, "..", "council.jsonl");
+    if (!existsSync(file)) return { sessions: [] };
+    try {
+      const sessions = readFileSync(file, "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => JSON.parse(l) as Record<string, unknown>)
+        .reverse()
+        .slice(0, limit);
+      return { sessions };
+    } catch {
+      return { sessions: [] };
+    }
+  });
+
+  // --- delegation log (inter-agent crew communication) ---
+  app.get("/api/delegations", async (req) => {
+    const limitParam = (req.query as { limit?: string }).limit;
+    const limit = Math.min(parseInt(limitParam ?? "50", 10), 200);
+    const file = join(config.WORKDIR, "..", "delegations.jsonl");
+    if (!existsSync(file)) return { delegations: [] };
+    try {
+      const lines = readFileSync(file, "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => JSON.parse(l) as Record<string, unknown>)
+        .reverse()
+        .slice(0, limit);
+      return { delegations: lines };
+    } catch {
+      return { delegations: [] };
+    }
   });
 
   // --- model providers (local LM Studio/Ollama, proxies) ---

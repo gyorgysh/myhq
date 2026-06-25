@@ -1,9 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { api, AuthError, type Provider, type Worker, type WorkerRun } from "../api.ts";
+import { api, AuthError, type Worker, type WorkerRun, type Autonomy } from "../api.ts";
 import { useWorkerEvents, type LiveRun } from "../lib/useWorkerEvents.ts";
-import { Badge, Button, Callout, Card, Empty, Input, Label, Select, TextArea } from "./ui.tsx";
-import { MainAgentCard } from "./MainAgent.tsx";
+import { Badge, Button, Card, Empty, Input, Label, Select, TextArea } from "./ui.tsx";
 import { ms, relTime, usd } from "../lib/format.ts";
+import { AGENT_LANGUAGES } from "../i18n/languages.ts";
 
 const emptyForm = {
   name: "",
@@ -18,6 +18,9 @@ const emptyForm = {
   portfolio: "",
   parentId: "",
   telegramToken: "",
+  persona: "",
+  autonomy: "full" as Autonomy,
+  language: "",
 };
 type Form = typeof emptyForm;
 
@@ -33,6 +36,14 @@ const MODEL_SUGGESTIONS = [
   "claude-haiku-4-5-20251001",
   "claude-sonnet-4-6",
   "claude-opus-4-8",
+];
+
+const PERSONA_PRESETS: Array<{ label: string; value: string }> = [
+  { label: "Concise", value: "Concise and direct. Lead with the result, skip preamble, use short sentences." },
+  { label: "Warm", value: "Warm and encouraging. Acknowledge effort, celebrate wins, frame challenges positively." },
+  { label: "Formal", value: "Formal and precise. Use structured language, avoid contractions and casual expressions." },
+  { label: "Analytical", value: "Analytical and methodical. Think through problems step by step, cite specifics." },
+  { label: "Playful", value: "Witty and playful. Use light humor, analogies, and keep the energy high." },
 ];
 
 export function WorkersView({ onAuthError }: { onAuthError: () => void }) {
@@ -65,28 +76,6 @@ export function WorkersView({ onAuthError }: { onAuthError: () => void }) {
 
   return (
     <div className="space-y-4">
-      <Callout title="Good to keep in mind" dismissId="agents">
-        <ul className="list-disc space-y-1 pl-4">
-          <li>
-            Model &amp; provider changes apply on the <strong>next message</strong> — each turn
-            starts a fresh <code>claude</code> process, so there's nothing to restart.
-          </li>
-          <li>
-            Switching models mid-conversation? Hit <strong>New context</strong> so the new model
-            doesn't resume an old thread.
-          </li>
-          <li>
-            <strong>Restart service</strong> fully respawns the bot and briefly disconnects the
-            panel — only available when running under systemd/launchd.
-          </li>
-          <li>
-            If a local model endpoint is unreachable, a run waits on connection retries until you
-            press <strong>Stop</strong>.
-          </li>
-        </ul>
-      </Callout>
-      <MainAgentCard onAuthError={onAuthError} />
-      <Providers onAuthError={onAuthError} onChange={load} />
 
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-fg-dim">Your Crew</h2>
@@ -261,6 +250,9 @@ function WorkerRow({
               portfolio: worker.portfolio ?? "",
               parentId: worker.parentId ?? "",
               telegramToken: worker.telegramToken ?? "",
+              persona: worker.persona ?? "",
+              autonomy: worker.autonomy ?? "full",
+              language: worker.language ?? "",
             }}
             enabled={worker.enabled}
             onCancel={() => setEditing(false)}
@@ -409,7 +401,35 @@ function WorkerForm({
         />
       </div>
       <div>
-        <Label>Persona / extra system prompt (optional)</Label>
+        <Label>Persona (character and tone, optional)</Label>
+        <div className="flex flex-wrap gap-1 mb-1.5">
+          {PERSONA_PRESETS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => setForm({ ...form, persona: p.value })}
+              className={`rounded px-2 py-0.5 text-xs border transition-colors ${
+                form.persona === p.value
+                  ? "bg-[var(--accent)] text-white border-transparent"
+                  : "border-line text-fg-dim hover:text-fg"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+          {form.persona && !PERSONA_PRESETS.find((p) => p.value === form.persona) && (
+            <span className="rounded px-2 py-0.5 text-xs border border-line text-fg-dim">Custom</span>
+          )}
+        </div>
+        <TextArea
+          rows={2}
+          value={form.persona}
+          onChange={(e) => setForm({ ...form, persona: e.target.value })}
+          placeholder="concise and direct · warm and encouraging · formal and precise"
+        />
+      </div>
+      <div>
+        <Label>Domain knowledge / extra system prompt (optional)</Label>
         <TextArea
           rows={3}
           value={form.systemPrompt}
@@ -539,6 +559,36 @@ function WorkerForm({
             Enabled
           </label>
         </div>
+        <div>
+          <Label>Autonomy</Label>
+          <div className="mt-1 flex gap-1.5">
+            {(["supervised", "standard", "full"] as Autonomy[]).map((a) => (
+              <button
+                key={a}
+                onClick={() => setForm({ ...form, autonomy: a })}
+                className={`rounded px-2 py-1 text-xs border transition-colors ${
+                  form.autonomy === a
+                    ? "bg-[var(--accent)] text-white border-transparent"
+                    : "border-line text-fg-dim hover:text-fg"
+                }`}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <Label>Response language (optional)</Label>
+          <Select
+            value={form.language}
+            onChange={(e) => setForm({ ...form, language: e.target.value })}
+          >
+            <option value="">Default (server setting)</option>
+            {Object.entries(AGENT_LANGUAGES).map(([code, name]) => (
+              <option key={code} value={code}>{name}</option>
+            ))}
+          </Select>
+        </div>
       </div>
       <div className="flex gap-2">
         <Button
@@ -551,179 +601,5 @@ function WorkerForm({
         <Button onClick={onCancel}>Cancel</Button>
       </div>
     </div>
-  );
-}
-
-const blankProvider = { name: "", baseUrl: "", authToken: "" };
-
-// Common local endpoints, one click to prefill. Auth tokens are placeholders
-// (LM Studio / Ollama don't check them locally).
-const PROVIDER_PRESETS = [
-  { name: "LM Studio", baseUrl: "http://localhost:1234", authToken: "lmstudio" },
-  { name: "Ollama", baseUrl: "http://localhost:11434", authToken: "ollama" },
-];
-
-/** Collapsible manager for local/proxy model endpoints (LM Studio, Ollama, …). */
-function Providers({ onChange, onAuthError }: { onChange: () => void; onAuthError: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [editing, setEditing] = useState<string | "new" | null>(null);
-  const [form, setForm] = useState(blankProvider);
-  const [probe, setProbe] = useState<{ busy: boolean; models?: string[]; error?: string }>({
-    busy: false,
-  });
-
-  const fetchModels = async () => {
-    setProbe({ busy: true });
-    try {
-      const r = await api.fetchModels(form.baseUrl, form.authToken);
-      setProbe({ busy: false, models: r.models });
-    } catch (e) {
-      if (e instanceof AuthError) return onAuthError();
-      setProbe({ busy: false, error: e instanceof Error ? e.message : String(e) });
-    }
-  };
-
-  const load = () =>
-    api
-      .providers()
-      .then((r) => setProviders(r.providers))
-      .catch((e) => e instanceof AuthError && onAuthError());
-
-  useEffect(() => {
-    if (open) void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  const save = async () => {
-    try {
-      if (editing === "new") await api.createProvider(form);
-      else if (editing) await api.updateProvider(editing, form);
-      setEditing(null);
-      await load();
-      onChange();
-    } catch (e) {
-      if (e instanceof AuthError) onAuthError();
-    }
-  };
-  const del = async (id: string) => {
-    if (!confirm("Delete this provider? Workers using it fall back to Anthropic.")) return;
-    await api.deleteProvider(id);
-    await load();
-    onChange();
-  };
-
-  return (
-    <Card
-      title="Model providers (local / proxy)"
-      right={
-        <Button onClick={() => setOpen((o) => !o)}>{open ? "Hide" : `Manage (${providers.length})`}</Button>
-      }
-    >
-      {!open ? (
-        <p className="text-sm text-fg-dim">
-          Point workers at a local model server (LM Studio, Ollama) or a proxy via an
-          Anthropic-compatible base URL + auth token.
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {editing ? (
-            <div className="space-y-3 rounded-lg border border-line bg-input p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-fg-dim">Prefill:</span>
-                {PROVIDER_PRESETS.map((p) => (
-                  <Button
-                    key={p.name}
-                    onClick={() => {
-                      setForm(p);
-                      setProbe({ busy: false });
-                    }}
-                  >
-                    {p.name}
-                  </Button>
-                ))}
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div>
-                  <Label>Name</Label>
-                  <Input
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="LM Studio"
-                  />
-                </div>
-                <div>
-                  <Label>Base URL</Label>
-                  <Input
-                    value={form.baseUrl}
-                    onChange={(e) => setForm({ ...form, baseUrl: e.target.value })}
-                    placeholder="http://localhost:1234"
-                  />
-                </div>
-                <div>
-                  <Label>Auth token</Label>
-                  <Input
-                    value={form.authToken}
-                    onChange={(e) => setForm({ ...form, authToken: e.target.value })}
-                    placeholder="lmstudio"
-                  />
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="primary" onClick={save} disabled={!form.name.trim() || !form.baseUrl.trim()}>
-                  Save
-                </Button>
-                <Button onClick={fetchModels} disabled={!form.baseUrl.trim() || probe.busy}>
-                  {probe.busy ? "Fetching…" : "Test / fetch models"}
-                </Button>
-                <Button onClick={() => setEditing(null)}>Cancel</Button>
-              </div>
-              {probe.error && <p className="text-xs text-red-400">{probe.error}</p>}
-              {probe.models && (
-                <p className="text-xs text-emerald-400">
-                  ✓ {probe.models.length} model{probe.models.length === 1 ? "" : "s"}:{" "}
-                  <span className="font-mono text-fg-dim">{probe.models.join(", ")}</span>
-                </p>
-              )}
-            </div>
-          ) : (
-            <Button
-              variant="primary"
-              onClick={() => {
-                setForm(blankProvider);
-                setEditing("new");
-              }}
-            >
-              + New provider
-            </Button>
-          )}
-
-          {providers.map((p) => (
-            <div
-              key={p.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-line p-2.5"
-            >
-              <div className="min-w-0">
-                <span className="font-medium text-fg">{p.name}</span>
-                <span className="ml-2 font-mono text-xs text-fg-faint">{p.baseUrl}</span>
-              </div>
-              <div className="flex shrink-0 gap-1.5">
-                <Button
-                  onClick={() => {
-                    setForm({ name: p.name, baseUrl: p.baseUrl, authToken: p.authToken });
-                    setEditing(p.id);
-                  }}
-                >
-                  Edit
-                </Button>
-                <Button variant="danger" onClick={() => del(p.id)}>
-                  Delete
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
   );
 }

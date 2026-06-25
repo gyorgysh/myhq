@@ -1,23 +1,53 @@
 import { useEffect, useState } from "react";
-import { api, type Worker, type MainAgent } from "../api.ts";
-import { Empty } from "./ui.tsx";
+import { api, type Worker, type MainAgent, type DelegationRecord } from "../api.ts";
+import { Card, Empty, Badge } from "./ui.tsx";
+import { relTime } from "../lib/format.ts";
+import { useI18n } from "../lib/useI18n.ts";
+
+interface CouncilVote {
+  leadId: string;
+  leadName: string;
+  portfolio?: string;
+  vote: "support" | "oppose" | "abstain";
+  reason: string;
+  concern: string;
+}
+
+interface CouncilSession {
+  id: string;
+  proposal: string;
+  votes: CouncilVote[];
+  supportCount: number;
+  opposeCount: number;
+  abstainCount: number;
+  createdAt: number;
+}
 
 export function CrewView({ onAuthError }: { onAuthError: () => void }) {
+  const { t } = useI18n();
   const [atlas, setAtlas] = useState<MainAgent | null>(null);
   const [workers, setWorkers] = useState<Worker[]>([]);
+  const [delegations, setDelegations] = useState<DelegationRecord[]>([]);
+  const [council, setCouncil] = useState<CouncilSession[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([api.agent(), api.workers()])
-      .then(([a, w]) => {
+    Promise.all([
+      api.agent(),
+      api.workers(),
+      api.delegations(30),
+      api.council(20),
+    ])
+      .then(([a, w, d, c]) => {
         setAtlas(a);
         setWorkers(w.workers);
+        setDelegations(d.delegations);
+        setCouncil(c.sessions as unknown as CouncilSession[]);
       })
       .catch((e) => setError(String(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Surface auth failures up the tree (parity with other views).
   useEffect(() => {
     if (error === "AuthError: unauthorized") onAuthError();
   }, [error, onAuthError]);
@@ -33,15 +63,15 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-lg font-semibold text-fg">MyHQ Crew</h1>
-        <p className="mt-1 text-sm text-fg-dim">Your personal AI command structure.</p>
+        <h1 className="text-lg font-semibold text-fg">{t("crew_title")}</h1>
+        <p className="mt-1 text-sm text-fg-dim">{t("crew_subtitle")}</p>
       </div>
 
       {/* President */}
       <CrewNode
         icon="★"
-        title="You"
-        subtitle="President · sets direction, final say"
+        title={t("crew_president")}
+        subtitle={t("crew_president_sub")}
         tone="amber"
         depth={0}
       />
@@ -50,7 +80,7 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
       <CrewNode
         icon="◈"
         title="Atlas"
-        subtitle={`Chief coordinator · ${atlas?.effectiveModel ?? "…"}`}
+        subtitle={`${t("crew_atlas_sub")} · ${atlas?.effectiveModel ?? "…"}`}
         tone="accent"
         depth={1}
       />
@@ -101,7 +131,7 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
       {specialists.length > 0 && (
         <div className="space-y-2">
           <div className="text-xs font-medium uppercase tracking-wider text-fg-faint">
-            Specialists
+            {t("crew_specialists")}
           </div>
           {specialists.map((w) => (
             <CrewNode
@@ -113,6 +143,127 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
               depth={2}
             />
           ))}
+        </div>
+      )}
+
+      {/* Council vote log */}
+      <Card title={t("crew_council")}>
+        <p className="mb-3 text-sm text-fg-dim">{t("crew_council_desc")}</p>
+        {council.length === 0 ? (
+          <Empty>{t("crew_council_empty")}</Empty>
+        ) : (
+          <div className="space-y-4">
+            {council.map((session) => (
+              <CouncilCard key={session.id} session={session} t={t} />
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Delegation log */}
+      <Card title={t("crew_delegations")}>
+        <p className="mb-3 text-sm text-fg-dim">{t("crew_delegations_desc")}</p>
+        {delegations.length === 0 ? (
+          <Empty>{t("crew_delegations_empty")}</Empty>
+        ) : (
+          <div className="space-y-2">
+            {delegations.map((d, i) => (
+              <div key={i} className="rounded-lg border border-line p-2.5 text-xs">
+                <div className="flex items-center gap-2 text-fg-dim">
+                  <span className="tabular">{relTime(d.ts)}</span>
+                  {d.fromAgentId && (
+                    <span className="text-fg-faint">
+                      {d.fromAgentId} → {d.toAgentId ?? "president"}
+                    </span>
+                  )}
+                  {d.leadName && <span className="font-medium text-fg">{d.leadName}</span>}
+                  {d.durationMs != null && (
+                    <span className="tabular text-fg-faint ml-auto">
+                      {(d.durationMs / 1000).toFixed(1)}s
+                    </span>
+                  )}
+                  {d.costUsd != null && (
+                    <span className="tabular text-fg-faint">${d.costUsd.toFixed(4)}</span>
+                  )}
+                </div>
+                {d.task && <p className="mt-1 text-fg-muted truncate">{d.task}</p>}
+                {d.summary && <p className="mt-1 text-fg-muted truncate">{d.summary}</p>}
+                {d.outputTail && (
+                  <p className="mt-1 font-mono text-fg-faint truncate">{d.outputTail.slice(0, 120)}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function CouncilCard({ session, t }: { session: CouncilSession; t: ReturnType<typeof useI18n>["t"] }) {
+  const [open, setOpen] = useState(false);
+  const total = session.votes.length;
+  const winner =
+    session.supportCount > session.opposeCount
+      ? "support"
+      : session.opposeCount > session.supportCount
+      ? "oppose"
+      : null;
+
+  return (
+    <div className="rounded-lg border border-line overflow-hidden">
+      {/* Header / summary */}
+      <button
+        className="w-full flex flex-wrap items-center gap-2 p-3 text-left hover:bg-surface-2 transition-colors"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="text-sm font-medium text-fg truncate flex-1">
+          {session.proposal.slice(0, 100)}
+        </span>
+        <span className="shrink-0 flex items-center gap-1.5 text-xs">
+          <Badge tone="green">✅ {session.supportCount}</Badge>
+          <Badge tone="amber">❌ {session.opposeCount}</Badge>
+          {session.abstainCount > 0 && <Badge tone="zinc">⬜ {session.abstainCount}</Badge>}
+          {total > 0 && (
+            <Badge tone={winner === "support" ? "green" : winner === "oppose" ? "amber" : "zinc"}>
+              {winner === "support"
+                ? t("crew_council_support")
+                : winner === "oppose"
+                ? t("crew_council_oppose")
+                : "Tied"}
+            </Badge>
+          )}
+        </span>
+        <span className="shrink-0 text-xs text-fg-faint">{relTime(session.createdAt)}</span>
+        <span className="shrink-0 text-fg-dim">{open ? "▴" : "▾"}</span>
+      </button>
+
+      {/* Expanded votes */}
+      {open && (
+        <div className="border-t border-line divide-y divide-line">
+          {session.votes.map((v) => {
+            const icon = v.vote === "support" ? "✅" : v.vote === "oppose" ? "❌" : "⬜";
+            const tone =
+              v.vote === "support" ? "green" : v.vote === "oppose" ? "amber" : "zinc";
+            return (
+              <div key={v.leadId} className="p-3 text-xs space-y-1">
+                <div className="flex items-center gap-2">
+                  <span>{icon}</span>
+                  <span className="font-medium text-fg">{v.leadName}</span>
+                  {v.portfolio && <span className="text-fg-faint">{v.portfolio}</span>}
+                  <Badge tone={tone}>
+                    {v.vote === "support"
+                      ? t("crew_council_support")
+                      : v.vote === "oppose"
+                      ? t("crew_council_oppose")
+                      : t("crew_council_abstain")}
+                  </Badge>
+                </div>
+                <p className="text-fg-muted">→ {v.reason}</p>
+                <p className="text-fg-faint">⚠ {v.concern}</p>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

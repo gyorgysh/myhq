@@ -8,7 +8,10 @@ import {
   type Usage,
 } from "./store.js";
 
-export type PermissionMode = "safe" | "auto";
+export type Autonomy = "supervised" | "standard" | "full";
+
+/** @deprecated Use Autonomy. Kept for any external callers. */
+export type PermissionMode = Autonomy;
 
 export interface Session {
   /** Telegram chat id this session belongs to. */
@@ -27,8 +30,14 @@ export interface Session {
   allowedBashCmds: Set<string>;
   /** Saved working directories for quick switching via /projects. */
   projects: string[];
-  /** safe = interactive approval (default); auto = bypass permissions. */
-  mode: PermissionMode;
+  /**
+   * supervised = all tools prompt the user (strictest).
+   * standard   = read-only/safe tools auto-allowed, risky tools prompt (default).
+   * full       = bypass all permissions (no prompts, autonomous).
+   */
+  autonomy: Autonomy;
+  /** BCP 47 language code the agent responds in (undefined = server default). */
+  language?: string;
   /** Accumulated cost/duration/turn counters (lifetime + per day). */
   usage: Usage;
 }
@@ -55,7 +64,8 @@ export class SessionManager {
         sessionAllowedTools: new Set(p.allowedTools),
         allowedBashCmds: new Set(p.allowedBashCmds),
         projects: p.projects,
-        mode: p.mode,
+        autonomy: p.autonomy,
+        language: p.language,
         usage: p.usage,
       });
     }
@@ -71,7 +81,7 @@ export class SessionManager {
         sessionAllowedTools: new Set(),
         allowedBashCmds: new Set(),
         projects: [],
-        mode: "safe",
+        autonomy: "standard",
         usage: emptyUsage(),
       };
       this.sessions.set(chatId, s);
@@ -84,7 +94,7 @@ export class SessionManager {
     return [...this.sessions.values()];
   }
 
-  /** Reset conversation context but keep cwd, mode and allow-list. */
+  /** Reset conversation context but keep cwd, autonomy and allow-list. */
   reset(chatId: number): void {
     const s = this.get(chatId);
     s.sessionId = undefined;
@@ -146,7 +156,8 @@ function toPersisted(s: Session): PersistedSession {
     chatId: s.chatId,
     sessionId: s.sessionId,
     cwd: s.cwd,
-    mode: s.mode,
+    autonomy: s.autonomy,
+    language: s.language,
     allowedTools: [...s.sessionAllowedTools],
     allowedBashCmds: [...s.allowedBashCmds],
     projects: s.projects,

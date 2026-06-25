@@ -45,7 +45,7 @@ export class LeadBot {
       await ctx.replyWithHTML(
         `<b>${lead.name}</b> · ${lead.portfolio ?? "Lead"}\n` +
           `📂 <code>${s.cwd}</code>\n` +
-          `🔒 mode: <b>${s.mode}</b>\n` +
+          `🔒 autonomy: <b>${s.autonomy}</b>\n` +
           `⚙️ ${s.busy ? "running…" : "idle"}`,
       );
     });
@@ -65,12 +65,14 @@ export class LeadBot {
     bot.command("mode", async (ctx) => {
       const s = sessions.get(ctx.chat.id);
       const arg = ctx.message.text.split(/\s+/)[1]?.toLowerCase();
-      if (arg === "safe" || arg === "auto") {
-        s.mode = arg;
+      if (arg === "supervised" || arg === "standard" || arg === "full") {
+        s.autonomy = arg;
         sessions.save();
-        await ctx.reply(arg === "auto" ? "⚠️ Auto mode." : "🔒 Safe mode.");
+        await ctx.reply(
+          arg === "full" ? "⚠️ Full mode." : arg === "supervised" ? "🔒 Supervised mode." : "⚖️ Standard mode.",
+        );
       } else {
-        await ctx.reply(`Current mode: ${s.mode}. Usage: /mode safe|auto`);
+        await ctx.reply(`Current autonomy: ${s.autonomy}. Usage: /mode supervised|standard|full`);
       }
     });
 
@@ -116,7 +118,7 @@ export class LeadBot {
           model: lead.model,
           env,
           systemPromptAppend: append,
-          permissionMode: s.mode === "auto" ? "bypassPermissions" : "default",
+          permissionMode: s.autonomy === "full" ? "bypassPermissions" : "default",
           abortController: s.abort,
           mcpServers: { memory: memoryMcp, tasks: tasksMcp, skills: skillsMcp },
           canUseTool: async (_name, input) => ({ behavior: "allow", updatedInput: input }),

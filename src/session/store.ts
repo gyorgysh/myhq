@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { config } from "../config.js";
 import { log } from "../logger.js";
-import type { PermissionMode } from "./manager.js";
+import type { Autonomy } from "./manager.js";
 
 /** Cumulative usage counters for a window (lifetime or a single day). */
 export interface UsageStat {
@@ -22,7 +22,9 @@ export interface PersistedSession {
   chatId: number;
   sessionId?: string;
   cwd: string;
-  mode: PermissionMode;
+  autonomy: Autonomy;
+  /** BCP 47 language tag the agent will respond in (e.g. "en", "hu"). */
+  language?: string;
   /** Tools always allowed without prompting (persistent middle tier). */
   allowedTools: string[];
   /** Bash leading-commands always allowed without prompting (e.g. "git", "ls"). */
@@ -80,12 +82,22 @@ function prune(s: PersistedSession): PersistedSession {
 }
 
 /** Fill in defaults for fields a hand-edited or older state file might miss. */
-function normalize(s: PersistedSession): PersistedSession {
+function normalize(s: PersistedSession & { mode?: string }): PersistedSession {
+  // Migrate old "safe"/"auto" mode values to new autonomy tiers.
+  const legacyMode = s.mode;
+  let autonomy: Autonomy = s.autonomy ?? "standard";
+  if (!s.autonomy && legacyMode) {
+    autonomy = legacyMode === "auto" ? "full" : "standard";
+  }
+  if (autonomy !== "supervised" && autonomy !== "standard" && autonomy !== "full") {
+    autonomy = "standard";
+  }
   return {
     chatId: s.chatId,
     sessionId: s.sessionId,
     cwd: s.cwd,
-    mode: s.mode === "auto" ? "auto" : "safe",
+    autonomy,
+    language: typeof s.language === "string" ? s.language : undefined,
     allowedTools: Array.isArray(s.allowedTools) ? s.allowedTools : [],
     allowedBashCmds: Array.isArray(s.allowedBashCmds) ? s.allowedBashCmds : [],
     projects: Array.isArray(s.projects) ? s.projects : [],

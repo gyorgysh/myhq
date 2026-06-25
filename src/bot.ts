@@ -8,6 +8,7 @@ import { createTelegramMcp } from "./mcp/sendFile.js";
 import { memoryMcp } from "./mcp/memory.js";
 import { tasksMcp } from "./mcp/tasks.js";
 import { skillsMcp } from "./mcp/skills.js";
+import { createCrewMcp } from "./mcp/crew.js";
 import { TelegramStreamer, type Streamer } from "./telegram/streamer.js";
 import { DraftStreamer } from "./telegram/draftStreamer.js";
 import { RichDraftStreamer } from "./telegram/richDraftStreamer.js";
@@ -21,7 +22,10 @@ import { heartbeat } from "./core/heartbeat.js";
 import { resolveMainRun } from "./core/mainSettings.js";
 import { workers } from "./core/workers.js";
 import { escapeHtml, normalizeAgentText } from "./telegram/formatting.js";
+import { resolveAsk, hasPendingAsk } from "./core/crewAsk.js";
+import { autoExtractSkill } from "./core/autoSkill.js";
 import type { ImageInput } from "./claude/runner.js";
+import type { Autonomy } from "./session/manager.js";
 import { sessions } from "./session/manager.js";
 import { log, preview } from "./logger.js";
 
@@ -71,10 +75,7 @@ export function buildBot(): Telegraf {
       const prompt = caption
         ? `${caption}\n\n(The user uploaded a file, saved at: ${path})`
         : `The user uploaded a file, saved at: ${path}. Take a look.`;
-      // Image documents are shown to the model inline; everything else by path.
       const images = isViewableImage(path) ? await imageInputs(path) : undefined;
-      // Fire-and-forget: must NOT block the polling loop, or approval button
-      // presses can never be fetched (Telegraf awaits handlers before getUpdates).
       void runUserPrompt(permissions, ctx.chat.id, prompt, ctx.telegram, { images });
     } catch (err) {
       log.error("File download failed", { chatId: ctx.chat.id, error: errText(err) });
@@ -130,7 +131,6 @@ export function buildBot(): Telegraf {
         return;
       }
       log.info("Voice transcribed", { chatId, text: preview(text) });
-      // Echo the transcript so the user sees what was understood, then run it.
       await ctx.replyWithHTML(`🎤 <i>${escapeHtml(text)}</i>`).catch(() => {});
       void runUserPrompt(permissions, chatId, text, ctx.telegram);
     } catch (err) {
@@ -143,6 +143,13 @@ export function buildBot(): Telegraf {
   bot.on(message("text"), async (ctx) => {
     const text = ctx.message.text;
     if (text.startsWith("/")) return; // handled by command handlers
+    // If a crew agent is waiting for the president's reply, resolve it.
+    if (hasPendingAsk(ctx.chat.id)) {
+      if (resolveAsk(ctx.chat.id, text)) {
+        log.info("crew_ask resolved by user", { chatId: ctx.chat.id });
+        return;
+      }
+    }
     void runUserPrompt(permissions, ctx.chat.id, text, ctx.telegram);
   });
 
@@ -152,14 +159,13 @@ export function buildBot(): Telegraf {
 
   // --- Scheduled prompts: run due jobs as autonomous turns, pushed to the chat ---
   const runScheduled: ScheduleRunner = async (s) => {
-    if (sessions.get(s.chatId).busy) return false; // busy — retry next tick
+    if (sessions.get(s.chatId).busy) return false;
     log.info("Scheduled task firing", { chatId: s.chatId, id: s.id });
     await bot.telegram
       .sendMessage(s.chatId, `⏰ <b>Scheduled task</b>\n<i>${escapeHtml(s.prompt)}</i>`, {
         parse_mode: "HTML",
       })
       .catch(() => {});
-    // Autonomous: no one is present to approve, and the user authored the job.
     runUserPrompt(permissions, s.chatId, s.prompt, bot.telegram, {
       autonomous: true,
       cwd: s.cwd,
@@ -189,12 +195,6 @@ export function buildBot(): Telegraf {
   return bot;
 }
 
-/**
- * Fire-and-forget wrapper around handleUserPrompt. The Telegram update handler
- * must return promptly so the long-polling loop keeps fetching updates (notably
- * approval button presses); the actual turn runs detached here. Guards against
- * unhandled rejections since no caller awaits it.
- */
 interface TurnOptions {
   /** Images to include inline (vision). */
   images?: ImageInput[];
@@ -239,7 +239,7 @@ async function handleUserPrompt(
 
   log.info("Prompt received", {
     chatId,
-    mode: session.mode,
+    autonomy: session.autonomy,
     resume: Boolean(session.sessionId),
     cwd: session.cwd,
     text: preview(prompt),
@@ -249,15 +249,9 @@ async function handleUserPrompt(
   session.busy = true;
   session.abort = new AbortController();
 
-  // Immediate "Working on it…" ack so the chat shows the turn was accepted
-  // before the first token arrives. In edit mode this very message becomes the
-  // streamed reply; in the draft modes (whose final reply is a fresh message)
-  // it is a standalone placeholder that we delete once the turn finishes.
   const ack = await tg.sendMessage(chatId, "💭 Working on it…").catch(() => undefined);
   let placeholderId: number | undefined;
 
-  // rich/draft modes stream a native ephemeral preview; edit mode edits the ack
-  // message in place.
   let streamer: Streamer;
   if (config.STREAM_MODE === "rich") {
     const draft = new RichDraftStreamer(tg, chatId);
@@ -276,26 +270,33 @@ async function handleUserPrompt(
     streamer = new TelegramStreamer(tg, chatId, placeholder.message_id);
   }
 
-  // Native "typing…" indicator for the whole turn (it expires after ~5s, so
-  // refresh it). Runs in every mode, including before the first streamed token.
   await tg.sendChatAction(chatId, "typing").catch(() => {});
   const typing = setInterval(() => {
     void tg.sendChatAction(chatId, "typing").catch(() => {});
   }, 4000);
+
+  // Effective autonomy for this turn.
+  const autonomy: Autonomy = autonomous ? "full" : session.autonomy;
 
   const canUseTool = async (
     toolName: string,
     input: Record<string, unknown>,
   ): Promise<PermissionResult> => {
     const lead = toolName === "Bash" ? bashLeadCmd(input) : undefined;
-    if (
-      AUTO_ALLOWED_TOOLS.has(toolName) ||
-      session.sessionAllowedTools.has(toolName) ||
-      (lead !== undefined && session.allowedBashCmds.has(lead))
-    ) {
-      log.debug("Tool auto-allowed", { chatId, tool: toolName });
-      return { behavior: "allow", updatedInput: input };
+
+    if (autonomy === "standard") {
+      // Standard: auto-allow safe tools; risky tools prompt.
+      if (
+        AUTO_ALLOWED_TOOLS.has(toolName) ||
+        session.sessionAllowedTools.has(toolName) ||
+        (lead !== undefined && session.allowedBashCmds.has(lead))
+      ) {
+        log.debug("Tool auto-allowed", { chatId, tool: toolName });
+        return { behavior: "allow", updatedInput: input };
+      }
     }
+    // supervised: fall through to always prompt (skip auto-allow check above).
+
     log.info("Approval requested", { chatId, tool: toolName });
     const choice = await permissions.request(chatId, toolName, input);
     log.info("Approval resolved", { chatId, tool: toolName, choice });
@@ -315,10 +316,8 @@ async function handleUserPrompt(
     return { behavior: "deny", message: "User denied this action." };
   };
 
-  // Runtime model/provider override for the main agent (panel-configurable).
   const mainRun = resolveMainRun();
 
-  // Build crew roster for Atlas's context (Lead workers only).
   const leads = workers.list().filter((w) => w.role === "lead" && w.enabled);
   const crew =
     leads.length > 0
@@ -330,6 +329,20 @@ async function handleUserPrompt(
           .join("\n")
       : undefined;
 
+  // Build crew MCP: notify goes to all allowed chats, ask goes to this chat.
+  const notifyAll = async (text: string) => {
+    for (const targetId of allowedUserIds) {
+      await tg
+        .sendMessage(targetId, `<i>${escapeHtml(text)}</i>`, { parse_mode: "HTML" })
+        .catch(() => {});
+    }
+  };
+  const crewMcp = createCrewMcp({
+    notify: notifyAll,
+    primaryChatId: chatId,
+    fromAgentId: "atlas",
+  });
+
   try {
     const res = await runTurn({
       prompt,
@@ -339,13 +352,16 @@ async function handleUserPrompt(
       model: mainRun.model,
       env: mainRun.env,
       crew,
-      permissionMode: autonomous || session.mode === "auto" ? "bypassPermissions" : "default",
+      persona: mainRun.persona,
+      language: session.language ?? mainRun.defaultLanguage,
+      permissionMode: autonomy === "full" ? "bypassPermissions" : "default",
       abortController: session.abort,
       mcpServers: {
         telegram: createTelegramMcp(tg, chatId, cwd),
         memory: memoryMcp,
         tasks: tasksMcp,
         skills: skillsMcp,
+        crew: crewMcp,
       },
       canUseTool,
       onText: (delta) => streamer.appendText(normalizeAgentText(delta)),
@@ -359,7 +375,6 @@ async function handleUserPrompt(
       },
     });
 
-    // Timing is still tracked (logged below), just no longer shown in the reply.
     await streamer.finalize();
     sessions.recordUsage(chatId, res.costUsd ?? 0, res.durationMs ?? 0);
     log.info("Turn complete", {
@@ -369,9 +384,12 @@ async function handleUserPrompt(
       isError: res.isError,
       chars: res.text?.length ?? 0,
     });
+
+    // Auto skill extraction (fire-and-forget, gated by env var).
+    if (!res.isError && res.toolCalls?.length) {
+      void autoExtractSkill(prompt, res.toolCalls, res);
+    }
   } catch (err) {
-    // Flush whatever streamed so far, then send the notice as its own message —
-    // finalize() drops empty content, so an early failure would otherwise be silent.
     await streamer.finalize().catch(() => {});
     if (session.abort?.signal.aborted) {
       log.info("Turn stopped by user", { chatId, ms: Date.now() - startedAt });
@@ -382,8 +400,6 @@ async function handleUserPrompt(
     }
   } finally {
     clearInterval(typing);
-    // Drop the standalone "Working on it…" ack (draft modes); in edit mode it
-    // became the reply, so placeholderId is left unset and nothing is deleted.
     if (placeholderId !== undefined) {
       await tg.deleteMessage(chatId, placeholderId).catch(() => {});
     }
@@ -392,7 +408,6 @@ async function handleUserPrompt(
   }
 }
 
-/** Read a saved image into the inline-vision payload; undefined if unreadable. */
 async function imageInputs(path: string): Promise<ImageInput[] | undefined> {
   try {
     const img = await readImageInput(path);
@@ -403,7 +418,6 @@ async function imageInputs(path: string): Promise<ImageInput[] | undefined> {
   }
 }
 
-/** Raw, log-friendly summary of a tool's most relevant argument. */
 function summarizeArg(input: unknown): string {
   const obj = (input ?? {}) as Record<string, unknown>;
   return String(obj.command ?? obj.file_path ?? obj.pattern ?? obj.path ?? "");
@@ -418,11 +432,6 @@ function errText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-/**
- * Turn a raw SDK/CLI error into a clear notice for the admin. The raw text now
- * includes the CLI's stderr tail (see runner.ts), so usage/credit/auth issues
- * are matchable and surfaced plainly instead of "process exited with code 1".
- */
 function friendlyError(err: unknown): string {
   const raw = errText(err);
   const low = raw.toLowerCase();
