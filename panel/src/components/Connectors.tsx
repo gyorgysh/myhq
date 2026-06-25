@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { api, AuthError, type Connector, type SecretView } from "../api.ts";
 import { Badge, Card, Empty, Label, Select } from "./ui.tsx";
+import { useI18n } from "../lib/useI18n.ts";
 
 export function ConnectorsView({ onAuthError }: { onAuthError: () => void }) {
+  const { t } = useI18n();
   const [connectors, setConnectors] = useState<Connector[]>([]);
   const [secrets, setSecrets] = useState<SecretView[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -26,32 +28,28 @@ export function ConnectorsView({ onAuthError }: { onAuthError: () => void }) {
   };
 
   return (
-    <Card title="Connectors">
-      <p className="mb-3 text-sm text-fg-dim">
-        External integrations the agent will be able to use. These are placeholders — the
-        registration surface is here, but none are wired up yet. You can pre-attach a vault secret
-        to hold each one's credential.
-      </p>
+    <Card title={t("connectors_title")}>
+      <p className="mb-3 text-sm text-fg-dim">{t("connectors_desc")}</p>
       {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
       {connectors.length === 0 ? (
-        <Empty>Loading…</Empty>
+        <Empty>{t("loading")}</Empty>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {connectors.map((c) => (
             <div key={c.id} className="rounded-lg border border-line p-3">
               <div className="flex items-center justify-between">
                 <span className="font-medium text-fg">{c.name}</span>
-                <Badge tone="amber">coming soon</Badge>
+                <Badge tone="amber">{t("connectors_coming_soon")}</Badge>
               </div>
               <p className="mt-1 text-sm text-fg-dim">{c.description}</p>
-              <p className="mt-1 text-xs text-fg-faint">Needs: {c.credential}</p>
+              <p className="mt-1 text-xs text-fg-faint">{t("connectors_needs").replace("{credential}", c.credential)}</p>
               <div className="mt-2">
-                <Label>Credential secret</Label>
+                <Label>{t("connectors_credential")}</Label>
                 <Select
                   value={c.secretId ?? ""}
                   onChange={(e) => setSecret(c.id, e.target.value)}
                 >
-                  <option value="">— none —</option>
+                  <option value="">{t("none")}</option>
                   {secrets.map((s) => (
                     <option key={s.id} value={`vault:${s.id}`}>
                       {s.name}

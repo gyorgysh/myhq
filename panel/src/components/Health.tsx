@@ -9,14 +9,24 @@ import {
 } from "../api.ts";
 import { Bar, Card, Button, Empty, Metric } from "./ui.tsx";
 import { bytes, bytesPerSec, duration, relTime } from "../lib/format.ts";
+import { useI18n } from "../lib/useI18n.ts";
+import type { TranslationKey } from "../i18n/en.ts";
 
 type ConnStatus = "connecting" | "live" | "down";
+
+/** Translate the server-supplied usage-limit label when it matches a known default. */
+function limitLabel(label: string, t: (k: TranslationKey) => string): string {
+  if (label === "5-hour session") return t("limit_5h");
+  if (label === "7-day weekly") return t("limit_7d");
+  return label;
+}
 
 // ---------------------------------------------------------------------------
 // Root view
 // ---------------------------------------------------------------------------
 
 export function HealthView() {
+  const { t } = useI18n();
   const [health, setHealth] = useState<Health | null>(null);
   const [status, setStatus] = useState<ConnStatus>("connecting");
   const retryRef = useRef<ReturnType<typeof setTimeout>>();
@@ -46,7 +56,7 @@ export function HealthView() {
   }, []);
 
   if (!health) {
-    return <Empty>{status === "down" ? "Connection lost — retrying…" : "Connecting…"}</Empty>;
+    return <Empty>{status === "down" ? t("reconnecting") : t("connecting")}</Empty>;
   }
 
   const memPct = health.mem.total ? (health.mem.used / health.mem.total) * 100 : 0;
@@ -60,10 +70,10 @@ export function HealthView() {
         <span className="text-fg-faint">·</span>
         <span>{health.platform}</span>
         <span className="text-fg-faint">·</span>
-        <span>up {duration(health.uptimeSec)}</span>
+        <span>{t("health_up")} {duration(health.uptimeSec)}</span>
         <span className="ml-auto flex items-center gap-1.5 text-xs">
           <span className={`inline-block h-2 w-2 rounded-full ${status === "live" ? "bg-emerald-500" : "bg-amber-500"}`} />
-          {status === "live" ? "live" : "reconnecting"}
+          {status === "live" ? t("health_live") : t("health_reconnecting")}
         </span>
       </div>
 
@@ -72,14 +82,14 @@ export function HealthView() {
 
       {/* System metrics */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Card><Metric label="CPU" value={`${health.cpu.load.toFixed(0)}%`} sub={`load ${health.cpu.loadAvg.map((n) => n.toFixed(2)).join(" ")}${health.cpu.tempC ? ` · ${health.cpu.tempC}°C` : ""}`} pct={health.cpu.load} /></Card>
-        <Card><Metric label="Memory" value={`${memPct.toFixed(0)}%`} sub={`${bytes(health.mem.used)} / ${bytes(health.mem.total)}`} pct={memPct} /></Card>
-        <Card><Metric label="Swap" value={health.swap.total ? `${swapPct.toFixed(0)}%` : "—"} sub={health.swap.total ? `${bytes(health.swap.used)} / ${bytes(health.swap.total)}` : "none"} pct={swapPct} /></Card>
-        <Card><Metric label="Disk I/O" value={bytesPerSec((health.io.readBytesSec ?? 0) + (health.io.writeBytesSec ?? 0) || undefined)} sub={`r ${bytesPerSec(health.io.readBytesSec)} · w ${bytesPerSec(health.io.writeBytesSec)}`} /></Card>
+        <Card><Metric label={t("health_cpu")} value={`${health.cpu.load.toFixed(0)}%`} sub={`${t("health_load")} ${health.cpu.loadAvg.map((n) => n.toFixed(2)).join(" ")}${health.cpu.tempC ? ` · ${health.cpu.tempC}°C` : ""}`} pct={health.cpu.load} /></Card>
+        <Card><Metric label={t("health_memory")} value={`${memPct.toFixed(0)}%`} sub={`${bytes(health.mem.used)} / ${bytes(health.mem.total)}`} pct={memPct} /></Card>
+        <Card><Metric label={t("health_swap")} value={health.swap.total ? `${swapPct.toFixed(0)}%` : "—"} sub={health.swap.total ? `${bytes(health.swap.used)} / ${bytes(health.swap.total)}` : t("health_none")} pct={swapPct} /></Card>
+        <Card><Metric label={t("health_disk_io")} value={bytesPerSec((health.io.readBytesSec ?? 0) + (health.io.writeBytesSec ?? 0) || undefined)} sub={`r ${bytesPerSec(health.io.readBytesSec)} · w ${bytesPerSec(health.io.writeBytesSec)}`} /></Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="Per-core load">
+        <Card title={t("health_cores")}>
           <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
             {health.cpu.cores.map((load, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -90,7 +100,7 @@ export function HealthView() {
             ))}
           </div>
         </Card>
-        <Card title="Filesystems">
+        <Card title={t("health_filesystems")}>
           <div className="space-y-3">
             {health.disks.map((d) => (
               <div key={d.mount}>
@@ -146,6 +156,7 @@ function subLabel(type?: string): string {
 }
 
 function LimitBar({ lim }: { lim: UsageLimitWindow }) {
+  const { t } = useI18n();
   const pct = Math.min(100, lim.percent);
   const color = barColor(lim.severity);
   const tc = textColor(lim.severity);
@@ -153,15 +164,15 @@ function LimitBar({ lim }: { lim: UsageLimitWindow }) {
   // Recompute the live "resets in" from resetsAt each render
   const [, tick] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 30_000);
-    return () => clearInterval(t);
+    const id = setInterval(() => tick((n) => n + 1), 30_000);
+    return () => clearInterval(id);
   }, []);
   const resetsInMs = Math.max(0, new Date(lim.resetsAt).getTime() - Date.now());
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-xs font-semibold uppercase tracking-wider text-fg-dim">{lim.label}</span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-fg-dim">{limitLabel(lim.label, t)}</span>
         <span className={`text-xl font-bold tabular ${tc}`}>{lim.percent}%</span>
       </div>
       <div className="h-3 w-full rounded-full bg-surface-2 overflow-hidden">
@@ -171,9 +182,9 @@ function LimitBar({ lim }: { lim: UsageLimitWindow }) {
         />
       </div>
       <div className="flex items-center justify-between text-xs">
-        <span className="text-fg-faint">used</span>
+        <span className="text-fg-faint">{t("health_used")}</span>
         <span className={`font-medium ${resetsInMs < 600_000 ? "text-amber-400" : "text-fg-dim"}`}>
-          resets in {formatResets(resetsInMs)}
+          {t("health_resets_in").replace("{time}", formatResets(resetsInMs))}
         </span>
       </div>
     </div>
@@ -181,6 +192,7 @@ function LimitBar({ lim }: { lim: UsageLimitWindow }) {
 }
 
 function ClaudeUsageCard() {
+  const { t } = useI18n();
   const [probe, setProbe] = useState<ProbeResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
@@ -232,21 +244,21 @@ function ClaudeUsageCard() {
             </span>
           )}
           <Button onClick={checkNow} disabled={running || loading}>
-            {running ? "Checking…" : "Check now"}
+            {running ? t("health_checking") : t("health_check_now")}
           </Button>
         </div>
       }
     >
       {loading && !probe ? (
-        <p className="text-sm text-fg-faint">Loading…</p>
+        <p className="text-sm text-fg-faint">{t("health_loading")}</p>
       ) : probe?.source === "none" || !probe ? (
-        <p className="text-sm text-fg-faint">No probe data yet. Click "Check now".</p>
+        <p className="text-sm text-fg-faint">{t("health_no_probe")}</p>
       ) : (
         <div className="space-y-5">
           {/* Error / fallback notice */}
           {probe.source === "fallback" && (
             <p className="text-xs text-amber-400">
-              {probe.error ?? "OAuth unavailable — showing historical stats only."}
+              {probe.error ?? t("health_oauth_fallback")}
             </p>
           )}
 
@@ -259,10 +271,10 @@ function ClaudeUsageCard() {
             </div>
           ) : (
             <p className="text-sm text-fg-faint">
-              No live limit data.{" "}
+              {t("health_no_live_limit")}{" "}
               {probe.source === "fallback"
-                ? "OAuth Keychain entry not found."
-                : "No active limits returned by the API."}
+                ? t("health_oauth_not_found")
+                : t("health_no_active_limits")}
             </p>
           )}
 
@@ -271,19 +283,19 @@ function ClaudeUsageCard() {
             <div className="flex flex-wrap gap-x-5 gap-y-0.5 text-xs text-fg-faint border-t border-line pt-3">
               <span>
                 <span className="text-fg-dim font-medium">{probe.activity.messageCount.toLocaleString()}</span>{" "}
-                messages ({probe.activity.lastDate})
+                {t("health_messages")} ({probe.activity.lastDate})
               </span>
               <span>
                 <span className="text-fg-dim font-medium">{probe.activity.weeklyMessageCount.toLocaleString()}</span>{" "}
-                this week
+                {t("health_this_week")}
               </span>
               <span>
                 <span className="text-fg-dim font-medium">{probe.activity.toolCallCount.toLocaleString()}</span>{" "}
-                tool calls
+                {t("health_tool_calls")}
               </span>
               {probe.probedAt && (
                 <span className="ml-auto">
-                  {isProbedRecently ? "just now" : `checked ${relTime(new Date(probe.probedAt).getTime())}`}
+                  {isProbedRecently ? t("health_just_now") : t("health_checked").replace("{time}", relTime(new Date(probe.probedAt).getTime()))}
                 </span>
               )}
             </div>
@@ -299,6 +311,7 @@ function ClaudeUsageCard() {
 // ---------------------------------------------------------------------------
 
 function MaintenanceCard() {
+  const { t } = useI18n();
   const [stats, setStats] = useState<MaintenanceStats | null>(null);
   const [running, setRunning] = useState(false);
 
@@ -311,22 +324,22 @@ function MaintenanceCard() {
 
   return (
     <Card
-      title="Maintenance"
-      right={<Button onClick={run} disabled={running}>{running ? "Running…" : "Run now"}</Button>}
+      title={t("health_maintenance")}
+      right={<Button onClick={run} disabled={running}>{running ? t("health_maintenance_running") : t("health_maintenance_run")}</Button>}
     >
       <p className="mb-3 text-sm text-fg-dim">
-        Daily memory compaction and skill pruning. Set <code>MAINTENANCE_CRON=HH:MM</code> to schedule.
+        {t("health_maint_desc_pre")}<code>MAINTENANCE_CRON=HH:MM</code>{t("health_maint_desc_post")}
       </p>
       {stats ? (
         <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-5">
-          <div><span className="text-fg-faint">Last run</span><p className="font-medium text-fg">{stats.lastRunAt ? relTime(stats.lastRunAt) : "never"}</p></div>
-          <div><span className="text-fg-faint">Demoted</span><p className="font-medium text-fg">{stats.memoriesCompacted}</p></div>
-          <div><span className="text-fg-faint">Deleted</span><p className="font-medium text-fg">{stats.memoriesDeleted}</p></div>
-          <div><span className="text-fg-faint">Merged</span><p className="font-medium text-fg">{stats.memoriesMerged}</p></div>
-          <div><span className="text-fg-faint">Archived skills</span><p className="font-medium text-fg">{stats.skillsArchived}</p></div>
+          <div><span className="text-fg-faint">{t("health_maintenance_last")}</span><p className="font-medium text-fg">{stats.lastRunAt ? relTime(stats.lastRunAt) : t("health_maintenance_never")}</p></div>
+          <div><span className="text-fg-faint">{t("health_maint_demoted")}</span><p className="font-medium text-fg">{stats.memoriesCompacted}</p></div>
+          <div><span className="text-fg-faint">{t("health_maint_deleted")}</span><p className="font-medium text-fg">{stats.memoriesDeleted}</p></div>
+          <div><span className="text-fg-faint">{t("health_maint_merged")}</span><p className="font-medium text-fg">{stats.memoriesMerged}</p></div>
+          <div><span className="text-fg-faint">{t("health_maint_archived")}</span><p className="font-medium text-fg">{stats.skillsArchived}</p></div>
         </div>
       ) : (
-        <p className="text-xs text-fg-faint">Loading…</p>
+        <p className="text-xs text-fg-faint">{t("loading")}</p>
       )}
     </Card>
   );

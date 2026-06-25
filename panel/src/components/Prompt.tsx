@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { api, AuthError, type PromptView } from "../api.ts";
 import { Button, Card, Empty, TextArea } from "./ui.tsx";
+import { useI18n } from "../lib/useI18n.ts";
 
 export function PromptView_({ onAuthError }: { onAuthError: () => void }) {
+  const { t } = useI18n();
   const [data, setData] = useState<PromptView | null>(null);
   const [work, setWork] = useState("");
   const [dirty, setDirty] = useState(false);
@@ -22,8 +24,8 @@ export function PromptView_({ onAuthError }: { onAuthError: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (error) return <Empty>Failed to load: {error}</Empty>;
-  if (!data) return <Empty>Loading…</Empty>;
+  if (error) return <Empty>{t("prompt_failed_load").replace("{error}", error)}</Empty>;
+  if (!data) return <Empty>{t("loading")}</Empty>;
 
   const save = async () => {
     setSaving(true);
@@ -45,17 +47,14 @@ export function PromptView_({ onAuthError }: { onAuthError: () => void }) {
   return (
     <div className="space-y-4">
       <Card
-        title="Operator playbook"
+        title={t("prompt_playbook_title")}
         right={
           <span className="font-mono text-xs text-fg-faint" title={data.workFile}>
-            {data.exists ? "work.md" : "work.md (new)"}
+            {data.exists ? "work.md" : t("prompt_work_new")}
           </span>
         }
       >
-        <p className="mb-3 text-sm text-fg-dim">
-          Appended to every turn's system prompt and re-read live — no restart needed. Define how
-          recurring operational requests should be handled.
-        </p>
+        <p className="mb-3 text-sm text-fg-dim">{t("prompt_desc")}</p>
         <TextArea
           rows={18}
           value={work}
@@ -63,27 +62,27 @@ export function PromptView_({ onAuthError }: { onAuthError: () => void }) {
             setWork(e.target.value);
             setDirty(true);
           }}
-          placeholder="# Operator playbook&#10;&#10;- How to handle deploys&#10;- Service conventions…"
+          placeholder={t("prompt_placeholder")}
         />
         <div className="mt-3 flex items-center gap-3">
           <Button variant="primary" onClick={save} disabled={saving || !dirty}>
-            {saving ? "Saving…" : "Save playbook"}
+            {saving ? t("saving") : t("prompt_save")}
           </Button>
-          {saved && <span className="text-xs text-emerald-400">Saved ✓</span>}
-          {dirty && !saved && <span className="text-xs text-fg-faint">Unsaved changes</span>}
+          {saved && <span className="text-xs text-emerald-400">{t("saved")}</span>}
+          {dirty && !saved && <span className="text-xs text-fg-faint">{t("prompt_unsaved")}</span>}
         </div>
       </Card>
 
       <Card
-        title="Personality (read-only)"
+        title={t("prompt_personality_title")}
         right={
           <Button onClick={() => setShowPersona((s) => !s)}>
-            {showPersona ? "Hide" : "Show"}
+            {showPersona ? t("hide") : t("show")}
           </Button>
         }
       >
         <p className="text-sm text-fg-dim">
-          Compiled into the build and prepended before the playbook. Edit in <code>src/prompt.ts</code>.
+          {t("prompt_personality_desc_pre")}<code>src/prompt.ts</code>{t("prompt_personality_desc_post")}
         </p>
         {showPersona && (
           <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-input p-3 text-xs text-fg-muted">

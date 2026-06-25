@@ -9,12 +9,22 @@ import {
 import { usePoll } from "../lib/usePoll.ts";
 import { Card, Button, Empty, Metric } from "./ui.tsx";
 import { ms, usd, relTime } from "../lib/format.ts";
+import { useI18n } from "../lib/useI18n.ts";
+import type { TranslationKey } from "../i18n/en.ts";
+
+/** Translate the server-supplied usage-limit label when it matches a known default. */
+function limitLabel(label: string, t: (k: TranslationKey) => string): string {
+  if (label === "5-hour session") return t("limit_5h");
+  if (label === "7-day weekly") return t("limit_7d");
+  return label;
+}
 
 // ---------------------------------------------------------------------------
 // Root view
 // ---------------------------------------------------------------------------
 
 export function UsageView({ onAuthError }: { onAuthError: () => void }) {
+  const { t } = useI18n();
   const { data: myhq, error } = usePoll(api.usage, 15000, onAuthError);
   const [plan, setPlan] = useState<PlanView | null>(null);
   const [probe, setProbe] = useState<ProbeResult | null>(null);
@@ -27,7 +37,7 @@ export function UsageView({ onAuthError }: { onAuthError: () => void }) {
     api.claudeUsage().then(setClaude).catch(() => {});
   }, []);
 
-  if (error) return <Empty>Failed to load: {error}</Empty>;
+  if (error) return <Empty>{t("usage_failed_load").replace("{error}", error)}</Empty>;
 
   const refreshProbe = async () => {
     setProbeRunning(true);
@@ -67,7 +77,7 @@ export function UsageView({ onAuthError }: { onAuthError: () => void }) {
 
       {/* Budget tracker — only for API plan with a cap set */}
       {hasApiCap && plan && (
-        <Card title="API budget this period">
+        <Card title={t("usage_api_budget")}>
           <BudgetBar plan={plan} />
         </Card>
       )}
@@ -78,31 +88,31 @@ export function UsageView({ onAuthError }: { onAuthError: () => void }) {
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <Card>
               <Metric
-                label={isSubscription ? "API cost today" : "Cost today"}
+                label={isSubscription ? t("usage_api_cost_today") : t("usage_cost_today")}
                 value={usd(myhq.today.costUsd)}
-                sub={`${myhq.today.turns} turn${myhq.today.turns === 1 ? "" : "s"}`}
+                sub={`${myhq.today.turns} ${myhq.today.turns === 1 ? t("usage_turn") : t("usage_turns")}`}
               />
             </Card>
             <Card>
               <Metric
-                label={isSubscription ? "API cost lifetime" : "Cost lifetime"}
+                label={isSubscription ? t("usage_api_cost_lifetime") : t("usage_cost_lifetime")}
                 value={usd(myhq.total.costUsd)}
-                sub={`${myhq.total.turns} turns total`}
+                sub={`${myhq.total.turns} ${t("usage_turns_total")}`}
               />
             </Card>
             <Card>
-              <Metric label="Time today" value={ms(myhq.today.durationMs)} />
+              <Metric label={t("usage_time_today")} value={ms(myhq.today.durationMs)} />
             </Card>
             <Card>
-              <Metric label="Time lifetime" value={ms(myhq.total.durationMs)} />
+              <Metric label={t("usage_time_lifetime")} value={ms(myhq.total.durationMs)} />
             </Card>
           </div>
 
-          <Card title={isSubscription ? "MyHQ agent cost per day (last 30 days)" : "Daily cost (last 30 days)"}>
+          <Card title={isSubscription ? t("usage_cost_per_day_sub") : t("usage_daily_cost")}>
             <CostChart myhq={myhq} plan={plan} isSubscription={isSubscription} />
             {isSubscription && (
               <p className="mt-2 text-xs text-fg-faint">
-                Reflects API token charges routed through MyHQ agents. Your {detectedPlan ?? "subscription"} is billed separately at a flat monthly rate.
+                {t("usage_subscription_note").replace("{plan}", detectedPlan ?? t("usage_subscription_fallback"))}
               </p>
             )}
           </Card>
@@ -135,10 +145,11 @@ function formatMs(ms: number): string {
 }
 
 function LimitBar({ lim }: { lim: UsageLimitWindow }) {
+  const { t } = useI18n();
   const [, tick] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 30_000);
-    return () => clearInterval(t);
+    const id = setInterval(() => tick((n) => n + 1), 30_000);
+    return () => clearInterval(id);
   }, []);
   const resetsInMs = Math.max(0, new Date(lim.resetsAt).getTime() - Date.now());
   const pct = Math.min(100, lim.percent);
@@ -146,7 +157,7 @@ function LimitBar({ lim }: { lim: UsageLimitWindow }) {
   return (
     <div className="space-y-2">
       <div className="flex items-baseline justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-fg-dim">{lim.label}</span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-fg-dim">{limitLabel(lim.label, t)}</span>
         <span className={`text-2xl font-bold tabular ${textColor(lim.severity)}`}>{lim.percent}%</span>
       </div>
       <div className="h-3 w-full rounded-full bg-surface-2 overflow-hidden">
@@ -156,9 +167,9 @@ function LimitBar({ lim }: { lim: UsageLimitWindow }) {
         />
       </div>
       <div className="flex items-center justify-between text-xs">
-        <span className="text-fg-faint">{lim.severity === "normal" ? "within limits" : lim.severity}</span>
+        <span className="text-fg-faint">{lim.severity === "normal" ? t("usage_within_limits") : lim.severity}</span>
         <span className={`font-medium ${resetsInMs < 600_000 ? "text-amber-400" : "text-fg-dim"}`}>
-          resets in {formatMs(resetsInMs)}
+          {t("usage_resets_in").replace("{time}", formatMs(resetsInMs))}
         </span>
       </div>
     </div>
@@ -176,13 +187,14 @@ function LiveLimitsCard({
   probeRunning: boolean;
   onRefresh: () => void;
 }) {
+  const { t } = useI18n();
   const probedAgo = probe?.probedAt
     ? Date.now() - new Date(probe.probedAt).getTime()
     : null;
 
   return (
     <Card
-      title="Claude usage limits"
+      title={t("usage_limits_title")}
       right={
         <div className="flex items-center gap-2">
           {detectedPlan && (
@@ -191,19 +203,19 @@ function LiveLimitsCard({
             </span>
           )}
           <Button onClick={onRefresh} disabled={probeRunning}>
-            {probeRunning ? "Checking…" : "Refresh"}
+            {probeRunning ? t("usage_checking") : t("usage_refresh")}
           </Button>
         </div>
       }
     >
       {!probe || probe.source === "none" ? (
-        <p className="text-sm text-fg-faint">No data yet. Click Refresh.</p>
+        <p className="text-sm text-fg-faint">{t("usage_no_data")}</p>
       ) : probe.source === "fallback" ? (
         <p className="text-sm text-amber-400">
-          {probe.error ?? "OAuth unavailable. Install Claude Code and run claude auth login."}
+          {probe.error ?? t("usage_oauth_unavailable")}
         </p>
       ) : probe.limits.length === 0 ? (
-        <p className="text-sm text-fg-faint">No active limits returned. You may be within all thresholds.</p>
+        <p className="text-sm text-fg-faint">{t("usage_no_active_limits")}</p>
       ) : (
         <div className="space-y-5">
           <div className="grid gap-6 sm:grid-cols-2">
@@ -213,7 +225,7 @@ function LiveLimitsCard({
           </div>
           {probedAgo !== null && (
             <p className="text-xs text-fg-faint">
-              Updated {probedAgo < 5000 ? "just now" : relTime(new Date(probe.probedAt!).getTime())}
+              {t("usage_updated").replace("{time}", probedAgo < 5000 ? t("usage_just_now") : relTime(new Date(probe.probedAt!).getTime()))}
             </p>
           )}
         </div>
@@ -227,28 +239,29 @@ function LiveLimitsCard({
 // ---------------------------------------------------------------------------
 
 function ActivityCard({ claude }: { claude: ClaudeUsageSnapshot }) {
+  const { t } = useI18n();
   const days = [...claude.recentDays].reverse();
   const maxMsg = Math.max(1, ...days.map((d) => d.messageCount));
 
   return (
-    <Card title="Activity history">
+    <Card title={t("usage_activity_history")}>
       <div className="space-y-4">
         {/* Stat tiles */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Tile
-            label={claude.hasTodayData ? "Messages today" : `Messages (${claude.lastRecordedDay?.date ?? "last"})`}
+            label={claude.hasTodayData ? t("usage_messages_today") : t("usage_messages_last").replace("{date}", claude.lastRecordedDay?.date ?? "last")}
             value={(claude.lastRecordedDay?.messageCount ?? 0).toLocaleString()}
           />
           <Tile
-            label="Messages this week"
+            label={t("usage_messages_this_week")}
             value={claude.weekly.count.toLocaleString()}
           />
           <Tile
-            label="Sessions (last day)"
+            label={t("usage_sessions_last_day")}
             value={(claude.lastRecordedDay?.sessionCount ?? 0).toLocaleString()}
           />
           <Tile
-            label="Tool calls (last day)"
+            label={t("usage_tool_calls_last_day")}
             value={(claude.lastRecordedDay?.toolCallCount ?? 0).toLocaleString()}
           />
         </div>
@@ -257,7 +270,7 @@ function ActivityCard({ claude }: { claude: ClaudeUsageSnapshot }) {
         {days.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-medium text-fg-dim">
-              Messages per day (last {days.length} days)
+              {t("usage_messages_per_day").replace("{n}", String(days.length))}
             </p>
             <div className="flex h-20 items-end gap-0.5">
               {days.map((d) => {
@@ -266,7 +279,7 @@ function ActivityCard({ claude }: { claude: ClaudeUsageSnapshot }) {
                   <div
                     key={d.date}
                     className="group flex flex-1 flex-col items-center justify-end"
-                    title={`${d.date}: ${d.messageCount.toLocaleString()} messages`}
+                    title={`${d.date}: ${d.messageCount.toLocaleString()} ${t("health_messages")}`}
                   >
                     <div
                       className={`w-full min-h-[2px] rounded-t transition-all ${
@@ -285,7 +298,7 @@ function ActivityCard({ claude }: { claude: ClaudeUsageSnapshot }) {
         {Object.keys(claude.lastDayTokens).length > 0 && (
           <div>
             <p className="mb-1.5 text-xs font-medium text-fg-dim">
-              Tokens by model — {claude.lastRecordedDay?.date ?? "last recorded day"}
+              {t("usage_tokens_by_model")} — {claude.lastRecordedDay?.date ?? t("usage_last_recorded_day")}
             </p>
             <div className="space-y-1.5">
               {Object.entries(claude.lastDayTokens).map(([model, t]) => {
@@ -309,13 +322,13 @@ function ActivityCard({ claude }: { claude: ClaudeUsageSnapshot }) {
 
         {/* Lifetime footer */}
         <div className="flex flex-wrap gap-x-5 gap-y-0.5 border-t border-line pt-2 text-xs text-fg-faint">
-          <span><span className="text-fg-dim font-medium">{claude.totalMessages.toLocaleString()}</span> total messages</span>
-          <span><span className="text-fg-dim font-medium">{claude.totalSessions.toLocaleString()}</span> sessions</span>
+          <span><span className="text-fg-dim font-medium">{claude.totalMessages.toLocaleString()}</span> {t("usage_total_messages")}</span>
+          <span><span className="text-fg-dim font-medium">{claude.totalSessions.toLocaleString()}</span> {t("usage_sessions")}</span>
           {claude.firstSessionDate && (
-            <span>since {new Date(claude.firstSessionDate).toLocaleDateString()}</span>
+            <span>{t("usage_since").replace("{date}", new Date(claude.firstSessionDate).toLocaleDateString())}</span>
           )}
           {!claude.hasTodayData && (
-            <span className="ml-auto italic">Stats update when sessions close</span>
+            <span className="ml-auto italic">{t("usage_stats_update")}</span>
           )}
         </div>
       </div>
@@ -328,6 +341,7 @@ function ActivityCard({ claude }: { claude: ClaudeUsageSnapshot }) {
 // ---------------------------------------------------------------------------
 
 function BudgetBar({ plan }: { plan: PlanView }) {
+  const { t } = useI18n();
   const pct = Math.min(100, plan.pctUsed);
   const color = plan.pctUsed >= 90 ? "bg-red-500" : plan.pctUsed >= 70 ? "bg-amber-400" : "bg-emerald-400";
   const tcolor = plan.pctUsed >= 90 ? "text-red-400" : plan.pctUsed >= 70 ? "text-amber-400" : "text-emerald-400";
@@ -336,16 +350,16 @@ function BudgetBar({ plan }: { plan: PlanView }) {
     <div className="space-y-2">
       <div className="flex items-baseline gap-2">
         <span className={`text-2xl font-semibold tabular ${tcolor}`}>${plan.periodCostUsd.toFixed(2)}</span>
-        <span className="text-xs text-fg-faint">of ${plan.monthlyCap} cap ({plan.pctUsed.toFixed(0)}%)</span>
-        <span className="ml-auto text-xs text-fg-faint">{plan.daysUntilReset}d until reset</span>
+        <span className="text-xs text-fg-faint">{t("usage_of_cap").replace("{cap}", String(plan.monthlyCap)).replace("{pct}", plan.pctUsed.toFixed(0))}</span>
+        <span className="ml-auto text-xs text-fg-faint">{t("usage_until_reset").replace("{n}", String(plan.daysUntilReset))}</span>
       </div>
       <div className="h-2 w-full rounded-full bg-surface-2 overflow-hidden">
         <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
       </div>
       <div className="flex gap-4 text-xs text-fg-faint">
-        <span>Avg/day: ${plan.dailyAvgUsd.toFixed(4)}</span>
-        <span>Est. month: ${plan.estimatedMonthlyUsd.toFixed(2)}</span>
-        {plan.periodStart && <span>Since: {plan.periodStart}</span>}
+        <span>{t("usage_avg_day")}: ${plan.dailyAvgUsd.toFixed(4)}</span>
+        <span>{t("usage_est_month")}: ${plan.estimatedMonthlyUsd.toFixed(2)}</span>
+        {plan.periodStart && <span>{t("usage_since_label")}: {plan.periodStart}</span>}
       </div>
     </div>
   );
@@ -364,11 +378,12 @@ function CostChart({
   plan: PlanView | null;
   isSubscription: boolean;
 }) {
+  const { t } = useI18n();
   const recent = myhq.daily.slice(-30);
   const maxCost = Math.max(0.0001, ...recent.map((d) => d.costUsd));
   const periodStart = plan?.periodStart;
 
-  if (recent.length === 0) return <Empty>No activity recorded yet.</Empty>;
+  if (recent.length === 0) return <Empty>{t("usage_no_activity")}</Empty>;
 
   return (
     <div className="relative flex h-40 items-end gap-1">
@@ -393,7 +408,7 @@ function CostChart({
                 inPeriod ? "bg-accent/70 group-hover:bg-accent" : "bg-fg-faint/20 group-hover:bg-fg-faint/40"
               }`}
               style={{ height: `${(d.costUsd / maxCost) * 100}%` }}
-              title={`${d.day}: ${usd(d.costUsd)} · ${d.turns} turns`}
+              title={`${d.day}: ${usd(d.costUsd)} · ${d.turns} ${t("usage_turns")}`}
             />
           </div>
         );

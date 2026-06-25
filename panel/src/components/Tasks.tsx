@@ -3,6 +3,15 @@ import { api, AuthError, type Column, type ColumnDef, type Priority, type Task, 
 import { useTaskEvents, type LiveTask } from "../lib/useTaskEvents.ts";
 import { useI18n } from "../lib/useI18n.ts";
 import { Button, Empty, Input, TextArea } from "./ui.tsx";
+import type { TranslationKey } from "../i18n/en.ts";
+
+/** Translate a default column name when it hasn't been renamed by the user. */
+function columnName(col: ColumnDef, t: (k: TranslationKey) => string): string {
+  if (col.id === "backlog" && col.name === "Planned") return t("col_planned");
+  if (col.id === "doing" && col.name === "In Progress") return t("col_in_progress");
+  if (col.id === "done" && col.name === "Done") return t("col_done");
+  return col.name;
+}
 
 function colTone(col: ColumnDef, idx: number): string {
   if (idx === 0) return "text-fg-dim";
@@ -152,7 +161,7 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
                     onClick={() => startRename(col)}
                     title={t("tasks_click_rename")}
                   >
-                    {col.name}
+                    {columnName(col, t)}
                   </h3>
                 )}
                 <button

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, AuthError, openHealthSocket, type LogEntry } from "../api.ts";
 import { Button, Empty } from "./ui.tsx";
+import { useI18n } from "../lib/useI18n.ts";
 
 type Level = LogEntry["level"];
 const LEVELS: Level[] = ["error", "warn", "info", "debug"];
@@ -14,6 +15,7 @@ const LEVEL_COLOR: Record<Level, string> = {
 const MAX = 2000;
 
 export function LogsView({ onAuthError }: { onAuthError: () => void }) {
+  const { t } = useI18n();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [hidden, setHidden] = useState<Set<Level>>(new Set());
   const [follow, setFollow] = useState(true);
@@ -74,7 +76,7 @@ export function LogsView({ onAuthError }: { onAuthError: () => void }) {
       return n;
     });
 
-  if (error) return <Empty>Failed to load: {error}</Empty>;
+  if (error) return <Empty>{t("logs_failed_load").replace("{error}", error)}</Empty>;
 
   const visible = logs.filter((l) => !hidden.has(l.level));
 
@@ -92,7 +94,7 @@ export function LogsView({ onAuthError }: { onAuthError: () => void }) {
             {l}
           </button>
         ))}
-        <span className="tabular ml-auto text-xs text-fg-faint">{visible.length} lines</span>
+        <span className="tabular ml-auto text-xs text-fg-faint">{t("logs_lines").replace("{n}", String(visible.length))}</span>
         <label className="flex items-center gap-1.5 text-xs text-fg-muted">
           <input
             type="checkbox"
@@ -100,9 +102,9 @@ export function LogsView({ onAuthError }: { onAuthError: () => void }) {
             onChange={(e) => setFollow(e.target.checked)}
             className="h-3.5 w-3.5 accent-[var(--accent)]"
           />
-          Follow
+          {t("logs_follow")}
         </label>
-        <Button onClick={() => setLogs([])}>Clear</Button>
+        <Button onClick={() => setLogs([])}>{t("logs_clear")}</Button>
       </div>
 
       <div
@@ -111,7 +113,7 @@ export function LogsView({ onAuthError }: { onAuthError: () => void }) {
         className="flex-1 overflow-auto rounded-xl border border-line bg-input p-3 font-mono text-xs leading-relaxed"
       >
         {visible.length === 0 ? (
-          <Empty>No log lines.</Empty>
+          <Empty>{t("logs_no_lines")}</Empty>
         ) : (
           visible.map((l) => (
             <div key={l.seq} className="whitespace-pre-wrap break-words">

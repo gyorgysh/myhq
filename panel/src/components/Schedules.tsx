@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { api, AuthError, type ScheduleView } from "../api.ts";
 import { Badge, Button, Card, Empty, Input, Label } from "./ui.tsx";
 import { relTime } from "../lib/format.ts";
+import { useI18n } from "../lib/useI18n.ts";
 
 const blank = { prompt: "", when: "", cwd: "" };
 
 export function SchedulesView({ onAuthError }: { onAuthError: () => void }) {
+  const { t } = useI18n();
   const [schedules, setSchedules] = useState<ScheduleView[]>([]);
   const [form, setForm] = useState<typeof blank>(blank);
   const [adding, setAdding] = useState(false);
@@ -55,74 +57,73 @@ export function SchedulesView({ onAuthError }: { onAuthError: () => void }) {
   };
 
   const del = async (id: string) => {
-    if (!confirm("Delete this schedule?")) return;
+    if (!confirm(t("sched_delete_confirm"))) return;
     await api.deleteSchedule(id);
     await load();
   };
 
   return (
     <Card
-      title="Schedules"
+      title={t("sched_title")}
       right={
         !adding && (
           <Button variant="primary" onClick={() => setAdding(true)}>
-            + New schedule
+            {t("sched_new")}
           </Button>
         )
       }
     >
       <p className="mb-3 text-sm text-fg-dim">
-        Recurring autonomous prompts. Each runs in its working directory and posts the result to its
-        Telegram chat. Also manageable from Telegram with <code>/schedule</code>.
+        {t("sched_desc_pre")}<code>/schedule</code>{t("sched_desc_post")}
       </p>
       {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
 
       {adding && (
         <div className="mb-4 space-y-3 rounded-lg border border-line bg-input p-3">
           <div>
-            <Label>Prompt</Label>
+            <Label>{t("sched_prompt")}</Label>
             <Input
               value={form.prompt}
               onChange={(e) => setForm({ ...form, prompt: e.target.value })}
-              placeholder="e.g. Summarise today's commits"
+              placeholder={t("sched_prompt_placeholder")}
             />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label>When</Label>
+              <Label>{t("sched_when")}</Label>
               <Input
                 value={form.when}
                 onChange={(e) => setForm({ ...form, when: e.target.value })}
-                placeholder="30m · 2h · 1d · or 09:30"
+                placeholder={t("sched_when_placeholder")}
               />
             </div>
             <div>
-              <Label>Working directory (optional)</Label>
+              <Label>{t("sched_cwd")}</Label>
               <Input
                 value={form.cwd}
                 onChange={(e) => setForm({ ...form, cwd: e.target.value })}
-                placeholder="default WORKDIR"
+                placeholder={t("sched_cwd_placeholder")}
               />
             </div>
           </div>
           <div className="flex gap-2">
             <Button variant="primary" onClick={create} disabled={!form.prompt.trim() || !form.when.trim()}>
-              Create
+              {t("sched_create")}
             </Button>
-            <Button onClick={() => setAdding(false)}>Cancel</Button>
+            <Button onClick={() => setAdding(false)}>{t("cancel")}</Button>
           </div>
         </div>
       )}
 
       {schedules.length === 0 && !adding ? (
-        <Empty>No schedules yet.</Empty>
+        <Empty>{t("sched_empty")}</Empty>
       ) : (
         <div className="space-y-2">
           {schedules.map((s) =>
             editingId === s.id ? (
               <div key={s.id} className="space-y-3 rounded-lg border border-accent/50 bg-input p-3">
                 <div>
-                  <Label>Prompt</Label>
+                  <Label>{t("sched_prompt")}</Label>
                   <Input
                     value={editForm.prompt}
                     onChange={(e) => setEditForm({ ...editForm, prompt: e.target.value })}
@@ -130,15 +131,15 @@ export function SchedulesView({ onAuthError }: { onAuthError: () => void }) {
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <Label>When</Label>
+                    <Label>{t("sched_when")}</Label>
                     <Input
                       value={editForm.when}
                       onChange={(e) => setEditForm({ ...editForm, when: e.target.value })}
-                      placeholder="30m · 2h · 1d · or 09:30"
+                      placeholder={t("sched_when_placeholder")}
                     />
                   </div>
                   <div>
-                    <Label>Working directory</Label>
+                    <Label>{t("sched_cwd_edit")}</Label>
                     <Input
                       value={editForm.cwd}
                       onChange={(e) => setEditForm({ ...editForm, cwd: e.target.value })}
@@ -147,9 +148,9 @@ export function SchedulesView({ onAuthError }: { onAuthError: () => void }) {
                 </div>
                 <div className="flex gap-2">
                   <Button variant="primary" onClick={() => saveEdit(s.id)} disabled={!editForm.prompt.trim() || !editForm.when.trim()}>
-                    Save
+                    {t("save")}
                   </Button>
-                  <Button onClick={() => setEditingId(null)}>Cancel</Button>
+                  <Button onClick={() => setEditingId(null)}>{t("cancel")}</Button>
                 </div>
               </div>
             ) : (
@@ -157,12 +158,12 @@ export function SchedulesView({ onAuthError }: { onAuthError: () => void }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone="blue">{s.spec}</Badge>
                   <span className="ml-auto tabular text-xs text-fg-muted">
-                    next {relTime(s.nextRunAt)}
-                    {s.lastRunAt ? ` · last ${relTime(s.lastRunAt)}` : ""}
+                    {t("sched_next").replace("{time}", relTime(s.nextRunAt))}
+                    {s.lastRunAt ? ` · ${t("sched_last").replace("{time}", relTime(s.lastRunAt))}` : ""}
                   </span>
-                  <Button onClick={() => startEdit(s)}>Edit</Button>
+                  <Button onClick={() => startEdit(s)}>{t("edit")}</Button>
                   <Button variant="danger" onClick={() => del(s.id)}>
-                    Delete
+                    {t("delete")}
                   </Button>
                 </div>
                 <div className="mt-2 text-sm text-fg">{s.prompt}</div>

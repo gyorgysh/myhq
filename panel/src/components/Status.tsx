@@ -2,29 +2,29 @@ import { useState } from "react";
 import { api, type BackendStatus, type ServiceStatus } from "../api.ts";
 import { usePoll } from "../lib/usePoll.ts";
 import { Badge, Card, Empty } from "./ui.tsx";
+import { useI18n } from "../lib/useI18n.ts";
+import type { TranslationKey } from "../i18n/en.ts";
 
-const KIND_LABEL: Record<BackendStatus["kind"], string> = {
-  anthropic: "Anthropic",
-  provider: "Provider",
-  local: "Local",
+const KIND_LABEL: Record<BackendStatus["kind"], TranslationKey> = {
+  anthropic: "status_kind_anthropic",
+  provider: "status_kind_provider",
+  local: "status_kind_local",
 };
 
 export function StatusView({ onAuthError }: { onAuthError: () => void }) {
+  const { t } = useI18n();
   const { data, error } = usePoll(() => api.status(), 15_000, onAuthError);
 
   return (
     <div className="space-y-4">
       {data && <ServiceBanner s={data.service} />}
-      <Card title="Model backends">
-        <p className="mb-3 text-sm text-fg-dim">
-          Reachability, auth and model lists for the Anthropic API, every configured provider, and
-          any local model server (LM Studio / Ollama) that's running. Refreshes every 15s.
-        </p>
+      <Card title={t("status_backends_title")}>
+        <p className="mb-3 text-sm text-fg-dim">{t("status_backends_desc")}</p>
         {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
         {!data ? (
-          <Empty>Checking…</Empty>
+          <Empty>{t("checking")}</Empty>
         ) : data.backends.length === 0 ? (
-          <Empty>No backends.</Empty>
+          <Empty>{t("status_no_backends")}</Empty>
         ) : (
           <div className="space-y-2">
             {data.backends.map((b) => (
@@ -38,16 +38,17 @@ export function StatusView({ onAuthError }: { onAuthError: () => void }) {
 }
 
 function ServiceBanner({ s }: { s: ServiceStatus }) {
+  const { t } = useI18n();
   const ok = s.indicator === "none";
   const bad = s.indicator === "major" || s.indicator === "critical";
   const dot = ok ? "bg-emerald-500" : s.indicator === "minor" ? "bg-amber-500" : bad ? "bg-red-500" : "bg-fg-faint";
   return (
-    <Card title="Claude service status">
+    <Card title={t("status_service_title")}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
           <span className="text-sm text-fg">
-            {s.error ? "Status page unreachable" : s.description || "Unknown"}
+            {s.error ? t("status_unreachable") : s.description || t("status_unknown")}
           </span>
         </div>
         <a
@@ -60,18 +61,19 @@ function ServiceBanner({ s }: { s: ServiceStatus }) {
         </a>
       </div>
       <p className="mt-1 text-xs text-fg-faint">
-        From the public status page — no API key required.
+        {t("status_public_note")}
       </p>
     </Card>
   );
 }
 
 function BackendRow({ b }: { b: BackendStatus }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const state = !b.reachable ? "down" : !b.authOk ? "auth" : "up";
   const dot =
     state === "up" ? "bg-emerald-500" : state === "auth" ? "bg-amber-500" : "bg-red-500";
-  const label = state === "up" ? "up" : state === "auth" ? "auth" : "down";
+  const label = state === "up" ? t("status_up") : state === "auth" ? t("status_auth") : t("status_down");
 
   return (
     <div className="rounded-lg border border-line p-3">
@@ -80,7 +82,7 @@ function BackendRow({ b }: { b: BackendStatus }) {
           <div className="flex items-center gap-2">
             <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
             <span className="font-medium text-fg">{b.name}</span>
-            <Badge>{KIND_LABEL[b.kind]}</Badge>
+            <Badge>{t(KIND_LABEL[b.kind])}</Badge>
           </div>
           <div className="mono mt-1 truncate text-xs text-fg-faint" title={b.baseUrl}>
             {b.baseUrl}
@@ -88,7 +90,7 @@ function BackendRow({ b }: { b: BackendStatus }) {
           {b.error && <p className="mt-1 text-xs text-red-400">{b.error}</p>}
         </div>
         <div className="flex shrink-0 items-center gap-2 text-xs text-fg-dim">
-          <span className="tabular">{b.models.length} models</span>
+          <span className="tabular">{t("status_models").replace("{n}", String(b.models.length))}</span>
           <span className={`rounded px-1.5 py-0.5 font-medium ${
             state === "up"
               ? "bg-emerald-500/15 text-emerald-400"
@@ -105,7 +107,7 @@ function BackendRow({ b }: { b: BackendStatus }) {
           onClick={() => setOpen((o) => !o)}
           className="mt-2 text-xs text-fg-dim hover:text-fg-muted"
         >
-          {open ? "Hide models" : "Show models"}
+          {open ? t("status_hide_models") : t("status_show_models")}
         </button>
       )}
       {open && (

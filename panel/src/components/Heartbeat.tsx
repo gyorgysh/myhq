@@ -2,22 +2,25 @@ import { useEffect, useState } from "react";
 import { api, AuthError, type HeartbeatConfig, type HeartbeatMode, type HeartbeatView } from "../api.ts";
 import { Badge, Button, Card, Empty, Label } from "./ui.tsx";
 import { relTime } from "../lib/format.ts";
+import { useI18n } from "../lib/useI18n.ts";
+import type { TranslationKey } from "../i18n/en.ts";
 
-const MODES: Array<{ id: HeartbeatMode; label: string; desc: string }> = [
-  { id: "off", label: "Off", desc: "No monitoring." },
-  { id: "alert", label: "Alert only", desc: "Deterministic checks; message on threshold breach." },
-  { id: "active", label: "Active", desc: "Hand signals to an autonomous agent turn to investigate." },
+const MODES: Array<{ id: HeartbeatMode; label: TranslationKey; desc: TranslationKey }> = [
+  { id: "off", label: "hb_mode_off", desc: "hb_mode_off_desc" },
+  { id: "alert", label: "hb_mode_alert", desc: "hb_mode_alert_desc" },
+  { id: "active", label: "hb_mode_active", desc: "hb_mode_active_desc" },
 ];
 
-const NUMS: Array<{ key: keyof HeartbeatConfig; label: string; suffix: string }> = [
-  { key: "cpuPct", label: "CPU", suffix: "%" },
-  { key: "memPct", label: "Memory", suffix: "%" },
-  { key: "swapPct", label: "Swap", suffix: "%" },
-  { key: "diskPct", label: "Disk", suffix: "%" },
-  { key: "staleCardHours", label: "Stale card after", suffix: "h" },
+const NUMS: Array<{ key: keyof HeartbeatConfig; label: TranslationKey; suffix: string }> = [
+  { key: "cpuPct", label: "hb_cpu", suffix: "%" },
+  { key: "memPct", label: "hb_memory", suffix: "%" },
+  { key: "swapPct", label: "hb_swap", suffix: "%" },
+  { key: "diskPct", label: "hb_disk", suffix: "%" },
+  { key: "staleCardHours", label: "hb_stale_card", suffix: "h" },
 ];
 
 export function HeartbeatView_({ onAuthError }: { onAuthError: () => void }) {
+  const { t } = useI18n();
   const [view, setView] = useState<HeartbeatView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -44,32 +47,29 @@ export function HeartbeatView_({ onAuthError }: { onAuthError: () => void }) {
 
   const runNow = async () => {
     const { signals } = await api.runHeartbeat();
-    setStatus(signals ? `Found ${signals} signal(s).` : "No signals — all quiet.");
+    setStatus(signals ? t("hb_found_signals").replace("{n}", String(signals)) : t("hb_no_signals"));
     setTimeout(() => setStatus(null), 4000);
     await load();
   };
 
-  if (!view) return <Card title="Heartbeat">{error ? <p className="text-sm text-red-400">{error}</p> : <Empty>Loading…</Empty>}</Card>;
+  if (!view) return <Card title={t("hb_title")}>{error ? <p className="text-sm text-red-400">{error}</p> : <Empty>{t("loading")}</Empty>}</Card>;
   const c = view.config;
 
   return (
     <div className="space-y-4">
       <Card
-        title="Heartbeat"
+        title={t("hb_title")}
         right={
           <Button onClick={runNow} disabled={c.mode === "off"}>
-            Run check now
+            {t("hb_run_check")}
           </Button>
         }
       >
-        <p className="mb-3 text-sm text-fg-dim">
-          Proactive monitoring of host health and stalled kanban cards. It messages you over
-          Telegram only when something is noteworthy.
-        </p>
+        <p className="mb-3 text-sm text-fg-dim">{t("hb_desc")}</p>
         {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
         {status && <p className="mb-2 text-sm text-emerald-400">{status}</p>}
 
-        <Label>Mode</Label>
+        <Label>{t("hb_mode")}</Label>
         <div className="mb-4 grid gap-2 sm:grid-cols-3">
           {MODES.map((m) => (
             <button
@@ -81,15 +81,15 @@ export function HeartbeatView_({ onAuthError }: { onAuthError: () => void }) {
                   : "border-line text-fg-dim hover:bg-surface-2"
               }`}
             >
-              <div className="font-medium">{m.label}</div>
-              <div className="text-xs text-fg-faint">{m.desc}</div>
+              <div className="font-medium">{t(m.label)}</div>
+              <div className="text-xs text-fg-faint">{t(m.desc)}</div>
             </button>
           ))}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div>
-            <Label>Interval (minutes)</Label>
+            <Label>{t("hb_interval")}</Label>
             <NumberField
               value={Math.round(c.intervalMs / 60_000)}
               onCommit={(n) => save({ intervalMs: Math.max(1, n) * 60_000 })}
@@ -98,7 +98,7 @@ export function HeartbeatView_({ onAuthError }: { onAuthError: () => void }) {
           {NUMS.map((f) => (
             <div key={f.key}>
               <Label>
-                {f.label} threshold ({f.suffix})
+                {t("hb_threshold").replace("{label}", t(f.label)).replace("{suffix}", f.suffix)}
               </Label>
               <NumberField value={c[f.key] as number} onCommit={(n) => save({ [f.key]: n })} />
             </div>
@@ -113,21 +113,21 @@ export function HeartbeatView_({ onAuthError }: { onAuthError: () => void }) {
             className="h-4 w-4 rounded accent-accent"
           />
           <span className="text-sm text-fg">
-            API billing spend alert{" "}
+            {t("hb_spend_alert")}{" "}
             <span className="text-xs text-fg-faint">
-              (API-key plans only — not meaningful for Pro/Max subscriptions)
+              {t("hb_spend_alert_note")}
             </span>
           </span>
         </label>
 
         <p className="mt-3 text-xs text-fg-faint">
-          Last checked: {view.lastTickAt ? relTime(view.lastTickAt) : "never"}
+          {t("hb_last_checked").replace("{time}", view.lastTickAt ? relTime(view.lastTickAt) : t("hb_never"))}
         </p>
       </Card>
 
-      <Card title="Recent alerts">
+      <Card title={t("hb_recent_alerts")}>
         {view.alerts.length === 0 ? (
-          <Empty>No alerts yet.</Empty>
+          <Empty>{t("hb_no_alerts")}</Empty>
         ) : (
           <div className="space-y-2">
             {view.alerts.map((a, i) => (
