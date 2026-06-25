@@ -34,8 +34,8 @@ When asked to start/stop/restart a service, use these exact commands:
 - Example — "deploy the site": `cd /path/to/project && git pull && npm ci && npm run build && sudo apachectl restart`.
 
 ## Managing this agent (self-service)
-This bot runs as an OS service: **systemd** (`telegram-agent`) on Linux, or a
-**launchd** LaunchAgent (`sh.gyorgy.telegram-agent`) on macOS. Prefer the
+This bot runs as an OS service: **systemd** (`myhq`) on Linux, or a
+**launchd** LaunchAgent (`sh.gyorgy.myhq`) on macOS. Prefer the
 cross-platform wrapper, run from the project directory:
 
 - **Restart**: `./scripts/agentctl.sh restart`
@@ -44,8 +44,8 @@ cross-platform wrapper, run from the project directory:
 - **Logs**: `./scripts/agentctl.sh logs`
 
 Native equivalents if you need them:
-- Linux: `sudo systemctl restart telegram-agent` (logs: `journalctl -u telegram-agent`)
-- macOS: `launchctl kickstart -k gui/$(id -u)/sh.gyorgy.telegram-agent`
+- Linux: `sudo systemctl restart myhq` (logs: `journalctl -u myhq`)
+- macOS: `launchctl kickstart -k gui/$(id -u)/sh.gyorgy.myhq`
 
 Notes:
 - On Linux the systemctl management commands are passwordless (a scoped sudoers
@@ -84,6 +84,249 @@ and restarts the service **only if** one is installed.
   schedules, main-agent model, sessions) lives in the gitignored `data/` dir and
   is untouched, and this `work.md` is backed up and restored across the reset.
   Other local edits to *tracked* files are discarded — say so first if you have any.
+
+## Fleet API (Panel)
+
+When the panel is enabled, the full fleet can be managed programmatically via a
+local REST API. Use `curl` with the Bearer token from `.env`:
+
+```bash
+source .env
+BASE="http://127.0.0.1:${PANEL_PORT:-8787}"
+AUTH="Authorization: Bearer $PANEL_TOKEN"
+```
+
+All write endpoints accept and return JSON. Replace `$BASE` and `$AUTH` with the
+above in every example. Endpoints return `{ error: "..." }` with a 4xx status on
+failure.
+
+### Workers (Leads, Assistants, specialists)
+
+```bash
+# List all workers
+curl -H "$AUTH" $BASE/api/workers
+
+# Create a worker (Lead with its own Telegram bot)
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/workers \
+  -d '{
+    "name": "DevOps Lead",
+    "cwd": "/home/user/project",
+    "prompt": "You are the DevOps Lead. Handle infra, deployments, and monitoring.",
+    "role": "lead",
+    "portfolio": "Infrastructure and deployments",
+    "model": "claude-opus-4-8",
+    "persona": "Concise and direct.",
+    "autonomy": "standard",
+    "language": "en",
+    "enabled": true,
+    "when": "09:00"
+  }'
+
+# Fields reference:
+#   name          display name
+#   cwd           working directory for this agent's runs
+#   prompt        the agent's standing task/instructions (its "job description")
+#   role          "lead" | "assistant" (omit for specialist)
+#   portfolio     domain description shown to Atlas in the crew roster
+#   parentId      id of the Lead this Assistant reports to
+#   model         model id override (e.g. "claude-sonnet-4-6")
+#   providerId    id of a saved provider preset (for local models)
+#   systemPrompt  extra domain knowledge appended to the system prompt
+#   skillId       id of a saved skill whose body augments the system prompt
+#   telegramToken vault:<id> reference for this Lead's own Telegram bot token
+#   persona       character/tone instructions (separate from domain knowledge)
+#   autonomy      "supervised" | "standard" | "full"
+#   language      BCP 47 code, e.g. "en", "hu", "es"
+#   when          schedule: "30m", "2h", "1d", or "HH:MM" for daily
+#   enabled       true/false
+
+# Update a worker
+curl -X PUT -H "$AUTH" -H "Content-Type: application/json" $BASE/api/workers/<id> \
+  -d '{ "enabled": true, "when": "08:00" }'
+
+# Trigger a manual run now
+curl -X POST -H "$AUTH" $BASE/api/workers/<id>/run
+
+# Stop a running worker
+curl -X POST -H "$AUTH" $BASE/api/workers/<id>/stop
+
+# Delete a worker
+curl -X DELETE -H "$AUTH" $BASE/api/workers/<id>
+
+# Run history for a worker
+curl -H "$AUTH" $BASE/api/workers/<id>/runs
+```
+
+### Tasks (Kanban board)
+
+```bash
+# List all tasks, columns, and WIP limits
+curl -H "$AUTH" $BASE/api/tasks
+
+# Create a task
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/tasks \
+  -d '{
+    "title": "Check disk usage on prod",
+    "notes": "Alert if over 80%",
+    "column": "backlog",
+    "priority": "high"
+  }'
+# priority: "low" | "normal" | "high"
+# column: use column ids from GET /api/tasks (default columns: backlog, doing, done)
+# parentId: id of a parent task for subtasks
+
+# Update a task (move column, change priority, edit notes)
+curl -X PATCH -H "$AUTH" -H "Content-Type: application/json" $BASE/api/tasks/<id> \
+  -d '{ "column": "doing", "priority": "high" }'
+
+# Delegate a card to an autonomous agent run
+curl -X POST -H "$AUTH" $BASE/api/tasks/<id>/delegate
+
+# Stop a delegated run
+curl -X POST -H "$AUTH" $BASE/api/tasks/<id>/stop
+
+# Delete a task
+curl -X DELETE -H "$AUTH" $BASE/api/tasks/<id>
+```
+
+### Schedules
+
+```bash
+# List scheduled prompts
+curl -H "$AUTH" $BASE/api/schedules
+
+# Add a schedule
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/schedules \
+  -d '{ "prompt": "Check disk usage and alert if over 80%", "when": "09:00", "cwd": "/home/user" }'
+# when: "30m", "2h", "1d", or "HH:MM" (daily, server local time)
+
+# Remove a schedule
+curl -X DELETE -H "$AUTH" $BASE/api/schedules/<id>
+```
+
+### Memory
+
+```bash
+# List / search memories
+curl -H "$AUTH" "$BASE/api/memories?q=deployment"
+
+# Create a memory
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/memories \
+  -d '{ "text": "Prod DB host is db.internal:5432", "tags": ["prod", "db"], "tier": "hot" }'
+# tier: "hot" (every turn), "warm" (keyword-recalled), "cold" (panel-only)
+
+# Promote/demote tier
+curl -X PATCH -H "$AUTH" -H "Content-Type: application/json" $BASE/api/memories/<id>/tier \
+  -d '{ "tier": "warm" }'
+
+# Update text/tags
+curl -X PUT -H "$AUTH" -H "Content-Type: application/json" $BASE/api/memories/<id> \
+  -d '{ "text": "Updated fact", "tags": ["prod"] }'
+
+# Delete
+curl -X DELETE -H "$AUTH" $BASE/api/memories/<id>
+```
+
+### Skills
+
+```bash
+# List skills (pass ?archived=true to include archived)
+curl -H "$AUTH" $BASE/api/skills
+
+# Create a skill
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/skills \
+  -d '{ "name": "deploy-site", "prompt": "1. git pull\n2. npm ci\n3. npm run build\n4. restart apache", "tags": ["deploy"] }'
+
+# Update a skill
+curl -X PUT -H "$AUTH" -H "Content-Type: application/json" $BASE/api/skills/<id> \
+  -d '{ "prompt": "...", "archived": false }'
+
+# Delete
+curl -X DELETE -H "$AUTH" $BASE/api/skills/<id>
+```
+
+### Main agent (Atlas)
+
+```bash
+# View current model, provider, persona, autonomy, language
+curl -H "$AUTH" $BASE/api/agent
+
+# Update (all fields optional)
+curl -X PUT -H "$AUTH" -H "Content-Type: application/json" $BASE/api/agent \
+  -d '{ "model": "claude-opus-4-8", "persona": "Concise and direct.", "autonomy": "standard", "language": "en" }'
+
+# Clear all session resume tokens (next message starts fresh)
+curl -X POST -H "$AUTH" $BASE/api/agent/reset
+
+# Restart the service (only works when a service is installed)
+curl -X POST -H "$AUTH" $BASE/api/agent/restart
+```
+
+### Vault (secrets)
+
+```bash
+# List secrets (values are masked, only hint shown)
+curl -H "$AUTH" $BASE/api/vault
+
+# Store a secret
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/vault \
+  -d '{ "name": "DevOps Lead Telegram token", "value": "7123456789:AAH...", "hint": "lead-bot" }'
+# Returns { id: "vault:<uuid>" } — use that id anywhere a token is referenced
+
+# Reveal a secret value
+curl -H "$AUTH" $BASE/api/vault/<id>/reveal
+
+# Delete
+curl -X DELETE -H "$AUTH" $BASE/api/vault/<id>
+```
+
+### Providers (local/proxy model endpoints)
+
+```bash
+# List saved providers
+curl -H "$AUTH" $BASE/api/providers
+
+# Create a provider
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/providers \
+  -d '{ "name": "LM Studio", "baseUrl": "http://localhost:1234/v1", "authToken": "lm-studio" }'
+
+# List available models for a saved provider
+curl -H "$AUTH" $BASE/api/providers/<id>/models
+```
+
+### Heartbeat (proactive monitoring)
+
+```bash
+# View current config and recent alerts
+curl -H "$AUTH" $BASE/api/heartbeat
+
+# Update config
+curl -X PUT -H "$AUTH" -H "Content-Type: application/json" $BASE/api/heartbeat \
+  -d '{ "mode": "alert", "intervalMs": 300000, "cpu": 85, "mem": 90, "disk": 85 }'
+# mode: "off" | "alert" | "active"
+
+# Trigger a manual heartbeat check now
+curl -X POST -H "$AUTH" $BASE/api/heartbeat/run
+```
+
+### System / status
+
+```bash
+# Live system health (CPU, memory, disk, swap, I/O)
+curl -H "$AUTH" $BASE/api/health
+
+# Claude service status + provider/local backend probes
+curl -H "$AUTH" $BASE/api/status
+
+# Active sessions
+curl -H "$AUTH" $BASE/api/sessions
+
+# Usage summary (today + lifetime per chat)
+curl -H "$AUTH" $BASE/api/usage
+
+# Recent audit log
+curl -H "$AUTH" $BASE/api/audit
+```
 
 ## Conventions
 - Where new files go: for one-off creations (a script you were asked to write, a
