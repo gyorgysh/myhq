@@ -41,8 +41,8 @@ The same agents, two front doors:
 | **Crew**: see the full org chart (President, Atlas, Leads, Assistants). Delegation log and council vote history are shown here. | **Tasks**: a Kanban board with drag-and-drop, priority, WIP limits, and a Delegate button that hands a card to an autonomous agent run. Columns are fully customizable: rename them or add your own. |
 | ![Heartbeat panel: proactive monitoring](images/v01_heartbeat.webp) | ![Schedules panel: timed autonomous prompts](images/v01_scheduler.webp) |
 | **Heartbeat**: proactive monitoring. Set CPU/mem/swap/disk thresholds; Atlas pings Telegram on breach, or runs an autonomous turn to investigate and act first. | **Schedules**: create timed autonomous prompts (`30m`, `2h`, `HH:MM`) from the panel or via `/schedule` in chat, with results pushed back to Telegram. |
-| ![Memory panel: tier-based fact store](images/v01_memory.webp) | |
-| **Memory**: a tier-based fact store (hot/warm/cold) that agents write to and recall from automatically, with optional semantic search. Search, edit, promote, demote, and delete entries from the panel. | |
+| ![Memory panel: tier-based fact store](images/v01_memory.webp) | ![Settings: main agent model picker and local model providers](images/v01_llm.webp) |
+| **Memory**: a tier-based fact store (hot/warm/cold) that agents write to and recall from automatically, with optional semantic search. Search, edit, promote, demote, and delete entries from the panel. | **Settings**: choose the model and provider for the main agent and every sub-agent, add local model servers (LM Studio, Ollama) or proxies, and tune semantic-memory embeddings. See [Bring Your Own Model](#bring-your-own-model). |
 
 Also inside: **System** (live CPU per-core, memory, swap, disk I/O), **Status** (Claude service status + provider/local-backend probes), **Memory** (tier-based fact store with hot/warm/cold recall plus optional semantic search), **Vault** (AES-256-GCM secrets), **Skills** (reusable workflows), **Prompt** (playbook editor), **Logs** (live tail + searchable history by date, level, and keyword; 72h rotation), **Terminal** (a live shell session in the browser), **Connectors** (external-service catalogue), **Updates** (check, apply, and roll back versions in place), **Settings** (main agent, plan and budget tracker, language, model providers with live local-backend status), and more.
 
@@ -86,6 +86,17 @@ Also inside: **System** (live CPU per-core, memory, swap, disk I/O), **Status** 
 **Claude usage tracking.** The System and Usage panels show live session and weekly limits pulled from the official Anthropic OAuth API (`GET /api/oauth/usage`, `GET /api/oauth/profile`) using the token the Claude Code CLI stores in your Keychain. No separate API key or credentials needed. Shows 5-hour session utilisation and 7-day weekly utilisation, each with an exact reset countdown, severity color, and auto-refresh on a configurable schedule (default 30 minutes). Historical activity (message counts, token breakdown by model, 14-day sparkline) comes from `~/.claude/stats-cache.json`. Subscription type (Claude Pro / Max) is auto-detected and shown in Settings.
 
 **Budget tracking.** For API users, set a monthly cap and billing day. The Usage panel overlays a cap line on the daily cost chart and shows period spend, daily average, and estimated monthly total. Configure Telegram alerts at any threshold and optional automatic spend reports on a schedule.
+
+## Bring Your Own Model
+
+MyHQ isn't locked to Anthropic. Point any agent at any model: a hosted Claude tier, a local model served by **LM Studio** or **Ollama**, or any OpenAI-compatible proxy. Pick the model per role:
+
+- **Main agent.** Set the model and provider that drives Atlas right from Settings (or with `/model` in chat). Switch between Opus, Sonnet, Haiku, or a local model live; the change takes effect on the next message.
+- **Sub-agents.** Every Lead, Assistant, and worker can run on its own model and provider. Run cheap local models for routine background work and reserve a frontier model for the agents that need it.
+- **Embeddings.** Semantic memory recall runs on a local embedding model. Auto mode probes Ollama (`:11434`) then LM Studio (`:1234`) at startup and uses whichever is live, so memory search works offline with no API key. Pin a backend or turn it off from Settings.
+- **Voice.** Transcription runs on any OpenAI-compatible endpoint (OpenAI, Groq's free tier) or fully offline with Vosk.
+
+Add a provider once (base URL + token, with LM Studio / Ollama prefill presets), and MyHQ lists its available models server-side so you can pick by name. Provider tokens are stored in the encrypted vault.
 
 ## Quick Install
 
