@@ -667,6 +667,9 @@ export const en = {
   terminal_unavailable_title: "Terminal unavailable",
   terminal_unavailable_body:
     "node-pty could not be loaded on this host. Install build tools (build-essential + python3 on Linux) and run npm install to enable the terminal.",
+  terminal_disabled_title: "Terminal disabled",
+  terminal_disabled_body:
+    "The panel terminal is a full host shell and is off by default. Set PANEL_TERMINAL_ENABLED=true in .env and restart to enable it.",
   terminal_shared_hint: "Shared session",
 
   // Kanban default column names (translated only when not renamed)

@@ -121,6 +121,22 @@ const schema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+  // Panel terminal: a full interactive host shell streamed over /ws. A panel
+  // token holder gets arbitrary command execution as the bot's user, so this is
+  // OFF by default and must be explicitly opted into. Set true + restart to enable.
+  PANEL_TERMINAL_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  // Whether the terminal shell inherits the bot's full environment (which holds
+  // secrets loaded from .env: TELEGRAM_BOT_TOKEN, ANTHROPIC_API_KEY, PANEL_TOKEN,
+  // OPENAI_API_KEY, …). Off by default: the shell gets a minimal sanitized env
+  // (PATH/HOME/USER/SHELL/TERM/LANG) so a terminal session can't trivially read
+  // those secrets back out via `env`. Set true only if you understand the risk.
+  PANEL_TERMINAL_INHERIT_ENV: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 // Fail closed: a panel with host access must never run without a token.

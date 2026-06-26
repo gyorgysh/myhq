@@ -669,6 +669,9 @@ export const hu: Translations = {
   terminal_unavailable_title: "Terminál nem elérhető",
   terminal_unavailable_body:
     "A node-pty nem töltődött be ezen a gépen. Telepítsd a build eszközöket (build-essential + python3 Linuxon), majd futtasd az npm install parancsot a terminál engedélyezéséhez.",
+  terminal_disabled_title: "Terminál letiltva",
+  terminal_disabled_body:
+    "A panel terminál teljes hozzáférést ad a géphez, ezért alapból ki van kapcsolva. Állítsd be a PANEL_TERMINAL_ENABLED=true értéket a .env fájlban, majd indítsd újra az engedélyezéshez.",
   terminal_shared_hint: "Megosztott munkamenet",
 
   // Kanban alapértelmezett oszlopnevek (csak átnevezetlen állapotban fordítva)

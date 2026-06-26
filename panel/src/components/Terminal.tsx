@@ -10,6 +10,7 @@ import type { FitAddon } from "@xterm/addon-fit";
 
 interface TerminalStatus {
   available: boolean;
+  reason?: "disabled" | "unsupported" | null;
   shell: string;
 }
 
@@ -162,10 +163,13 @@ export function TerminalView({ onAuthError }: { onAuthError: () => void }) {
   }
 
   if (!status.available) {
+    const disabled = status.reason === "disabled";
     return (
       <div className="space-y-4">
-        <Callout title={t("terminal_unavailable_title")}>
-          {t("terminal_unavailable_body")}
+        <Callout
+          title={disabled ? t("terminal_disabled_title") : t("terminal_unavailable_title")}
+        >
+          {disabled ? t("terminal_disabled_body") : t("terminal_unavailable_body")}
         </Callout>
       </div>
     );

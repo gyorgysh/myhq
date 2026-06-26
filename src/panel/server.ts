@@ -862,14 +862,19 @@ Respond with ONLY a JSON array, no markdown fences, no explanation. Example form
   // --- Terminal ---
   app.get("/api/terminal", async () => ({
     available: ptyManager.available,
+    // Why it's unavailable, so the UI can show the right hint: "disabled" (the
+    // PANEL_TERMINAL_ENABLED flag is off) vs "unsupported" (node-pty missing).
+    reason: !ptyManager.enabled ? "disabled" : ptyManager.available ? null : "unsupported",
     shell: ptyManager.currentShell,
   }));
-  app.post("/api/terminal/spawn", async (req) => {
+  app.post("/api/terminal/spawn", async (req, reply) => {
+    if (!ptyManager.enabled) return reply.code(403).send({ error: "terminal disabled" });
     const { cols, rows } = (req.body ?? {}) as { cols?: number; rows?: number };
     ptyManager.spawn(cols ?? 120, rows ?? 30);
     return { ok: true };
   });
-  app.post("/api/terminal/resize", async (req) => {
+  app.post("/api/terminal/resize", async (req, reply) => {
+    if (!ptyManager.enabled) return reply.code(403).send({ error: "terminal disabled" });
     const { cols, rows } = (req.body ?? {}) as { cols?: number; rows?: number };
     if (typeof cols === "number" && typeof rows === "number") ptyManager.resize(cols, rows);
     return { ok: true };
@@ -888,8 +893,9 @@ function registerWs(app: FastifyInstance, hub: PanelHub): void {
       } catch { /* client gone */ }
     }
 
-    // Relay terminal input from this client to the PTY.
+    // Relay terminal input from this client to the PTY (when the feature is on).
     socket.on("message", (raw) => {
+      if (!ptyManager.enabled) return;
       try {
         const msg = JSON.parse(raw.toString());
         if (msg?.type === "terminal" && msg.event === "input" && typeof msg.data === "string") {

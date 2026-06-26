@@ -699,7 +699,10 @@ export const api = {
     req<{ models: string[] }>("POST", "/api/providers/models", { baseUrl, authToken }),
   providerModels: (id: string) => get<{ models: string[] }>(`/api/providers/${id}/models`),
 
-  terminalStatus: () => get<{ available: boolean; shell: string }>("/api/terminal"),
+  terminalStatus: () =>
+    get<{ available: boolean; reason: "disabled" | "unsupported" | null; shell: string }>(
+      "/api/terminal",
+    ),
   terminalSpawn: (cols: number, rows: number) =>
     req<{ ok: boolean }>("POST", "/api/terminal/spawn", { cols, rows }),
   terminalResize: (cols: number, rows: number) =>
