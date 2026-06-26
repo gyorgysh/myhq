@@ -723,6 +723,9 @@ function ProvidersSettings({ onAuthError }: { onAuthError: () => void }) {
   const [lmStudio, setLmStudio] = useState<LmStudioStatus | null>(null);
   const [preferred, setPreferred] = useState<PreferredBackend | null>(null);
   const [active, setActive] = useState<PreferredBackend | null>(null);
+  const [embAuto, setEmbAuto] = useState(true);
+  const [embEnvMode, setEmbEnvMode] = useState<"auto" | "on" | "off">("auto");
+  const [manualOpen, setManualOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
@@ -745,6 +748,10 @@ function ProvidersSettings({ onAuthError }: { onAuthError: () => void }) {
         setEmbModel(a.embeddings.model);
         setPreferred(a.preferredBackend);
         setActive(a.activeBackend);
+        setEmbAuto(a.embeddingAuto);
+        setEmbEnvMode(a.embeddingEnvMode);
+        // A pinned-on backend (not auto, enabled) opens the manual section.
+        setManualOpen(!a.embeddingAuto && a.embeddings.enabled);
       })
       .catch((e) => e instanceof AuthError && onAuthError());
 
@@ -796,12 +803,54 @@ function ProvidersSettings({ onAuthError }: { onAuthError: () => void }) {
     await load();
   };
 
-  const saveEmbeddings = async () => {
+  // Manual pin: save the custom endpoint and switch embeddings on against it.
+  const saveManual = async () => {
     setBusy("emb");
     try {
-      const r = await api.saveEmbeddings({ enabled: embEnabled, provider: embProvider, baseUrl: embBaseUrl, model: embModel });
+      const r = await api.saveEmbeddings({ enabled: true, provider: embProvider, baseUrl: embBaseUrl, model: embModel });
       setEmbeddings(r.embeddings);
+      setEmbEnabled(true);
       setActive(r.activeBackend);
+      setEmbAuto(r.embeddingAuto);
+      note(t("saved"));
+    } catch (e) {
+      if (e instanceof AuthError) return onAuthError();
+      note(String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Return to auto-detect: clear any pin and re-probe the local backends now.
+  const chooseAuto = async () => {
+    setBusy("emb");
+    try {
+      const r = await api.embeddingsAuto();
+      setEmbeddings(r.embeddings);
+      setEmbEnabled(r.embeddings.enabled);
+      setActive(r.activeBackend);
+      setEmbAuto(r.embeddingAuto);
+      setManualOpen(false);
+      await probeBackends();
+      note(t("saved"));
+    } catch (e) {
+      if (e instanceof AuthError) return onAuthError();
+      note(String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Explicitly turn embeddings off (recall falls back to keyword search).
+  const chooseOff = async () => {
+    setBusy("emb");
+    try {
+      const r = await api.saveEmbeddings({ enabled: false });
+      setEmbeddings(r.embeddings);
+      setEmbEnabled(false);
+      setActive(r.activeBackend);
+      setEmbAuto(r.embeddingAuto);
+      setManualOpen(false);
       note(t("saved"));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
@@ -883,6 +932,19 @@ function ProvidersSettings({ onAuthError }: { onAuthError: () => void }) {
 
   const bothRunning = !!ollama?.running && !!lmStudio?.running;
 
+  // Embeddings mode shown in the segmented control. When .env pins it ("on"/"off")
+  // the control is locked and we display that state instead.
+  const envLocked = embEnvMode !== "auto";
+  const currentMode: "auto" | "manual" | "off" = envLocked
+    ? (embEnvMode === "on" ? "manual" : "off")
+    : manualOpen
+      ? "manual"
+      : embAuto
+        ? "auto"
+        : embEnabled
+          ? "manual"
+          : "off";
+
   return (
     <Card
       title={t("settings_providers")}
@@ -896,37 +958,54 @@ function ProvidersSettings({ onAuthError }: { onAuthError: () => void }) {
     >
       <p className="mb-3 text-sm text-fg-dim">{t("settings_providers_desc")}</p>
 
-      {/* Embeddings header: enable + active backend + refresh */}
+      {/* Embeddings header: mode (Auto / Manual / Off) + active backend + refresh */}
       {embeddings && (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Label>{t("settings_embeddings")}</Label>
-            {active && (
+            {active && currentMode !== "off" && (
               <Badge tone="green">
                 {t("emb_active_backend").replace("{backend}", active === "ollama" ? "Ollama" : "LM Studio")}
               </Badge>
             )}
           </div>
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={probeBackends}
-              disabled={busy === "probe"}
-              className="text-xs text-fg-dim hover:text-fg disabled:opacity-50"
-            >
-              {busy === "probe" ? t("emb_refreshing") : t("emb_refresh")}
-            </button>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={embEnabled}
-              onClick={() => setEmbEnabled((v) => !v)}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${embEnabled ? "bg-accent" : "bg-line"}`}
-            >
-              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${embEnabled ? "translate-x-4" : "translate-x-1"}`} />
-            </button>
+            {!envLocked && currentMode !== "off" && (
+              <button
+                type="button"
+                onClick={probeBackends}
+                disabled={busy === "probe"}
+                className="text-xs text-fg-dim hover:text-fg disabled:opacity-50"
+              >
+                {busy === "probe" ? t("emb_refreshing") : t("emb_refresh")}
+              </button>
+            )}
+            {envLocked ? (
+              <span className="text-xs text-fg-faint">
+                {t("emb_env_locked").replace("{mode}", embEnvMode)}
+              </span>
+            ) : (
+              <div className="inline-flex overflow-hidden rounded-md border border-line text-xs">
+                {(["auto", "manual", "off"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    disabled={busy === "emb"}
+                    onClick={() => (m === "auto" ? chooseAuto() : m === "off" ? chooseOff() : (setManualOpen(true), setEmbEnabled(true)))}
+                    className={`px-2.5 py-1 font-medium transition-colors disabled:opacity-50 ${
+                      currentMode === m ? "bg-[var(--accent)] text-white" : "text-fg-dim hover:text-fg"
+                    }`}
+                  >
+                    {t(`emb_mode_${m}` as TranslationKey)}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
+      )}
+      {embeddings && !envLocked && (
+        <p className="mb-3 text-xs text-fg-faint">{t("emb_mode_hint")}</p>
       )}
 
       {editing && (
@@ -983,6 +1062,7 @@ function ProvidersSettings({ onAuthError }: { onAuthError: () => void }) {
               provider={p}
               status={statusFor(p)}
               busy={busy}
+              hideConnect={envLocked}
               onConnect={() => (backendKind(p.baseUrl) === "ollama" ? connectOllama() : connectLmStudio())}
               onEdit={() => { setForm({ name: p.name, baseUrl: p.baseUrl, authToken: p.authToken }); setEditing(p.id); }}
               onDelete={() => del(p.id)}
@@ -992,7 +1072,7 @@ function ProvidersSettings({ onAuthError }: { onAuthError: () => void }) {
       )}
 
       {/* Preferred backend — only relevant when both local servers are live */}
-      {bothRunning && (
+      {bothRunning && !envLocked && currentMode !== "off" && (
         <div className="mt-4">
           <Label>{t("emb_preferred_label")}</Label>
           <p className="mb-1.5 text-xs text-fg-dim">{t("emb_preferred_hint")}</p>
@@ -1028,7 +1108,7 @@ function ProvidersSettings({ onAuthError }: { onAuthError: () => void }) {
       )}
 
       {/* Manual embeddings endpoint (for custom / non-detected servers) */}
-      {embeddings && embEnabled && (
+      {embeddings && !envLocked && currentMode === "manual" && (
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
           <div>
             <Label>{t("settings_emb_provider")}</Label>
@@ -1048,13 +1128,16 @@ function ProvidersSettings({ onAuthError }: { onAuthError: () => void }) {
         </div>
       )}
 
-      {embeddings && (
+      {embeddings && !envLocked && currentMode === "manual" && (
         <div className="mt-3 flex items-center gap-2">
-          <Button onClick={saveEmbeddings} disabled={busy === "emb"}>
+          <Button onClick={saveManual} disabled={busy === "emb"}>
             {busy === "emb" ? t("saving") : t("save")}
           </Button>
           {flash && <span className="text-xs text-fg-dim">{flash}</span>}
         </div>
+      )}
+      {embeddings && flash && currentMode !== "manual" && (
+        <p className="mt-2 text-xs text-fg-dim">{flash}</p>
       )}
     </Card>
   );
@@ -1069,6 +1152,7 @@ function ProviderRow({
   provider,
   status,
   busy,
+  hideConnect,
   onConnect,
   onEdit,
   onDelete,
@@ -1076,6 +1160,7 @@ function ProviderRow({
   provider: Provider;
   status: ProviderStatus;
   busy: string | null;
+  hideConnect?: boolean;
   onConnect: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -1134,7 +1219,7 @@ function ProviderRow({
 
       <div className="mt-2 flex items-center justify-between gap-2">
         <div>
-          {status.kind && status.running && (
+          {!hideConnect && status.kind && status.running && (
             status.connected ? (
               <span className="text-xs font-medium text-accent">
                 {status.kind === "ollama" ? t("ollama_connected") : t("lmstudio_connected")}

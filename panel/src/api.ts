@@ -477,6 +477,10 @@ export interface MainAgent {
   preferredBackend: PreferredBackend | null;
   /** Which backend the active embedding config points at (null = off/custom). */
   activeBackend: PreferredBackend | null;
+  /** Env-forced mode: "auto" (panel controls it) or "on"/"off" (locked by .env). */
+  embeddingEnvMode: "auto" | "on" | "off";
+  /** True when embeddings are in auto-detect mode (vs. a manual pin or off). */
+  embeddingAuto: boolean;
 }
 
 export interface Provider {
@@ -587,7 +591,9 @@ export const api = {
   resetAgent: () => req<{ sessions: number; aborted: number }>("POST", "/api/agent/reset"),
   restartAgent: () => req<{ ok: boolean; restarting: boolean }>("POST", "/api/agent/restart"),
   saveEmbeddings: (s: { enabled: boolean; provider?: "ollama" | "openai"; baseUrl?: string; model?: string }) =>
-    req<{ embeddings: EmbeddingConfig; activeBackend: PreferredBackend | null }>("PUT", "/api/agent/embeddings", s),
+    req<{ embeddings: EmbeddingConfig; activeBackend: PreferredBackend | null; embeddingAuto: boolean }>("PUT", "/api/agent/embeddings", s),
+  embeddingsAuto: () =>
+    req<{ embeddings: EmbeddingConfig; activeBackend: PreferredBackend | null; embeddingAuto: boolean }>("POST", "/api/agent/embeddings/auto"),
   savePreferredBackend: (preferredBackend: PreferredBackend | null) =>
     req<{ preferredBackend: PreferredBackend | null }>("PUT", "/api/agent/embeddings/preferred", { preferredBackend }),
   ollamaStatus: () => get<OllamaStatus>("/api/integrations/ollama"),

@@ -57,7 +57,7 @@ import {
 } from "../core/providers.js";
 import { fetchProviderModels } from "../core/providerModels.js";
 import { mainSettingsView, setMainSettings } from "../core/mainSettings.js";
-import { embeddingConfig, setEmbeddingsEnabled, preferredBackend, setPreferredBackend, activeBackend, type PreferredBackend } from "../core/embeddings.js";
+import { embeddingConfig, setEmbeddingsEnabled, preferredBackend, setPreferredBackend, activeBackend, envEmbeddingMode, embeddingsAuto, enterAutoMode, type PreferredBackend } from "../core/embeddings.js";
 import { ollamaStatus, connectOllama } from "../core/ollama.js";
 import { lmStudioStatus, connectLmStudio } from "../core/lmstudio.js";
 import { serviceInstalled, restartService } from "../core/agentControl.js";
@@ -216,6 +216,10 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
     embeddings: embeddingConfig(),
     preferredBackend: preferredBackend(),
     activeBackend: activeBackend(),
+    // "auto" follows the startup probe; "on"/"off" are forced by EMBEDDING_ENABLED
+    // in .env and lock the panel control. embeddingAuto reflects runtime auto mode.
+    embeddingEnvMode: envEmbeddingMode(),
+    embeddingAuto: embeddingsAuto(),
   }));
   app.put("/api/agent/embeddings", async (req) => {
     const { enabled, provider, baseUrl, model } = (req.body ?? {}) as {
@@ -225,7 +229,12 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
       model?: string;
     };
     setEmbeddingsEnabled(enabled, { provider, baseUrl, model });
-    return { embeddings: embeddingConfig(), activeBackend: activeBackend() };
+    return { embeddings: embeddingConfig(), activeBackend: activeBackend(), embeddingAuto: embeddingsAuto() };
+  });
+  // Return embeddings to auto mode (drop a manual pin) and probe backends now.
+  app.post("/api/agent/embeddings/auto", async () => {
+    await enterAutoMode();
+    return { embeddings: embeddingConfig(), activeBackend: activeBackend(), embeddingAuto: embeddingsAuto() };
   });
   // Preferred local backend when both Ollama and LM Studio are running.
   app.put("/api/agent/embeddings/preferred", async (req) => {

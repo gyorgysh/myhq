@@ -119,10 +119,20 @@ export interface EmbeddingConfig {
   authToken?: string;
 }
 
+/** The env-level mode: "auto" (probe + auto-enable), "on" (pin), "off" (forced off). */
+export function envEmbeddingMode(): "auto" | "on" | "off" {
+  return config.EMBEDDING_ENABLED;
+}
+
+/** Whether embeddings are in auto-detect mode (vs. an explicit manual pin/off). */
+export function embeddingsAuto(): boolean {
+  return _auto;
+}
+
 /** Resolve the effective embedding config from `config` (with vault lookup). */
 export function embeddingConfig(): EmbeddingConfig {
   return {
-    enabled: _runtimeEnabled ?? config.EMBEDDING_ENABLED,
+    enabled: embeddingsEnabled(),
     provider: _runtimeProvider ?? config.EMBEDDING_PROVIDER,
     baseUrl: (_runtimeBaseUrl ?? config.EMBEDDING_BASE_URL).replace(/\/+$/, ""),
     model: _runtimeModel ?? config.EMBEDDING_MODEL,
@@ -132,7 +142,10 @@ export function embeddingConfig(): EmbeddingConfig {
 
 /** Is semantic search switched on and configured? */
 export function embeddingsEnabled(): boolean {
-  return _runtimeEnabled ?? config.EMBEDDING_ENABLED;
+  const mode = config.EMBEDDING_ENABLED;
+  if (mode === "off") return false; // env hard-off, ignores any panel state
+  if (mode === "on") return true;   // env pin, always on
+  return _runtimeEnabled ?? false;  // auto: follows the runtime probe/panel
 }
 
 /** The model id embeddings are tagged with, so stale vectors can be detected. */
@@ -247,7 +260,7 @@ function toNumberArray(v: unknown): number[] {
  * (panel save or one-click connect).
  */
 export async function autoProbeEmbeddings(): Promise<void> {
-  if (config.EMBEDDING_ENABLED) return;       // explicit env opt-in to a fixed backend
+  if (config.EMBEDDING_ENABLED !== "auto") return;  // env pin ("on") or hard-off ("off")
   // `!_auto` covers both a manual pin and an explicit panel disable (either path
   // leaves auto mode). In auto mode we always re-probe, even if a previous boot
   // left embeddings off because no backend was up.
@@ -289,6 +302,22 @@ export async function autoProbeEmbeddings(): Promise<void> {
     setEmbeddingsEnabled(false, undefined, true);
     log.info("Embeddings auto-disabled (no local backend reachable)");
   }
+}
+
+/**
+ * Return embeddings to auto mode from the panel: drop any manual pin and probe
+ * the local backends now, enabling against whichever is live. No-op effect when
+ * the env mode pins or hard-offs embeddings (the panel control is locked then).
+ */
+export async function enterAutoMode(): Promise<void> {
+  _auto = true;
+  _runtimeEnabled = null;
+  _runtimeProvider = null;
+  _runtimeBaseUrl = null;
+  _runtimeModel = null;
+  saveOverride();
+  log.info("Embeddings returned to auto mode");
+  await autoProbeEmbeddings();
 }
 
 /**

@@ -56,14 +56,17 @@ const schema = z.object({
   MEMORY_MAX_ENTRIES: z.coerce.number().int().positive().default(500),
   COLD_MAX: z.coerce.number().int().positive().default(200),
   // --- Semantic memory (Phase 2): local embeddings for similarity recall ---
-  // Off by default; keyword search is always the fallback. When on, memories are
-  // embedded with a local model and recall blends cosine similarity with keywords.
+  // Tri-state, default "auto": probe Ollama then LM Studio at startup and enable
+  // embeddings against whichever is live (the panel can override this). "on" pins
+  // the EMBEDDING_* backend below; "off" forces embeddings off (good for non-panel
+  // users who never want them). Legacy "true"/"false" map to "on"/"off". Keyword
+  // search is always the fallback.
   EMBEDDING_ENABLED: z
-    .enum(["true", "false"])
-    .default("false")
-    .transform((v) => v === "true"),
+    .enum(["auto", "on", "off", "true", "false"])
+    .default("auto")
+    .transform((v) => (v === "true" ? "on" : v === "false" ? "off" : v)),
   // Which wire shape to speak: "ollama" (POST /api/embeddings) or "openai"
-  // (POST /v1/embeddings — LM Studio, OpenAI, most proxies).
+  // (POST /v1/embeddings, for LM Studio, OpenAI, most proxies).
   EMBEDDING_PROVIDER: z.enum(["ollama", "openai"]).default("ollama"),
   // Endpoint base URL. Default targets a local Ollama install.
   EMBEDDING_BASE_URL: z.string().url().default("http://localhost:11434"),
