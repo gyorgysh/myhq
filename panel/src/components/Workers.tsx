@@ -103,7 +103,6 @@ export function WorkersView({ onAuthError }: { onAuthError: () => void }) {
 
       {wizarding && (
         <WorkerWizard
-          skills={skills}
           providers={providers}
           workers={workers}
           onDone={async () => { setWizarding(false); await load(); }}
@@ -341,14 +340,12 @@ interface WizardAnswers {
 }
 
 function WorkerWizard({
-  skills,
   providers,
   workers,
   onDone,
   onCancel,
   onAuthError,
 }: {
-  skills: Named[];
   providers: Named[];
   workers: Worker[];
   onDone: () => Promise<void>;
@@ -567,7 +564,6 @@ function WorkerWizard({
             <WizardConfigEditor
               form={cfg}
               onChange={(patch) => updateConfig(idx, patch)}
-              skills={skills}
               providers={providers}
               workers={workers}
               onAuthError={onAuthError}
@@ -583,14 +579,12 @@ function WorkerWizard({
 function WizardConfigEditor({
   form,
   onChange,
-  skills,
   providers,
   onAuthError,
   onConfirm,
 }: {
   form: Form;
   onChange: (patch: Partial<Form>) => void;
-  skills: Named[];
   providers: Named[];
   workers: Worker[];
   onAuthError: () => void;

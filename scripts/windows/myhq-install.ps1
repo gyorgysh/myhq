@@ -39,7 +39,7 @@ $ErrorActionPreference = "Stop"
 # ---------------------------------------------------------------------------
 # Config / defaults
 # ---------------------------------------------------------------------------
-$RepoUrl    = if ($env:MYHQ_REPO)   { $env:MYHQ_REPO }   else { "https://github.com/gyorgysh/claude-code-telegram.git" }
+$RepoUrl    = if ($env:MYHQ_REPO)   { $env:MYHQ_REPO }   else { "https://github.com/gyorgysh/myhq.git" }
 $Branch     = if ($env:MYHQ_BRANCH) { $env:MYHQ_BRANCH } else { "main" }
 $InstallDir = if ($env:MYHQ_DIR)    { $env:MYHQ_DIR }    else { Join-Path $HOME "myhq" }
 $MinNode    = 20

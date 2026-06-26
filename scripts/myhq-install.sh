@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# myhq-install.sh — one-shot installer/wizard for claude-code-telegram.
+# myhq-install.sh — one-shot installer/wizard for MyHQ.
 #
 #   curl -fsSL https://gyorgy.sh/myhq-install.sh | bash
 #
@@ -17,9 +17,9 @@
 
 set -euo pipefail
 
-REPO_URL="${MYHQ_REPO:-https://github.com/gyorgysh/claude-code-telegram.git}"
+REPO_URL="${MYHQ_REPO:-https://github.com/gyorgysh/myhq.git}"
 BRANCH="${MYHQ_BRANCH:-main}"
-DEFAULT_DIR="${MYHQ_DIR:-$HOME/claude-code-telegram}"
+DEFAULT_DIR="${MYHQ_DIR:-$HOME/myhq}"
 TUTORIAL="https://gyorgy.sh/blog/claude-code-telegram"
 MIN_NODE=20
 
@@ -506,7 +506,7 @@ ${panel_line}  • Tune the operator playbook: ${B}${APP_DIR}/work.md${R}
   • Uninstall service:   ${B}${APP_DIR}/scripts/uninstall-service.sh${R}
 
 ${B}Learn more${R}
-  • Repo:     https://github.com/gyorgysh/claude-code-telegram
+  • Repo:     https://github.com/gyorgysh/myhq
   • Tutorial: ${TUTORIAL}
 
 ${YE}Reminder:${R} this bot can read, write, and run anything on this machine.
@@ -516,7 +516,7 @@ EOF
 
 main() {
   printf '\n%s\n%s\n\n' \
-    "${B}claude-code-telegram installer${R}" \
+    "${B}MyHQ installer${R}" \
     "${DIM}Claude Code, driven from Telegram.${R}"
   detect_os
   check_ram_swap
