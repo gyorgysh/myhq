@@ -148,6 +148,14 @@ const refined = schema.superRefine((cfg, ctx) => {
       message: "PANEL_TOKEN is required when PANEL_ENABLED=true",
     });
   }
+  // A short token is brute-forceable; the panel can read/write/run on the host.
+  if (cfg.PANEL_ENABLED && cfg.PANEL_TOKEN && cfg.PANEL_TOKEN.length < 16) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["PANEL_TOKEN"],
+      message: "PANEL_TOKEN must be at least 16 characters (use a long random secret)",
+    });
+  }
 });
 
 function parseConfig() {

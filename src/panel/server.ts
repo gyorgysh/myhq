@@ -127,7 +127,19 @@ export async function startPanel(): Promise<(() => Promise<void>) | undefined> {
   // are served freely (they hold no secrets; the token gates the data + actions).
   app.addHook("onRequest", async (req, reply) => {
     if (!req.url.startsWith("/api") && !req.url.startsWith("/ws")) return;
-    if (!tokenOk(req)) await reply.code(401).send({ error: "unauthorized" });
+    const ip = clientIp(req);
+    // Lock out a client that has failed repeatedly, so the long random token
+    // can't be brute-forced over the network.
+    if (isLockedOut(ip)) {
+      await reply.code(429).send({ error: "too many attempts, try again later" });
+      return;
+    }
+    if (!tokenOk(req)) {
+      noteAuthFailure(ip);
+      await reply.code(401).send({ error: "unauthorized" });
+      return;
+    }
+    noteAuthSuccess(ip);
   });
 
   registerApi(app, hub);
@@ -163,8 +175,12 @@ function tokenOk(req: FastifyRequest): boolean {
   if (!expected) return false;
   const header = req.headers.authorization;
   const fromHeader = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
+  // The browser WebSocket API can't set an Authorization header, so the WS
+  // handshake (and only it) may carry the token in the query string. REST must
+  // use the header, so the token never lands in proxy/access logs or history.
+  const isWs = req.url.startsWith("/ws");
   const q = req.query as Record<string, unknown>;
-  const fromQuery = typeof q?.token === "string" ? q.token : undefined;
+  const fromQuery = isWs && typeof q?.token === "string" ? q.token : undefined;
   const provided = fromHeader ?? fromQuery;
   return provided !== undefined && safeEqual(provided, expected);
 }
@@ -174,6 +190,41 @@ function safeEqual(a: string, b: string): boolean {
   const bb = Buffer.from(b);
   if (ab.length !== bb.length) return false;
   return timingSafeEqual(ab, bb);
+}
+
+// --- Brute-force lockout -----------------------------------------------------
+// A panel token grants host access, so throttle repeated auth failures per
+// client IP. In-memory only (no dep): after MAX_FAILS failures the IP is locked
+// for LOCKOUT_MS; a success clears the counter. Cleared on restart.
+const MAX_FAILS = 10;
+const LOCKOUT_MS = 5 * 60_000;
+const authFailures = new Map<string, { count: number; lockedUntil: number }>();
+
+function clientIp(req: FastifyRequest): string {
+  return req.ip || "unknown";
+}
+
+function isLockedOut(ip: string): boolean {
+  const e = authFailures.get(ip);
+  if (!e) return false;
+  if (e.lockedUntil && e.lockedUntil > Date.now()) return true;
+  // Lockout window elapsed: reset so the client gets a fresh allowance.
+  if (e.lockedUntil && e.lockedUntil <= Date.now()) authFailures.delete(ip);
+  return false;
+}
+
+function noteAuthFailure(ip: string): void {
+  const e = authFailures.get(ip) ?? { count: 0, lockedUntil: 0 };
+  e.count += 1;
+  if (e.count >= MAX_FAILS) {
+    e.lockedUntil = Date.now() + LOCKOUT_MS;
+    log.warn("Panel auth lockout", { ip, count: e.count });
+  }
+  authFailures.set(ip, e);
+}
+
+function noteAuthSuccess(ip: string): void {
+  authFailures.delete(ip);
 }
 
 /** Panel view of a worker: registry fields + derived run state. */
