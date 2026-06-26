@@ -67,6 +67,7 @@ import {
   deleteProvider,
 } from "../core/providers.js";
 import { fetchProviderModels } from "../core/providerModels.js";
+import { BlockedUrlError } from "../core/safeUrl.js";
 import { mainSettingsView, setMainSettings } from "../core/mainSettings.js";
 import { embeddingConfig, setEmbeddingsEnabled, preferredBackend, setPreferredBackend, activeBackend, envEmbeddingMode, embeddingsAuto, enterAutoMode, type PreferredBackend } from "../core/embeddings.js";
 import { ollamaStatus, connectOllama } from "../core/ollama.js";
@@ -869,7 +870,9 @@ Respond with ONLY a JSON array, no markdown fences, no explanation. Example form
     try {
       return { models: await fetchProviderModels(baseUrl, authToken) };
     } catch (err) {
-      return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
+      // A blocked URL (SSRF guard) is a bad request, not an upstream failure.
+      const code = err instanceof BlockedUrlError ? 400 : 502;
+      return reply.code(code).send({ error: err instanceof Error ? err.message : String(err) });
     }
   });
   // Fetch the model list for a saved provider (worker form).
@@ -879,7 +882,8 @@ Respond with ONLY a JSON array, no markdown fences, no explanation. Example form
     try {
       return { models: await fetchProviderModels(p.baseUrl, resolveSecret(p.authToken)) };
     } catch (err) {
-      return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
+      const code = err instanceof BlockedUrlError ? 400 : 502;
+      return reply.code(code).send({ error: err instanceof Error ? err.message : String(err) });
     }
   });
   app.post("/api/providers", async (req) => toProviderView(createProvider(req.body as never)));
