@@ -27,6 +27,7 @@ export function RemoteAccessView({ onAuthError }: { onAuthError: () => void }) {
   const [provider, setProvider] = useState<TunnelProviderId>("ngrok");
   const [token, setToken] = useState("");
   const [domain, setDomain] = useState("");
+  const [advanced, setAdvanced] = useState(false);
 
   const fail = (e: unknown) => (e instanceof AuthError ? onAuthError() : setError(String(e)));
 
@@ -37,6 +38,9 @@ export function RemoteAccessView({ onAuthError }: { onAuthError: () => void }) {
         setView(v);
         setProvider(v.provider);
         setDomain(v.domain);
+        // Reveal the Advanced section up front only if a domain is already set,
+        // so a configured value is never hidden behind the collapse.
+        if (v.domain) setAdvanced(true);
       })
       .catch(fail);
 
@@ -223,16 +227,29 @@ export function RemoteAccessView({ onAuthError }: { onAuthError: () => void }) {
           <p className="mt-1 text-xs text-fg-faint">{t("ra_token_hint")}</p>
         </div>
 
-        {/* Optional reserved domain */}
+        {/* Advanced — reserved domain, hidden by default (most users use a
+            random ngrok/cloudflare URL). */}
         <div className="mb-4">
-          <Label>{t("ra_domain")}</Label>
-          <Input
-            disabled={live}
-            placeholder={t("ra_domain_placeholder")}
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-          />
-          <p className="mt-1 text-xs text-fg-faint">{t("ra_domain_hint")}</p>
+          <button
+            type="button"
+            onClick={() => setAdvanced((v) => !v)}
+            className="flex items-center gap-1 text-xs font-medium text-fg-dim hover:text-fg"
+          >
+            <span className="inline-block w-3 text-fg-faint">{advanced ? "▾" : "▸"}</span>
+            {t("ra_advanced")}
+          </button>
+          {advanced && (
+            <div className="mt-2">
+              <Label>{t("ra_domain")}</Label>
+              <Input
+                disabled={live}
+                placeholder={t("ra_domain_placeholder")}
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-fg-faint">{t("ra_domain_hint")}</p>
+            </div>
+          )}
         </div>
 
         {/* Controls */}

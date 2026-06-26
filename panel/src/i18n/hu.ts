@@ -742,6 +742,7 @@ export const hu: Translations = {
   ra_token_placeholder: "Illessz be egy tokent vagy vault:<id>-t",
   ra_token_hint:
     "Úgy tárolódik, ahogy beírtad. Használj vault:<id> hivatkozást, hogy a titok kimaradjon ebből a konfigból.",
+  ra_advanced: "Speciális",
   ra_domain: "Fenntartott domain (opcionális)",
   ra_domain_placeholder: "myapp.example.com",
   ra_domain_hint: "Fizetős ngrok domainhez vagy nevesített Cloudflare tunnelhez. Hagyd üresen véletlenszerű URL-hez.",

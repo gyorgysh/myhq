@@ -740,6 +740,7 @@ export const en = {
   ra_token_placeholder: "Paste a token or vault:<id>",
   ra_token_hint:
     "Stored as written. Use a vault:<id> reference to keep the secret out of this config file.",
+  ra_advanced: "Advanced",
   ra_domain: "Reserved domain (optional)",
   ra_domain_placeholder: "myapp.example.com",
   ra_domain_hint: "For a paid ngrok domain or a named Cloudflare tunnel. Leave blank for a random URL.",
