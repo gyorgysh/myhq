@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, type ChatMessage } from "../api.ts";
 import { useChatEvents } from "../lib/useChatEvents.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { Markdown } from "../lib/markdown.tsx";
 import { Button } from "./ui.tsx";
 
 export function ChatView({ onAuthError }: { onAuthError: () => void }) {
@@ -121,8 +122,8 @@ export function ChatView({ onAuthError }: { onAuthError: () => void }) {
               {stream.tool && (
                 <div className="mono mb-1 text-xs text-fg-dim">⚙ {stream.tool}</div>
               )}
-              <div className="whitespace-pre-wrap break-words text-fg">
-                {stream.text}
+              <div className="break-words text-fg">
+                <Markdown text={stream.text} />
                 <span className="ml-0.5 animate-pulse text-accent">▮</span>
               </div>
             </div>
@@ -157,18 +158,19 @@ export function ChatView({ onAuthError }: { onAuthError: () => void }) {
 function Bubble({ m }: { m: ChatMessage }) {
   const { t } = useI18n();
   const user = m.role === "user";
+  const body = m.text || (m.error ? t("chat_failed") : "");
   return (
     <div className={`flex ${user ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-sm ${
+        className={`max-w-[85%] break-words rounded-2xl px-4 py-2.5 text-sm ${
           user
-            ? "rounded-tr-sm bg-accent text-accent-fg"
+            ? "whitespace-pre-wrap rounded-tr-sm bg-accent text-accent-fg"
             : m.error
-              ? "rounded-tl-sm border border-red-500/30 bg-red-500/5 text-red-400"
+              ? "whitespace-pre-wrap rounded-tl-sm border border-red-500/30 bg-red-500/5 text-red-400"
               : "rounded-tl-sm bg-surface text-fg"
         }`}
       >
-        {m.text || (m.error ? t("chat_failed") : "")}
+        {user || m.error ? body : <Markdown text={body} />}
       </div>
     </div>
   );
