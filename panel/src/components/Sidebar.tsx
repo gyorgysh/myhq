@@ -62,8 +62,8 @@ export const NAV: Group[] = [
     headingKey: "nav_others",
     items: [
       { id: "status", labelKey: "nav_status", icon: "◉" },
-      { id: "remote", labelKey: "nav_remote", icon: "⇆" },
       { id: "updates", labelKey: "nav_updates", icon: "⤓" },
+      { id: "remote", labelKey: "nav_remote", icon: "⇆" },
     ],
   },
 ];
