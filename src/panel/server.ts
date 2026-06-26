@@ -59,6 +59,8 @@ import { listConnectors, setConnector } from "../core/connectors.js";
 import { vault, importProviderSecrets, resolveSecret } from "../core/vault.js";
 import {
   listProviders,
+  listProviderViews,
+  toProviderView,
   getProvider,
   createProvider,
   updateProvider,
@@ -808,7 +810,7 @@ Respond with ONLY a JSON array, no markdown fences, no explanation. Example form
   });
 
   // --- model providers (local LM Studio/Ollama, proxies) ---
-  app.get("/api/providers", async () => ({ providers: listProviders() }));
+  app.get("/api/providers", async () => ({ providers: listProviderViews() }));
   // Fetch the model list for an unsaved endpoint (provider form).
   app.post("/api/providers/models", async (req, reply) => {
     const { baseUrl, authToken } = (req.body ?? {}) as { baseUrl?: string; authToken?: string };
@@ -829,11 +831,11 @@ Respond with ONLY a JSON array, no markdown fences, no explanation. Example form
       return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
     }
   });
-  app.post("/api/providers", async (req) => createProvider(req.body as never));
+  app.post("/api/providers", async (req) => toProviderView(createProvider(req.body as never)));
   app.put("/api/providers/:id", async (req, reply) => {
     const updated = updateProvider((req.params as { id: string }).id, req.body as never);
     if (!updated) return reply.code(404).send({ error: "not found" });
-    return updated;
+    return toProviderView(updated);
   });
   app.delete("/api/providers/:id", async (req, reply) => {
     if (!deleteProvider((req.params as { id: string }).id))

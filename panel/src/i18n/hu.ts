@@ -372,6 +372,7 @@ export const hu: Translations = {
   settings_provider_name: "Név",
   settings_provider_base_url: "Alap URL",
   settings_provider_auth: "Auth token",
+  settings_provider_auth_keep: "hagyd üresen a megtartáshoz",
   settings_provider_test: "Modellek tesztelése / lekérése",
   settings_provider_models: "✓ {n} modell: {models}",
   settings_provider_delete_confirm: "Törlöd ezt a szolgáltatót? Az ezt használó munkások az Anthropicra esnek vissza.",

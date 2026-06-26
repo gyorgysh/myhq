@@ -370,6 +370,7 @@ export const en = {
   settings_provider_name: "Name",
   settings_provider_base_url: "Base URL",
   settings_provider_auth: "Auth token",
+  settings_provider_auth_keep: "leave blank to keep",
   settings_provider_test: "Test / fetch models",
   settings_provider_models: "✓ {n} model(s): {models}",
   settings_provider_delete_confirm: "Delete this provider? Workers using it fall back to Anthropic.",

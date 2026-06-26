@@ -489,7 +489,10 @@ export interface Provider {
   id: string;
   name: string;
   baseUrl: string;
-  authToken: string;
+  // The plaintext token is never sent to the client (SEC-2); only whether one
+  // is set and a masked hint of its last few chars.
+  hasToken: boolean;
+  tokenHint: string;
   createdAt: number;
   updatedAt: number;
 }
