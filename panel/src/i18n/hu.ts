@@ -674,6 +674,10 @@ export const hu: Translations = {
   terminal_disabled_body:
     "A panel terminál teljes hozzáférést ad a géphez, ezért alapból ki van kapcsolva. Állítsd be a PANEL_TERMINAL_ENABLED=true értéket a .env fájlban, majd indítsd újra az engedélyezéshez.",
   terminal_shared_hint: "Megosztott munkamenet",
+  terminal_disabled_overlay: "Terminál zárolva",
+  terminal_unavailable_overlay: "Terminál nem elérhető",
+  terminal_locked_hint:
+    "Itt jelenne meg egy élő host shell, amint a terminál engedélyezve van.",
 
   // Kanban alapértelmezett oszlopnevek (csak átnevezetlen állapotban fordítva)
   col_planned: "Tervezett",

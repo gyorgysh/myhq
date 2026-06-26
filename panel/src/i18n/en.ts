@@ -672,6 +672,10 @@ export const en = {
   terminal_disabled_body:
     "The panel terminal is a full host shell and is off by default. Set PANEL_TERMINAL_ENABLED=true in .env and restart to enable it.",
   terminal_shared_hint: "Shared session",
+  terminal_disabled_overlay: "Terminal locked",
+  terminal_unavailable_overlay: "Terminal unavailable",
+  terminal_locked_hint:
+    "A live host shell would appear here once the terminal is enabled.",
 
   // Kanban default column names (translated only when not renamed)
   col_planned: "Planned",
