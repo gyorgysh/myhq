@@ -134,6 +134,10 @@ export function availableLogDates(): string[] {
  * Read log entries from a specific date file.
  * Optionally filter by level and a case-insensitive substring match on msg or
  * serialised meta.
+ *
+ * The whole file is returned by default (no cap) so the panel can show a full
+ * day of logs without silently dropping older lines. Pass a positive `limit`
+ * to trim to the last N matching entries.
  */
 export function readLogFile(
   date: string,
@@ -146,7 +150,7 @@ export function readLogFile(
   } catch {
     return [];
   }
-  const { level, q, limit = 2000 } = opts;
+  const { level, q, limit } = opts;
   const needle = q?.toLowerCase();
   const results: LogEntry[] = [];
   for (const line of raw.split("\n")) {
@@ -163,8 +167,9 @@ export function readLogFile(
       /* skip malformed lines */
     }
   }
-  // Respect limit — return the last N matching entries.
-  return results.length > limit ? results.slice(-limit) : results;
+  // No limit means return the full file; an explicit positive limit trims to
+  // the last N matching entries.
+  return limit && limit > 0 && results.length > limit ? results.slice(-limit) : results;
 }
 
 // ---------------------------------------------------------------------------

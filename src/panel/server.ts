@@ -323,7 +323,7 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
   //                        (omit to get the live in-memory ring for today)
   //   &q=text           — case-insensitive substring search across msg + meta
   //   &level=info       — filter to a single level
-  //   &limit=2000       — max entries returned (default 2000)
+  //   &limit=N          — cap to the last N entries (omit for the full file)
   // GET /api/logs/dates — list available log dates, newest first
   app.get("/api/logs/dates", async () => ({ dates: availableLogDates() }));
   app.get("/api/logs", async (req) => {
