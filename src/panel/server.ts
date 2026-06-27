@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { existsSync, readFileSync } from "node:fs";
 import { timingSafeEqual } from "node:crypto";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
@@ -73,7 +74,7 @@ import {
 } from "../core/providers.js";
 import { fetchProviderModels } from "../core/providerModels.js";
 import { BlockedUrlError } from "../core/safeUrl.js";
-import { mainSettingsView, setMainSettings } from "../core/mainSettings.js";
+import { mainSettingsView, setMainSettings, resolveMainRun } from "../core/mainSettings.js";
 import { embeddingConfig, setEmbeddingsEnabled, preferredBackend, setPreferredBackend, activeBackend, envEmbeddingMode, embeddingsAuto, enterAutoMode, type PreferredBackend } from "../core/embeddings.js";
 import { ollamaStatus, connectOllama } from "../core/ollama.js";
 import { lmStudioStatus, connectLmStudio } from "../core/lmstudio.js";
@@ -981,26 +982,66 @@ Rules:
 Respond with ONLY a JSON array, no markdown fences, no explanation. Example format:
 [{"name":"Finance Lead","role":"lead","portfolio":"Finance","parentId":"","cwd":"/home/user","prompt":"...","persona":"...","systemPrompt":"...","autonomy":"full","when":"09:00","model":"","enabled":true}]`;
 
+    // Run the generation on the same model/provider the main agent is configured
+    // to use, so the wizard works when the bot runs on a local model or proxy
+    // (otherwise it falls back to config.CLAUDE_MODEL and the CLI exits non-zero
+    // when no Anthropic credential is present, surfacing as an opaque 500).
+    const mainRun = resolveMainRun();
+    const abort = new AbortController();
+    // Bound the turn so a stuck/slow CLI doesn't hang the request indefinitely
+    // (the model occasionally takes ~30s; give it generous headroom then abort).
+    const timeout = setTimeout(() => abort.abort(), 120_000);
     try {
       let output = "";
-      await runTurn({
+      // Use os.tmpdir() as the cwd when none is provided: avoids loading the
+      // project's CLAUDE.md (which can be very large) into a config-gen turn.
+      const wizardCwd = cwd?.trim() || tmpdir();
+      const result = await runTurn({
         prompt,
-        cwd: cwd?.trim() || process.cwd(),
+        cwd: wizardCwd,
+        model: mainRun.model,
+        env: mainRun.env,
         permissionMode: "bypassPermissions",
-        abortController: new AbortController(),
+        abortController: abort,
         mcpServers: {},
         canUseTool: async (_name, input) => ({ behavior: "allow" as const, updatedInput: input }),
         onText: (delta) => { output += delta; },
         onToolUse: () => {},
         onSessionId: () => {},
       });
-      // Extract JSON array from the output (handle any stray text before/after).
-      const match = output.match(/\[[\s\S]*\]/);
-      if (!match) return reply.code(502).send({ error: "Model returned no JSON", raw: output.slice(0, 500) });
-      const configs = JSON.parse(match[0]) as unknown[];
+      if (result.isError) {
+        const detail = result.text?.trim() || "No output from model";
+        log.error("wizard: model turn returned isError", { detail: detail.slice(0, 300) });
+        return reply.code(502).send({ error: `Model returned an error: ${detail.slice(0, 200)}` });
+      }
+      // Extract the JSON array from the output. Prefer a fenced ```json block if
+      // present, else the outermost [...] span; tolerate stray prose around it.
+      const fenced = output.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+      const span = fenced?.[1] ?? output.match(/\[[\s\S]*\]/)?.[0];
+      if (!span) {
+        log.warn("wizard: model returned no JSON array", { rawTail: output.slice(-500) });
+        return reply.code(502).send({ error: "Model returned no JSON", raw: output.slice(0, 500) });
+      }
+      let configs: unknown[];
+      try {
+        configs = JSON.parse(span) as unknown[];
+      } catch {
+        log.warn("wizard: model JSON failed to parse", { rawTail: output.slice(-500) });
+        return reply.code(502).send({ error: "Model returned malformed JSON", raw: span.slice(0, 500) });
+      }
+      if (!Array.isArray(configs) || configs.length === 0) {
+        return reply.code(502).send({ error: "Model returned no worker configs", raw: span.slice(0, 500) });
+      }
       return { configs };
     } catch (err) {
-      return reply.code(500).send({ error: err instanceof Error ? err.message : String(err) });
+      const aborted = abort.signal.aborted;
+      const message = aborted
+        ? "Generation timed out — the model took too long to respond. Try again."
+        : err instanceof Error ? err.message : String(err);
+      log.error("wizard generation failed", { error: message, aborted });
+      return reply.code(aborted ? 504 : 500).send({ error: message });
+    } finally {
+      clearTimeout(timeout);
     }
   });
 
