@@ -11,6 +11,7 @@ import { skillsMcp } from "./mcp/skills.js";
 import { selfUpdateMcp } from "./mcp/selfUpdate.js";
 import { selfUpdate } from "./core/selfUpdate.js";
 import { createCrewMcp } from "./mcp/crew.js";
+import { buildConnectorMcps } from "./mcp/connectorsMcp.js";
 import { TelegramStreamer, type Streamer } from "./telegram/streamer.js";
 import { DraftStreamer } from "./telegram/draftStreamer.js";
 import { RichDraftStreamer } from "./telegram/richDraftStreamer.js";
@@ -21,6 +22,7 @@ import { AskQuestionManager } from "./telegram/askQuestion.js";
 import { LoopDetector } from "./core/loopDetector.js";
 import { downloadIncomingFile, isViewableImage, readImageInput } from "./telegram/files.js";
 import { isGitCallback, resolveGitCallback } from "./telegram/gitFlow.js";
+import { isTaskCallback, resolveTaskCallback, retryKeyboard } from "./telegram/taskFlow.js";
 import { isProjectCallback, resolveProjectCallback } from "./telegram/projects.js";
 import { isInboxCallback, resolveInboxCallback } from "./telegram/inboxFlow.js";
 import { isModelCallback, resolveModelCallback } from "./commands.js";
@@ -92,6 +94,11 @@ export function buildBot(): Telegraf {
       log.debug("Git button pressed", { chatId: ctx.chat.id, data });
       const messageId = ctx.callbackQuery.message?.message_id;
       const toast = await resolveGitCallback(ctx.telegram, ctx.chat.id, data, messageId);
+      await ctx.answerCbQuery(toast.slice(0, 200)).catch(() => {});
+    } else if (data && isTaskCallback(data) && ctx.chat) {
+      log.debug("Task button pressed", { chatId: ctx.chat.id, data });
+      const messageId = ctx.callbackQuery.message?.message_id;
+      const toast = await resolveTaskCallback(ctx.telegram, ctx.chat.id, data, messageId);
       await ctx.answerCbQuery(toast.slice(0, 200)).catch(() => {});
     } else if (data && isProjectCallback(data) && ctx.chat) {
       log.debug("Project button pressed", { chatId: ctx.chat.id, data });
@@ -298,8 +305,13 @@ export function buildBot(): Telegraf {
       r.status === "stopped"
         ? `⏹ Task stopped — ${r.title}${by}`
         : `⚠️ Task failed — ${r.title}${by}${r.error ? `: ${r.error}` : ""}`;
+    // On a genuine failure (not a manual stop), offer a one-tap Retry button
+    // that resets the card to backlog and re-delegates.
     await bot.telegram
-      .sendMessage(chatId, `<i>${escapeHtml(notice)}</i>`, { parse_mode: "HTML" })
+      .sendMessage(chatId, `<i>${escapeHtml(notice)}</i>`, {
+        parse_mode: "HTML",
+        ...(r.status === "error" ? { reply_markup: retryKeyboard(r.taskId) } : {}),
+      })
       .catch(() => {});
   });
 
@@ -594,6 +606,7 @@ async function handleUserPrompt(
         skills: skillsMcp,
         self_update: selfUpdateMcp,
         crew: crewMcp,
+        ...buildConnectorMcps(),
       },
       canUseTool,
       onText: (delta) => {

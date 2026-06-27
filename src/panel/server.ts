@@ -52,6 +52,7 @@ import {
 } from "../core/columnConfig.js";
 import { taskDelegator } from "../core/taskRunner.js";
 import { workers, describeWorkerSchedule, type Worker } from "../core/workers.js";
+import { readRunLog } from "../core/runLog.js";
 import { chat } from "../core/chat.js";
 import { memory, type MemoryEntry } from "../core/memory.js";
 import { suggestions } from "../core/suggestions.js";
@@ -174,6 +175,19 @@ export async function startPanel(): Promise<(() => Promise<void>) | undefined> {
       await reply.code(429).send({ error: "too many attempts, try again later" });
       return;
     }
+    // SEC-9 (CSRF): mutating requests must prove they are not a forged
+    // cross-site request. The panel token is a Bearer header (which a browser
+    // cannot attach to a cross-origin request without a CORS preflight the
+    // server never grants), so the header itself is the primary defence. As an
+    // explicit, defence-in-depth check we reject any non-GET/HEAD request that
+    // both (a) carries no Authorization header and (b) declares a cross-origin
+    // Origin/Referer. A same-origin SPA fetch always sends the Bearer header, so
+    // this never affects legitimate use. The WS handshake (GET) is exempt by
+    // method; its read-only ?token= query is handled in tokenOk.
+    if (isCsrfRisk(req)) {
+      await reply.code(403).send({ error: "cross-site request blocked" });
+      return;
+    }
     if (!tokenOk(req)) {
       noteAuthFailure(ip);
       await reply.code(401).send({ error: "unauthorized" });
@@ -224,6 +238,44 @@ function tokenOk(req: FastifyRequest): boolean {
   const fromQuery = isWs && typeof q?.token === "string" ? q.token : undefined;
   const provided = fromHeader ?? fromQuery;
   return provided !== undefined && safeEqual(provided, expected);
+}
+
+/**
+ * SEC-9 CSRF guard. Returns true when a request looks like a forged cross-site
+ * write and must be rejected before token validation. A request is a risk when
+ * its method is state-changing (anything but GET/HEAD/OPTIONS) AND it carries no
+ * Authorization header AND it declares an Origin/Referer whose host differs from
+ * the panel's own host. Legitimate SPA calls always carry the Bearer header, so
+ * they short-circuit here; a classic CSRF (auto-submitted form / img / fetch
+ * without credentials) carries no Authorization header and trips the check.
+ */
+function isCsrfRisk(req: FastifyRequest): boolean {
+  const method = req.method.toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return false;
+  const hasAuth = typeof req.headers.authorization === "string" && req.headers.authorization.length > 0;
+  if (hasAuth) return false; // header-authenticated calls are CSRF-safe by spec
+  const origin = (req.headers.origin as string | undefined) ?? referrerOrigin(req);
+  if (!origin) return false; // no Origin/Referer (e.g. server-to-server) → not a browser CSRF
+  const host = (req.headers.host as string | undefined) ?? "";
+  return !originMatchesHost(origin, host);
+}
+
+function referrerOrigin(req: FastifyRequest): string | undefined {
+  const ref = req.headers.referer as string | undefined;
+  if (!ref) return undefined;
+  try {
+    return new URL(ref).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+function originMatchesHost(origin: string, host: string): boolean {
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -634,7 +686,11 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
   });
 
   // --- secret vault ---
-  app.get("/api/vault", async () => ({ secrets: vault.list(), usages: vaultUsages() }));
+  app.get("/api/vault", async () => ({
+    secrets: vault.list(),
+    usages: vaultUsages(),
+    keyRotatedAt: vault.lastRotatedAt(),
+  }));
   app.post("/api/vault", async (req) => vault.create(req.body as never));
   app.put("/api/vault/:id", async (req, reply) => {
     const updated = vault.update((req.params as { id: string }).id, req.body as never);
@@ -652,6 +708,30 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
     return { value };
   });
   app.post("/api/vault/import", async () => importProviderSecrets());
+  app.post("/api/vault/rotate", async (_req, reply) => {
+    try {
+      return vault.rotateKey();
+    } catch (err) {
+      return reply.code(500).send({ error: err instanceof Error ? err.message : "rotation failed" });
+    }
+  });
+  app.post("/api/vault/export", async (req, reply) => {
+    const passphrase = (req.body as { passphrase?: string })?.passphrase ?? "";
+    try {
+      return { blob: vault.exportBackup(passphrase) };
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : "export failed" });
+    }
+  });
+  app.post("/api/vault/import-backup", async (req, reply) => {
+    const { blob, passphrase } = (req.body as { blob?: string; passphrase?: string }) ?? {};
+    if (!blob || !passphrase) return reply.code(400).send({ error: "blob and passphrase required" });
+    try {
+      return vault.importBackup(blob, passphrase);
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : "import failed" });
+    }
+  });
 
   // --- on-disk .claude files ---
   app.get("/api/claude-files", async () => ({ roots: listClaudeFiles() }));
@@ -718,6 +798,13 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
   app.post("/api/tasks/:id/stop", async (req) => ({
     ok: taskDelegator.stop((req.params as { id: string }).id),
   }));
+  // Retry a failed card: reset to backlog (clear error, bump retryCount) and
+  // re-delegate in one click.
+  app.post("/api/tasks/:id/retry", async (req, reply) => {
+    const r = taskDelegator.retry((req.params as { id: string }).id);
+    if (!r.ok) return reply.code(409).send({ error: r.error });
+    return { ok: true, retryCount: r.retryCount };
+  });
   app.post("/api/tasks", async (req) => {
     const body = (req.body ?? {}) as Parameters<typeof createTask>[0];
     // Cards made through the panel/REST are attributed to "panel" unless the
@@ -776,6 +863,12 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
     runs: workers.history((req.params as { id: string }).id),
   }));
   app.get("/api/runs", async () => ({ runs: workers.history() }));
+
+  // Full uncapped transcript for one run (worker or delegated task), read from
+  // the runs/YYYY-MM-DD/<runId>.ndjson files. Returns [] when absent/expired.
+  app.get("/api/runs/:runId/log", async (req) => ({
+    events: readRunLog((req.params as { runId: string }).runId),
+  }));
 
   // --- worker wizard: generate pre-filled worker config(s) from user intent ---
   app.post("/api/workers/wizard", async (req, reply) => {

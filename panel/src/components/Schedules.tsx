@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, AuthError, type ScheduleView } from "../api.ts";
 import { Badge, Button, Card, Empty, InfoCard, Input, Label } from "./ui.tsx";
+import { ScheduleArt } from "./onboarding.tsx";
 import { relTime } from "../lib/format.ts";
 import { useI18n } from "../lib/useI18n.ts";
 
@@ -153,7 +154,17 @@ export function SchedulesView({ onAuthError }: { onAuthError: () => void }) {
       )}
 
       {schedules.length === 0 && !adding ? (
-        <Empty>{t("sched_empty")}</Empty>
+        <Empty
+          icon={<ScheduleArt />}
+          title={t("sched_empty")}
+          action={
+            <Button variant="primary" onClick={() => setAdding(true)}>
+              {t("sched_new")}
+            </Button>
+          }
+        >
+          {t("onb_step_schedule_desc")}
+        </Empty>
       ) : (
         <div className="space-y-2">
           {schedules.map((s) =>

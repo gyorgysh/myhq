@@ -215,6 +215,19 @@ export const en = {
   lang_agent_lead: "Lead language",
   // Settings tab
   nav_settings: "Settings",
+  nav_more: "More",
+  // Onboarding / getting-started checklist
+  onb_title: "Get started",
+  onb_desc: "A few quick steps to get the most out of your command center.",
+  onb_dismiss: "Dismiss",
+  onb_step_crew: "Hire your first Lead",
+  onb_step_crew_desc: "Add an autonomous agent to handle a domain for you.",
+  onb_step_schedule: "Schedule a recurring task",
+  onb_step_schedule_desc: "Have the agent run a prompt on a timer.",
+  onb_step_vault: "Store a secret in the vault",
+  onb_step_vault_desc: "Keep API tokens encrypted and referenced safely.",
+  onb_step_connect: "Connect an external tool",
+  onb_step_connect_desc: "Attach a vault secret to a connector like Notion.",
   settings_title: "Settings",
   settings_agent: "Main Agent",
   settings_agent_desc: "Model, persona, and autonomy for Atlas, the agent driving your Telegram chats.",
@@ -312,6 +325,27 @@ export const en = {
   vault_empty: "No secrets stored.",
   vault_reveal: "Reveal",
   vault_unused: "unused",
+  vault_keymgmt_title: "Key management",
+  vault_keymgmt_desc:
+    "Rotate the master key, or take an encrypted, passphrase-protected backup of all secrets you can restore on another machine.",
+  vault_rotate: "Rotate master key",
+  vault_rotate_confirm:
+    "Rotate the master key? All secrets are re-encrypted under a fresh key. This is safe and reversible only via your backup.",
+  vault_rotated: "Master key rotated. {n} secret(s) re-encrypted.",
+  vault_last_rotated: "Last rotated {date}",
+  vault_never_rotated: "Master key has never been rotated.",
+  vault_export_title: "Encrypted backup",
+  vault_export_desc:
+    "Export all secrets (values included) into one passphrase-encrypted blob. Keep the passphrase safe — there is no recovery without it.",
+  vault_passphrase: "Passphrase (min 8 chars)",
+  vault_export_btn: "Export",
+  vault_copy: "Copy",
+  vault_copied: "Copied to clipboard.",
+  vault_hide_export: "Hide",
+  vault_import_title: "Restore from backup",
+  vault_import_desc:
+    "Paste a backup blob and its passphrase. Secrets are added (existing ones are untouched) and re-encrypted under this host's key.",
+  vault_import_btn: "Restore",
 
   // Tasks
   tasks_add_column: "Add column",
@@ -327,6 +361,7 @@ export const en = {
   tasks_delegated: "delegated · {status}",
   tasks_delegate: "Delegate to agent",
   tasks_retry: "Retry",
+  tasks_retry_count: "Retried {n} time(s)",
   tasks_delete_confirm: "Delete this card?",
   tasks_wip_prompt: "WIP limit for \"{name}\" (blank to clear):",
   tasks_new_column_prompt: "New column name:",
@@ -349,6 +384,8 @@ export const en = {
   tasks_add_card_top: "+ Add card",
   tasks_select_mode: "Select",
   tasks_select_cancel: "Cancel",
+  tasks_select_all_col: "All",
+  tasks_select_none_col: "None",
   tasks_bulk_delete: "Delete {n}",
   tasks_bulk_delete_confirm: "Delete {n} selected cards?",
   tasks_bulk_delegate: "Delegate {n}",
@@ -366,6 +403,12 @@ export const en = {
   workers_custom: "Custom",
   workers_run_history: "Run history",
   workers_no_runs: "No runs yet.",
+  workers_view_full_log: "View full log",
+  workers_hide_full_log: "Hide full log",
+  runlog_loading: "Loading transcript…",
+  runlog_empty: "No transcript (it may have expired after 72h).",
+  runlog_tool_error: "tool returned an error",
+  runlog_finished: "Finished · {status}",
   workers_live_output: "Live output",
   workers_streaming: "streaming",
   workers_delete_confirm: "Delete worker \"{name}\"?",
@@ -739,10 +782,13 @@ export const en = {
 
   // Connectors view
   connectors_title: "Connectors",
-  connectors_desc: "External integrations the agent will be able to use. These are placeholders: the registration surface is here, but none are wired up yet. You can pre-attach a vault secret to hold each one's credential.",
+  connectors_desc: "External integrations your agents can use. Notion and Google Calendar are live: attach a vault secret with the credential and enable them, and their tools appear in every chat and delegated run. The rest are placeholders for now.",
   connectors_coming_soon: "coming soon",
+  connectors_live: "live",
   connectors_needs: "Needs: {credential}",
   connectors_credential: "Credential secret",
+  connectors_enable: "Enable for agents",
+  connectors_active: "Active — tools available to your agents.",
 
   // Prompt (operator playbook) view
   prompt_playbook_title: "Operator playbook",

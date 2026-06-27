@@ -4,6 +4,8 @@ import { useWorkerEvents, type LiveRun } from "../lib/useWorkerEvents.ts";
 import { useI18n } from "../lib/useI18n.ts";
 import type { TranslationKey } from "../i18n/en.ts";
 import { Badge, Button, Card, Empty, InfoCard, Input, Label, Select, TextArea } from "./ui.tsx";
+import { RunLog } from "./RunLog.tsx";
+import { CrewArt } from "./onboarding.tsx";
 import { ms, relTime, usd } from "../lib/format.ts";
 import { AGENT_LANGUAGES } from "../i18n/languages.ts";
 
@@ -141,7 +143,17 @@ export function WorkersView({ onAuthError }: { onAuthError: () => void }) {
       )}
 
       {workers.length === 0 && !creating ? (
-        <Empty>{t("workers_empty")}</Empty>
+        <Empty
+          icon={<CrewArt />}
+          title={t("workers_empty")}
+          action={
+            <Button variant="primary" onClick={() => setCreating(true)}>
+              {t("workers_new")}
+            </Button>
+          }
+        >
+          {t("onb_step_crew_desc")}
+        </Empty>
       ) : (
         (() => {
           const leads = workers.filter((w) => w.role === "lead");
@@ -334,19 +346,7 @@ function WorkerRow({
             ) : (
               <div className="space-y-1">
                 {runs.map((r) => (
-                  <div key={r.id} className="flex items-center gap-2 text-xs">
-                    <Badge tone={r.status === "ok" ? "green" : r.status === "error" ? "amber" : "zinc"}>
-                      {r.status}
-                    </Badge>
-                    <span className="tabular text-fg-dim">{relTime(r.startedAt)}</span>
-                    {r.durationMs != null && (
-                      <span className="tabular text-fg-faint">{ms(r.durationMs)}</span>
-                    )}
-                    {r.costUsd != null && (
-                      <span className="tabular text-fg-faint">{usd(r.costUsd)}</span>
-                    )}
-                    {r.error && <span className="truncate text-red-400">{r.error}</span>}
-                  </div>
+                  <RunRow key={r.id} run={r} />
                 ))}
               </div>
             )}
@@ -354,6 +354,32 @@ function WorkerRow({
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * One run-history row. Click to expand the full uncapped transcript fetched from
+ * /api/runs/:runId/log (lazily, only when first opened).
+ */
+function RunRow({ run: r }: { run: WorkerRun }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="text-xs">
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-2 text-left hover:opacity-80">
+        <Badge tone={r.status === "ok" ? "green" : r.status === "error" ? "amber" : "zinc"}>
+          {r.status}
+        </Badge>
+        <span className="tabular text-fg-dim">{relTime(r.startedAt)}</span>
+        {r.durationMs != null && <span className="tabular text-fg-faint">{ms(r.durationMs)}</span>}
+        {r.costUsd != null && <span className="tabular text-fg-faint">{usd(r.costUsd)}</span>}
+        {r.error && <span className="truncate text-red-400">{r.error}</span>}
+        <span className="ml-auto shrink-0 text-accent">
+          {open ? t("workers_hide_full_log") : t("workers_view_full_log")}
+        </span>
+      </button>
+      {open && <RunLog runId={r.id} />}
+    </div>
   );
 }
 

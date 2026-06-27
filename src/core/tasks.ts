@@ -35,6 +35,8 @@ export interface Task {
   parentId?: string;
   /** Set while/after the card has been delegated to an agent run. */
   delegate?: TaskDelegation;
+  /** How many times this card has been re-delegated after a failure. */
+  retryCount?: number;
   /** Sort position within its column (ascending). */
   order: number;
   /**
@@ -106,6 +108,28 @@ export function setDelegate(id: string, delegate: TaskDelegation | undefined): T
   task.delegate = delegate;
   task.updatedAt = Date.now();
   persist(tasks);
+  return task;
+}
+
+/**
+ * Reset an errored card so it can be re-delegated: move it back to the first
+ * (backlog) column, clear its delegation error state, and bump retryCount so
+ * runaway retries are visible. Returns the updated card, or undefined if it
+ * doesn't exist. The actual re-delegation is kicked off by the caller.
+ */
+export function prepareRetry(id: string): Task | undefined {
+  const tasks = load();
+  const task = tasks.find((t) => t.id === id);
+  if (!task) return undefined;
+  const backlog = getColumnIds()[0] ?? "backlog";
+  const maxOrder = Math.max(0, ...tasks.filter((t) => t.column === backlog).map((t) => t.order));
+  task.retryCount = (task.retryCount ?? 0) + 1;
+  task.delegate = undefined;
+  task.column = backlog;
+  task.order = maxOrder + 1;
+  task.updatedAt = Date.now();
+  persist(tasks);
+  audit("task.retry", { id, retryCount: task.retryCount });
   return task;
 }
 

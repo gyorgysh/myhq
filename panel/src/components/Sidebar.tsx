@@ -75,6 +75,64 @@ export function tabLabel(tab: Tab): string {
   return "";
 }
 
+/** A handful of high-traffic tabs surfaced in the mobile bottom nav. */
+const BOTTOM_NAV: Item[] = [
+  { id: "health", labelKey: "nav_health", icon: "▦" },
+  { id: "chat", labelKey: "nav_chat", icon: "❯" },
+  { id: "tasks", labelKey: "nav_tasks", icon: "▤" },
+  { id: "inbox", labelKey: "nav_inbox", icon: "✉" },
+];
+
+/** Fixed bottom navigation bar shown only on narrow screens (below md). */
+export function BottomNav({
+  tab,
+  onSelect,
+  onOpenMenu,
+  chatEnabled = true,
+  inboxPending = 0,
+}: {
+  tab: Tab | "settings";
+  onSelect: (t: Tab) => void;
+  onOpenMenu: () => void;
+  chatEnabled?: boolean;
+  inboxPending?: number;
+}) {
+  const { t } = useI18n();
+  const items = BOTTOM_NAV.filter((i) => i.id !== "chat" || chatEnabled);
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface md:hidden">
+      {items.map((it) => {
+        const active = it.id === tab;
+        const showBadge = it.id === "inbox" && inboxPending > 0;
+        return (
+          <button
+            key={it.id}
+            onClick={() => onSelect(it.id)}
+            className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition-colors ${
+              active ? "text-accent" : "text-fg-dim"
+            }`}
+          >
+            <span className="text-base leading-none">
+              {it.icon}
+              {showBadge && (
+                <span className="absolute right-1/2 top-1 ml-2 h-1.5 w-1.5 translate-x-3 rounded-full bg-accent" />
+              )}
+            </span>
+            <span>{t(it.labelKey)}</span>
+          </button>
+        );
+      })}
+      <button
+        onClick={onOpenMenu}
+        className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] text-fg-dim transition-colors"
+      >
+        <span className="text-base leading-none">☰</span>
+        <span>{t("nav_more")}</span>
+      </button>
+    </nav>
+  );
+}
+
 /** All known tab ids, for URL <-> tab mapping. */
 export const TAB_IDS: Tab[] = NAV.flatMap((g) => g.items.map((i) => i.id));
 

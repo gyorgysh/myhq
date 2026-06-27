@@ -141,6 +141,8 @@ export interface Task {
   priority: Priority;
   parentId?: string;
   delegate?: TaskDelegation;
+  /** How many times this card has been re-delegated after a failure. */
+  retryCount?: number;
   order: number;
   /** Creator id stamped at create-time: "atlas", a worker/lead id, or "panel". */
   createdBy?: string;
@@ -348,12 +350,25 @@ export interface WorkerRun {
   output: string;
 }
 
+/** One line of a full run transcript (runs/YYYY-MM-DD/<runId>.ndjson). */
+export interface RunLogEvent {
+  ts: number;
+  kind: "text" | "tool" | "result" | "start" | "end";
+  text?: string;
+  tool?: string;
+  arg?: string;
+  isError?: boolean;
+  status?: string;
+  costUsd?: number;
+  durationMs?: number;
+}
+
 export interface Connector {
   id: string;
   name: string;
   description: string;
   credential: string;
-  status: "coming-soon";
+  status: "live" | "coming-soon";
   secretId?: string;
   enabled: boolean;
 }
@@ -660,6 +675,8 @@ export const api = {
     req<{ wip: Wip }>("PUT", "/api/tasks/wip", { column, limit }),
   delegateTask: (id: string) => req<{ ok: boolean }>("POST", `/api/tasks/${id}/delegate`),
   stopTask: (id: string) => req<{ ok: boolean }>("POST", `/api/tasks/${id}/stop`),
+  retryTask: (id: string) =>
+    req<{ ok: boolean; retryCount?: number }>("POST", `/api/tasks/${id}/retry`),
   addColumn: (name: string) => req<ColumnDef>("POST", "/api/tasks/columns", { name }),
   renameColumn: (id: string, name: string) => req<ColumnDef>("PUT", `/api/tasks/columns/${id}`, { name }),
   removeColumn: (id: string) => req<{ ok: boolean }>("DELETE", `/api/tasks/columns/${id}`),
@@ -706,6 +723,7 @@ export const api = {
   runWorker: (id: string) => req<WorkerRun>("POST", `/api/workers/${id}/run`),
   stopWorker: (id: string) => req<{ ok: boolean }>("POST", `/api/workers/${id}/stop`),
   workerRuns: (id: string) => get<{ runs: WorkerRun[] }>(`/api/workers/${id}/runs`),
+  runLog: (runId: string) => get<{ events: RunLogEvent[] }>(`/api/runs/${runId}/log`),
   workerWizard: (body: { goal: string; context?: string; crew?: boolean; schedule?: string; cwd?: string }) =>
     req<{ configs: Partial<Worker>[] }>("POST", "/api/workers/wizard", body),
 
@@ -719,7 +737,12 @@ export const api = {
   saveHeartbeat: (c: Partial<HeartbeatConfig>) => req<HeartbeatView>("PUT", "/api/heartbeat", c),
   runHeartbeat: () => req<{ signals: number }>("POST", "/api/heartbeat/run"),
 
-  vault: () => get<{ secrets: SecretView[]; usages: Record<string, Array<{ kind: string; name: string }>> }>("/api/vault"),
+  vault: () =>
+    get<{
+      secrets: SecretView[];
+      usages: Record<string, Array<{ kind: string; name: string }>>;
+      keyRotatedAt?: number;
+    }>("/api/vault"),
   createSecret: (s: { name: string; value: string; description?: string }) =>
     req<SecretView>("POST", "/api/vault", s),
   updateSecret: (id: string, s: { name?: string; value?: string; description?: string }) =>
@@ -727,6 +750,10 @@ export const api = {
   deleteSecret: (id: string) => req<{ ok: boolean }>("DELETE", `/api/vault/${id}`),
   revealSecret: (id: string) => get<{ value: string }>(`/api/vault/${id}/reveal`),
   importSecrets: () => req<{ imported: number }>("POST", "/api/vault/import"),
+  rotateVaultKey: () => req<{ rotated: number; keyRotatedAt: number }>("POST", "/api/vault/rotate"),
+  exportVault: (passphrase: string) => req<{ blob: string }>("POST", "/api/vault/export", { passphrase }),
+  importVaultBackup: (blob: string, passphrase: string) =>
+    req<{ imported: number }>("POST", "/api/vault/import-backup", { blob, passphrase }),
 
   memories: (q?: string, all?: boolean) =>
     get<{ memories: MemoryEntry[] }>(

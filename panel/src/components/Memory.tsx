@@ -3,6 +3,7 @@ import { api, AuthError, type MemoryEntry, type MemoryStats, type MemoryTier } f
 import { useI18n } from "../lib/useI18n.ts";
 import { relTime } from "../lib/format.ts";
 import { Badge, Button, Callout, Card, Empty, InfoCard, Input, Label, TextArea } from "./ui.tsx";
+import { MemoryArt } from "./onboarding.tsx";
 
 const blank = { text: "", tags: "", salience: 0.5, tier: "warm" as MemoryTier };
 
@@ -242,7 +243,11 @@ export function MemoryView({ onAuthError }: { onAuthError: () => void }) {
       </div>
 
       {entries.length === 0 && !editing ? (
-        <Empty>{query ? t("memory_empty_query") : t("memory_empty")}</Empty>
+        query ? (
+          <Empty>{t("memory_empty_query")}</Empty>
+        ) : (
+          <Empty icon={<MemoryArt />}>{t("memory_empty")}</Empty>
+        )
       ) : (
         <div className="space-y-2">
           {entries.map((m) => (

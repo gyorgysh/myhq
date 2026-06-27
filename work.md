@@ -290,6 +290,18 @@ curl -H "$AUTH" $BASE/api/vault/<id>/reveal
 
 # Delete
 curl -X DELETE -H "$AUTH" $BASE/api/vault/<id>
+
+# Rotate the master key (re-encrypts every secret under a fresh key, stamps keyRotatedAt)
+curl -X POST -H "$AUTH" $BASE/api/vault/rotate
+
+# Encrypted, passphrase-protected backup of ALL secrets (portable across machines)
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/vault/export \
+  -d '{ "passphrase": "at-least-8-chars" }'
+# Returns { blob: "vaultbak1.<salt>.<iv>.<tag>.<ct>" }
+
+# Restore from a backup blob (additive: existing secrets untouched)
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/vault/import-backup \
+  -d '{ "blob": "vaultbak1.…", "passphrase": "at-least-8-chars" }'
 ```
 
 ### Providers (local/proxy model endpoints)

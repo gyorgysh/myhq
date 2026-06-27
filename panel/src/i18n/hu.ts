@@ -217,6 +217,19 @@ export const hu: Translations = {
   lang_agent_lead: "Vezető nyelve",
   // Beállítások fül
   nav_settings: "Beállítások",
+  nav_more: "Több",
+  // Bevezető / első lépések ellenőrzőlista
+  onb_title: "Első lépések",
+  onb_desc: "Néhány gyors lépés, hogy a legtöbbet hozd ki a parancsközpontodból.",
+  onb_dismiss: "Elrejtés",
+  onb_step_crew: "Vegyél fel egy Vezetőt",
+  onb_step_crew_desc: "Adj hozzá egy autonóm ügynököt egy terület kezelésére.",
+  onb_step_schedule: "Ütemezz egy ismétlődő feladatot",
+  onb_step_schedule_desc: "Az ügynök időzítve futtasson egy promptot.",
+  onb_step_vault: "Tárolj egy titkot a széfben",
+  onb_step_vault_desc: "Tartsd a tokeneket titkosítva, biztonságosan hivatkozva.",
+  onb_step_connect: "Csatlakoztass egy külső eszközt",
+  onb_step_connect_desc: "Köss egy széf-titkot egy csatlakozóhoz, pl. Notion.",
   settings_title: "Beállítások",
   settings_agent: "Főügynök",
   settings_agent_desc: "Atlas modellje, személyisége és autonómiája.",
@@ -314,6 +327,27 @@ export const hu: Translations = {
   vault_empty: "Nincs tárolt titok.",
   vault_reveal: "Megjelenítés",
   vault_unused: "nem használt",
+  vault_keymgmt_title: "Kulcskezelés",
+  vault_keymgmt_desc:
+    "Forgasd a mesterkulcsot, vagy készíts titkosított, jelmondattal védett biztonsági mentést az összes titokról, amelyet másik gépen is visszaállíthatsz.",
+  vault_rotate: "Mesterkulcs forgatása",
+  vault_rotate_confirm:
+    "Forgatod a mesterkulcsot? Minden titok új kulccsal lesz újratitkosítva. Csak a biztonsági mentéseden keresztül állítható vissza.",
+  vault_rotated: "Mesterkulcs forgatva. {n} titok újratitkosítva.",
+  vault_last_rotated: "Utolsó forgatás: {date}",
+  vault_never_rotated: "A mesterkulcsot még sosem forgattad.",
+  vault_export_title: "Titkosított mentés",
+  vault_export_desc:
+    "Exportáld az összes titkot (értékekkel együtt) egyetlen jelmondattal titkosított blokkba. Őrizd meg a jelmondatot — nélküle nincs visszaállítás.",
+  vault_passphrase: "Jelmondat (min. 8 karakter)",
+  vault_export_btn: "Exportálás",
+  vault_copy: "Másolás",
+  vault_copied: "Vágólapra másolva.",
+  vault_hide_export: "Elrejtés",
+  vault_import_title: "Visszaállítás mentésből",
+  vault_import_desc:
+    "Illeszd be a mentési blokkot és a jelmondatát. A titkok hozzáadódnak (a meglévők érintetlenek), és ennek a gépnek a kulcsával lesznek újratitkosítva.",
+  vault_import_btn: "Visszaállítás",
 
   // Feladatok
   tasks_add_column: "Oszlop hozzáadása",
@@ -329,6 +363,7 @@ export const hu: Translations = {
   tasks_delegated: "delegálva · {status}",
   tasks_delegate: "Delegálás ügynöknek",
   tasks_retry: "Újra",
+  tasks_retry_count: "{n} próbálkozás",
   tasks_delete_confirm: "Törlöd ezt a kártyát?",
   tasks_wip_prompt: "WIP limit a(z) \"{name}\" oszlophoz (üres a törléshez):",
   tasks_new_column_prompt: "Új oszlop neve:",
@@ -351,6 +386,8 @@ export const hu: Translations = {
   tasks_add_card_top: "+ Kártya hozzáadása",
   tasks_select_mode: "Kijelölés",
   tasks_select_cancel: "Mégse",
+  tasks_select_all_col: "Mind",
+  tasks_select_none_col: "Egyik sem",
   tasks_bulk_delete: "{n} törlése",
   tasks_bulk_delete_confirm: "Törlöd a(z) {n} kijelölt kártyát?",
   tasks_bulk_delegate: "{n} delegálása",
@@ -368,6 +405,12 @@ export const hu: Translations = {
   workers_custom: "Egyéni",
   workers_run_history: "Futási előzmények",
   workers_no_runs: "Még nincs futás.",
+  workers_view_full_log: "Teljes napló",
+  workers_hide_full_log: "Napló elrejtése",
+  runlog_loading: "Napló betöltése…",
+  runlog_empty: "Nincs napló (72 óra után lejárhatott).",
+  runlog_tool_error: "az eszköz hibát adott",
+  runlog_finished: "Befejezve · {status}",
   workers_live_output: "Élő kimenet",
   workers_streaming: "streamelés",
   workers_delete_confirm: "Törlöd a(z) \"{name}\" munkást?",
@@ -741,10 +784,13 @@ export const hu: Translations = {
 
   // Csatlakozók nézet
   connectors_title: "Csatlakozók",
-  connectors_desc: "Külső integrációk, amelyeket az ügynök használni tud majd. Ezek helykitöltők: a regisztrációs felület itt van, de egyik sincs még bekötve. Minden egyikhez előre csatolhatsz egy vault titkot a hitelesítő adat tárolásához.",
+  connectors_desc: "Külső integrációk, amelyeket az ügynökeid használhatnak. A Notion és a Google Naptár élő: csatolj egy vault titkot a hitelesítő adattal, kapcsold be őket, és az eszközeik megjelennek minden beszélgetésben és delegált futásban. A többi egyelőre helykitöltő.",
   connectors_coming_soon: "hamarosan",
+  connectors_live: "élő",
   connectors_needs: "Szükséges: {credential}",
   connectors_credential: "Hitelesítő titok",
+  connectors_enable: "Engedélyezés az ügynököknek",
+  connectors_active: "Aktív — az eszközök elérhetők az ügynökeidnek.",
 
   // Prompt (üzemeltetői kézikönyv) nézet
   prompt_playbook_title: "Üzemeltetői kézikönyv",

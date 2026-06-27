@@ -44,6 +44,22 @@ export function SettingsView({ onAuthError }: { onAuthError: () => void }) {
 
 function WhitelabelSettings() {
   const { t } = useI18n();
+  // Surface the live ATLAS_NAME / BRAND_NAME so the card reflects the actual
+  // running config, even though editing is gated behind "coming soon" (reserved
+  // for future business licensing). Edits are intentionally disabled.
+  const [brand, setBrand] = useState("MyHQ");
+  const [agentName, setAgentName] = useState("Atlas");
+
+  useEffect(() => {
+    api
+      .me()
+      .then((m) => {
+        if (m.brandName) setBrand(m.brandName);
+        if (m.atlasName) setAgentName(m.atlasName);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <Card
       title={t("settings_whitelabel")}
@@ -53,11 +69,11 @@ function WhitelabelSettings() {
       <div className="space-y-3 opacity-50 pointer-events-none select-none" aria-hidden="true">
         <div>
           <Label>{t("settings_whitelabel_brand")}</Label>
-          <Input disabled placeholder="MyHQ" value="" onChange={() => {}} />
+          <Input disabled placeholder="MyHQ" value={brand} onChange={() => {}} />
         </div>
         <div>
           <Label>{t("settings_whitelabel_agent_name")}</Label>
-          <Input disabled placeholder="Atlas" value="" onChange={() => {}} />
+          <Input disabled placeholder="Atlas" value={agentName} onChange={() => {}} />
         </div>
         <div>
           <Label>{t("settings_whitelabel_panel_title")}</Label>

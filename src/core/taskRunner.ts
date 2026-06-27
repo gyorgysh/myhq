@@ -5,13 +5,15 @@ import { memoryMcp } from "../mcp/memory.js";
 import { createTasksMcp } from "../mcp/tasks.js";
 import { skillsMcp } from "../mcp/skills.js";
 import { selfUpdateMcp } from "../mcp/selfUpdate.js";
-import { getTask, setDelegate, updateTask, listTasks, archiveTask } from "./tasks.js";
+import { buildConnectorMcps } from "../mcp/connectorsMcp.js";
+import { getTask, setDelegate, updateTask, listTasks, archiveTask, prepareRetry } from "./tasks.js";
 import { memory } from "./memory.js";
 import { workers, type Worker } from "./workers.js";
 import { getSkill } from "./skills.js";
 import { getProvider } from "./providers.js";
 import { resolveSecret } from "./vault.js";
 import { audit } from "./audit.js";
+import { RunLogWriter } from "./runLog.js";
 import { log, preview } from "../logger.js";
 import { toolDiffMeta } from "../telegram/formatting.js";
 
@@ -105,6 +107,20 @@ export class TaskDelegator {
     return { ok: true };
   }
 
+  /**
+   * Retry a failed card: reset it to backlog (clearing the error, bumping
+   * retryCount), then immediately re-delegate. Returns the same shape as
+   * delegate(). Used by the panel Retry button and the Telegram Retry inline
+   * button. Refuses if the card is currently running.
+   */
+  retry(id: string, leadId?: string): { ok: boolean; error?: string; retryCount?: number } {
+    if (this.active.has(id)) return { ok: false, error: "already running" };
+    const task = prepareRetry(id);
+    if (!task) return { ok: false, error: "not found" };
+    const r = this.delegate(id, leadId);
+    return { ...r, retryCount: task.retryCount };
+  }
+
   private async execute(
     id: string,
     title: string,
@@ -115,6 +131,8 @@ export class TaskDelegator {
     lead?: Worker,
   ): Promise<void> {
     let output = "";
+    // Full uncapped transcript on disk for the panel's "View full log".
+    const transcript = new RunLogWriter(runId, { kind: "task", ownerId: id, ownerName: title });
     const prompt =
       `You are autonomously completing this kanban card.\n\nTitle: ${title}` +
       (notes ? `\n\nNotes:\n${notes}` : "") +
@@ -143,17 +161,21 @@ export class TaskDelegator {
         persona: lead?.persona,
         permissionMode: "bypassPermissions",
         abortController: abort,
-        mcpServers: { memory: memoryMcp, tasks: createTasksMcp({ createdBy: lead?.id ?? "atlas" }), skills: skillsMcp, self_update: selfUpdateMcp },
+        mcpServers: { memory: memoryMcp, tasks: createTasksMcp({ createdBy: lead?.id ?? "atlas" }), skills: skillsMcp, self_update: selfUpdateMcp, ...buildConnectorMcps() },
         canUseTool: async (_n, input) => ({ behavior: "allow", updatedInput: input }),
         onText: (d) => {
           output += d;
+          transcript.event({ ts: Date.now(), kind: "text", text: d });
           this.broadcast({ type: "task", event: "delta", taskId: id, runId, delta: d });
         },
         onToolUse: (name, input) => {
           const diff = toolDiffMeta(name, input);
-          log.info("Tool use", { chatId: 0, tool: name, arg: preview(typeof input === "string" ? input : JSON.stringify(input), 300), task: title, taskId: id, lead: lead?.name, runId, ...(diff ?? {}) });
+          const arg = preview(typeof input === "string" ? input : JSON.stringify(input), 300);
+          log.info("Tool use", { chatId: 0, tool: name, arg, task: title, taskId: id, lead: lead?.name, runId, ...(diff ?? {}) });
+          transcript.event({ ts: Date.now(), kind: "tool", tool: name, arg });
           this.broadcast({ type: "task", event: "tool", taskId: id, runId, tool: name });
         },
+        onToolResult: (isError) => transcript.event({ ts: Date.now(), kind: "result", isError }),
         onSessionId: () => {},
       });
       setDelegate(id, {
@@ -213,6 +235,8 @@ export class TaskDelegator {
     } finally {
       this.active.delete(id);
       const endTask = getTask(id);
+      const st = endTask?.delegate?.status ?? "ok";
+      transcript.close({ status: st, isError: st === "error", durationMs: Date.now() - startedAt });
       this.broadcast({ type: "task", event: "end", taskId: id, runId, delegate: endTask?.delegate, column: endTask?.column });
     }
   }

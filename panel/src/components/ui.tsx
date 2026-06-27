@@ -85,9 +85,30 @@ export function Badge({
   );
 }
 
-export function Empty({ children }: { children: ReactNode }) {
+/** Empty / zero-data placeholder. The simple form (just text children) is
+ *  unchanged; pass `icon` for an illustration above the message, `title` for a
+ *  bolder heading, and `action` for a call-to-action button below it. */
+export function Empty({
+  children,
+  icon,
+  title,
+  action,
+}: {
+  children?: ReactNode;
+  icon?: ReactNode;
+  title?: ReactNode;
+  action?: ReactNode;
+}) {
+  if (!icon && !title && !action) {
+    return <div className="py-10 text-center text-sm text-fg-faint">{children}</div>;
+  }
   return (
-    <div className="py-10 text-center text-sm text-fg-faint">{children}</div>
+    <div className="flex flex-col items-center gap-3 py-12 text-center">
+      {icon && <div className="text-fg-faint/60">{icon}</div>}
+      {title && <p className="text-sm font-medium text-fg-dim">{title}</p>}
+      {children && <p className="max-w-xs text-sm text-fg-faint">{children}</p>}
+      {action && <div className="mt-1">{action}</div>}
+    </div>
   );
 }
 

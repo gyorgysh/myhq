@@ -14,6 +14,7 @@ import { getProvider } from "./providers.js";
 import { resolveSecret } from "./vault.js";
 import { audit } from "./audit.js";
 import { fireWebhook } from "./webhook.js";
+import { RunLogWriter } from "./runLog.js";
 import { log, preview } from "../logger.js";
 import { toolDiffMeta } from "../telegram/formatting.js";
 import type { Autonomy } from "../session/manager.js";
@@ -332,6 +333,10 @@ export class WorkerManager {
       fromAgentId: w.id,
     });
 
+    // Full transcript writer (uncapped, NDJSON on disk) for the panel's
+    // "View full log". The capped run.output stays the live/summary view.
+    const transcript = new RunLogWriter(run.id, { kind: "worker", ownerId: w.id, ownerName: w.name });
+
     try {
       const res = await runTurn({
         prompt: w.prompt,
@@ -351,11 +356,13 @@ export class WorkerManager {
         },
         onText: (delta) => {
           run.output = (run.output + delta).slice(-OUTPUT_CAP);
+          transcript.event({ ts: Date.now(), kind: "text", text: delta });
           this.broadcast({ type: "worker", event: "delta", runId: run.id, workerId: w.id, delta });
         },
         onToolUse: (name, input) => {
           const diff = toolDiffMeta(name, input);
           log.info("Tool use", { chatId: 0, tool: name, arg: preview(summarize(input), 300), worker: w.name, workerId: w.id, runId: run.id, ...(diff ?? {}) });
+          transcript.event({ ts: Date.now(), kind: "tool", tool: name, arg: summarize(input) });
           this.broadcast({
             type: "worker",
             event: "tool",
@@ -365,6 +372,7 @@ export class WorkerManager {
             arg: summarize(input),
           });
         },
+        onToolResult: (isError) => transcript.event({ ts: Date.now(), kind: "result", isError }),
         onSessionId: () => {},
       });
       run.status = res.isError ? "error" : "ok";
@@ -377,6 +385,7 @@ export class WorkerManager {
       log.error("Worker run failed", { worker: w.id, runId: run.id, error: run.error });
     } finally {
       run.endedAt = Date.now();
+      transcript.close({ status: run.status, isError: run.status === "error", costUsd: run.costUsd, durationMs: run.durationMs });
       w.lastRunAt = run.endedAt;
       w.lastRunId = run.id;
       this.active.delete(w.id);

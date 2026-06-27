@@ -3,6 +3,7 @@ import { api, AuthError, type Column, type ColumnDef, type Priority, type Task, 
 import { useTaskEvents, type LiveTask } from "../lib/useTaskEvents.ts";
 import { useI18n } from "../lib/useI18n.ts";
 import { Button, Callout, Empty, InfoCard, Input, TextArea } from "./ui.tsx";
+import { RunLog } from "./RunLog.tsx";
 import type { TranslationKey } from "../i18n/en.ts";
 
 /** Translate a default column name when it hasn't been renamed by the user. */
@@ -50,6 +51,9 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
   // Bulk selection state
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Mobile: show one column at a time (tabs), since the grid stacks below md.
+  const [mobileCol, setMobileCol] = useState<string | null>(null);
 
   const load = () =>
     api
@@ -152,6 +156,19 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
     setSelected(new Set());
   };
 
+  /** Select or deselect every card in one column at once. */
+  const toggleSelectColumn = (colId: Column) => {
+    const ids = inColumn(colId).map((tk) => tk.id);
+    if (!ids.length) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const allSelected = ids.every((id) => next.has(id));
+      if (allSelected) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
   const bulkDelete = async () => {
     const n = selected.size;
     if (!n) return;
@@ -200,6 +217,10 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
   const gridCols =
     normalCols.length <= 3 ? "md:grid-cols-3" :
     normalCols.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3 lg:grid-cols-5";
+
+  // Default the mobile column to the first one once columns are known.
+  const activeMobileCol =
+    mobileCol && normalCols.some((c) => c.id === mobileCol) ? mobileCol : normalCols[0]?.id ?? null;
 
   return (
     <div className="space-y-4">
@@ -261,6 +282,28 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
         </div>
       )}
 
+      {/* Mobile column tabs — only one column shows at a time below md. */}
+      {normalCols.length > 1 && (
+        <div className="-mx-1 flex gap-1 overflow-x-auto pb-1 md:hidden">
+          {normalCols.map((col, idx) => {
+            const count = inColumn(col.id).length;
+            const isActive = col.id === activeMobileCol;
+            return (
+              <button
+                key={col.id}
+                onClick={() => setMobileCol(col.id)}
+                className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
+                  isActive ? "bg-accent/15 text-accent" : `${colTone(col, idx)} hover:bg-surface-2`
+                }`}
+              >
+                {columnName(col, t)}
+                <span className="ml-1.5 opacity-60">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Main board */}
       <div className={`grid gap-4 ${gridCols}`}>
         {normalCols.map((col, idx) => {
@@ -268,12 +311,15 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
           const limit = wip[col.id];
           const over = limit != null && cards.length > limit;
           const tone = colTone(col, idx);
+          const hiddenOnMobile = col.id !== activeMobileCol;
           return (
             <div
               key={col.id}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => drop(col.id, null)}
-              className="flex flex-col rounded-xl border border-line bg-surface p-3"
+              className={`flex-col rounded-xl border border-line bg-surface p-3 md:flex ${
+                hiddenOnMobile ? "hidden" : "flex"
+              }`}
             >
               <div className="mb-3 flex items-center justify-between gap-1">
                 {renamingCol === col.id ? (
@@ -297,21 +343,36 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
                     {columnName(col, t)}
                   </h3>
                 )}
-                <button
-                  onClick={() => editWip(col)}
-                  title={t("tasks_set_wip")}
-                  className={`tabular shrink-0 rounded px-1.5 text-xs ${over ? "bg-red-500/15 text-red-400" : "text-fg-faint hover:text-fg-dim"}`}
-                >
-                  {cards.length}
-                  {limit != null && ` / ${limit}`}
-                </button>
-                <button
-                  onClick={() => removeColumn(col)}
-                  title={t("tasks_remove_column")}
-                  className="shrink-0 text-xs text-fg-faint hover:text-red-400 transition-colors"
-                >
-                  ✕
-                </button>
+                {selectMode ? (
+                  <button
+                    onClick={() => toggleSelectColumn(col.id)}
+                    disabled={cards.length === 0}
+                    title={t("tasks_select_all_col")}
+                    className="shrink-0 rounded border border-line px-1.5 py-0.5 text-xs text-accent hover:bg-accent/10 disabled:opacity-40 transition-colors"
+                  >
+                    {cards.length > 0 && cards.every((tk) => selected.has(tk.id))
+                      ? t("tasks_select_none_col")
+                      : t("tasks_select_all_col")}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => editWip(col)}
+                      title={t("tasks_set_wip")}
+                      className={`tabular shrink-0 rounded px-1.5 text-xs ${over ? "bg-red-500/15 text-red-400" : "text-fg-faint hover:text-fg-dim"}`}
+                    >
+                      {cards.length}
+                      {limit != null && ` / ${limit}`}
+                    </button>
+                    <button
+                      onClick={() => removeColumn(col)}
+                      title={t("tasks_remove_column")}
+                      className="shrink-0 text-xs text-fg-faint hover:text-red-400 transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Add card at top */}
@@ -339,8 +400,8 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
           );
         })}
 
-        {/* Add column button */}
-        <div className="flex items-start">
+        {/* Add column button (hidden on mobile where columns are tabbed) */}
+        <div className="hidden items-start md:flex">
           <button
             onClick={addColumn}
             className="mt-0 flex items-center gap-1.5 rounded-xl border border-dashed border-line px-3 py-2 text-xs text-fg-faint hover:border-fg-dim hover:text-fg-dim transition-colors"
@@ -449,6 +510,7 @@ function Card({
   const isDone = task.column.toLowerCase().includes("done") || task.column === "archive";
   const [delegateOpen, setDelegateOpen] = useState(!isDone);
   const [notesOpen, setNotesOpen] = useState(!isDone);
+  const [fullLogOpen, setFullLogOpen] = useState(false);
 
   const running = live?.status === "running" || task.delegate?.status === "running";
   const dstatus = live?.status ?? task.delegate?.status;
@@ -471,6 +533,12 @@ function Card({
     await api.delegateTask(task.id).catch(() => {});
     // Optimistic move to "doing" if we're in backlog — the WS event will confirm.
     if (task.column === "backlog") onChange();
+  };
+  const retry = async () => {
+    // Dedicated retry: server resets the card to backlog, clears the error,
+    // bumps retryCount, and re-delegates in one step.
+    await api.retryTask(task.id).catch(() => {});
+    onChange();
   };
   const stop = async () => {
     await api.stopTask(task.id).catch(() => {});
@@ -603,6 +671,17 @@ function Card({
                 </div>
               )}
               {task.delegate?.error && <div className="mt-1 text-xs text-red-400">{task.delegate.error}</div>}
+              {!running && task.delegate?.runId && (
+                <>
+                  <button
+                    onClick={() => setFullLogOpen((o) => !o)}
+                    className="mt-1 text-xs text-accent hover:underline"
+                  >
+                    {fullLogOpen ? t("workers_hide_full_log") : t("workers_view_full_log")}
+                  </button>
+                  {fullLogOpen && <RunLog runId={task.delegate.runId} />}
+                </>
+              )}
             </>
           )}
         </div>
@@ -612,10 +691,12 @@ function Card({
         <div className="mt-2 flex gap-1.5">
           {dstatus === "error" && (
             <button
-              onClick={delegate}
+              onClick={retry}
               className="flex-1 rounded border border-line py-1 text-xs text-accent hover:bg-surface-2"
+              title={task.retryCount ? t("tasks_retry_count").replace("{n}", String(task.retryCount)) : undefined}
             >
               {t("tasks_retry")}
+              {task.retryCount ? ` (${task.retryCount})` : ""}
             </button>
           )}
           <button
