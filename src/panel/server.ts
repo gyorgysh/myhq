@@ -392,6 +392,13 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
     defaultLanguage: config.DEFAULT_LANGUAGE,
     defaultWorkdir: config.WORKDIR,
     languages: AGENT_LANGUAGES,
+    // Read-only deployment facts for the Setup view (all .env-sourced; not
+    // editable from the panel by design — see SEC notes in CLAUDE.md).
+    allowedUserCount: allowedUserIds.size,
+    panelHost: config.PANEL_HOST,
+    panelPort: config.PANEL_PORT,
+    tunnelEnabled: config.PANEL_TUNNEL_ENABLED,
+    terminalEnabled: config.PANEL_TERMINAL_ENABLED,
   }));
 
   // --- main agent: runtime model/provider + lifecycle controls ---

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { api, AuthError, openHealthSocket, type LogEntry, type LogUsageSummary } from "../api.ts";
 import { Button, Empty } from "./ui.tsx";
+import { LogsArt } from "./onboarding.tsx";
 import { useI18n } from "../lib/useI18n.ts";
 
 type Level = LogEntry["level"];
@@ -159,7 +160,7 @@ export function LogsView({ onAuthError }: { onAuthError: () => void }) {
   const source = histLogs ?? liveLogs;
 
   return (
-    <div className="flex h-[calc(100dvh-9rem)] flex-col gap-3 pb-safe md:h-[calc(100vh-6rem)] md:pb-0">
+    <div className="flex h-[calc(100dvh-var(--nav-h-mobile))] flex-col gap-3 pb-safe md:h-[calc(100dvh-var(--nav-h-desktop))] md:pb-0">
       {/* Top-level tabs */}
       <div className="flex items-center gap-1 rounded-lg border border-line bg-surface p-1 self-start">
         <TabButton active={tab === "activity"} onClick={() => setTab("activity")}>
@@ -572,7 +573,9 @@ function ActivityFeed({
         className="flex-1 overflow-auto rounded-xl border border-line bg-surface p-3"
       >
         {activities.length === 0 ? (
-          <Empty>{t("logs_activity_empty")}</Empty>
+          <Empty icon={<LogsArt />} title={t("logs_activity_empty")}>
+            {t("logs_activity_empty_desc")}
+          </Empty>
         ) : (
           <div className="flex flex-col divide-y divide-line/50">
             {activities.map((a) => (
@@ -768,7 +771,9 @@ function RawLogs({
         className="flex-1 overflow-auto rounded-xl border border-line bg-surface p-3 font-mono text-xs leading-relaxed"
       >
         {visible.length === 0 ? (
-          <Empty>{t("logs_no_lines")}</Empty>
+          <Empty icon={<LogsArt />} title={t("logs_no_lines")}>
+            {t("logs_no_lines_desc")}
+          </Empty>
         ) : (
           <div className="flex flex-col divide-y divide-line/30">
             {visible.map((l) => (
