@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type Worker, type MainAgent, type DelegationRecord } from "../api.ts";
-import { Card, Empty, Badge } from "./ui.tsx";
+import { Card, Empty, Badge, InfoCard } from "./ui.tsx";
 import { relTime } from "../lib/format.ts";
 import { useI18n } from "../lib/useI18n.ts";
 
@@ -29,6 +29,9 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [delegations, setDelegations] = useState<DelegationRecord[]>([]);
   const [council, setCouncil] = useState<CouncilSession[]>([]);
+  const [proposal, setProposal] = useState("");
+  const [voting, setVoting] = useState(false);
+  const [voteError, setVoteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -60,12 +63,61 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
     (w) => !w.role || (w.role !== "lead" && w.role !== "assistant"),
   );
 
+  // Resolve a delegation-log agent id to a display name. "president"/"atlas" are
+  // literals; a worker id resolves to its name; a since-deleted worker falls back
+  // to a short id so the historical record still reads sensibly.
+  const resolveAgent = (id: string | undefined): string => {
+    if (!id) return t("crew_unknown_agent");
+    const low = id.toLowerCase();
+    if (low === "president" || low === "user") return t("crew_president");
+    if (low === "atlas") return "Atlas";
+    const w = workers.find((x) => x.id === id);
+    if (w) return w.name;
+    return t("crew_removed_agent").replace("{id}", id.slice(0, 8));
+  };
+
+  const enabledLeads = leads.filter((w) => w.enabled).length;
+
+  const runVote = async () => {
+    const text = proposal.trim();
+    if (!text || voting) return;
+    setVoting(true);
+    setVoteError(null);
+    try {
+      const { session } = await api.runCouncil(text);
+      setCouncil((prev) => [session as unknown as CouncilSession, ...prev]);
+      setProposal("");
+    } catch (e) {
+      setVoteError(String(e));
+    } finally {
+      setVoting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-lg font-semibold text-fg">{t("crew_title")}</h1>
         <p className="mt-1 text-sm text-fg-dim">{t("crew_subtitle")}</p>
       </div>
+
+      <InfoCard
+        id="crew"
+        title={t("crew_how_show")}
+        openTitle={t("crew_how_title")}
+      >
+        <p>{t("crew_how_intro")}</p>
+        {([
+          [t("crew_how_wizard_title"), t("crew_how_wizard")],
+          [t("crew_how_tasks_title"), t("crew_how_tasks")],
+          [t("crew_how_runs_title"), t("crew_how_runs")],
+        ] as Array<[string, string]>).map(([title, body]) => (
+          <div key={title}>
+            <div className="font-medium text-fg">{title}</div>
+            <p className="mt-0.5">{body}</p>
+          </div>
+        ))}
+      </InfoCard>
 
       {/* President */}
       <CrewNode
@@ -76,13 +128,15 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
         depth={0}
       />
 
-      {/* Atlas */}
+      {/* Atlas — the main bot is always reachable on Telegram */}
       <CrewNode
         icon="◈"
         title="Atlas"
         subtitle={`${t("crew_atlas_sub")} · ${atlas?.effectiveModel ?? "…"}`}
         tone="accent"
         depth={1}
+        extra={t("crew_listening")}
+        extraHref={atlas?.botUsername ? `https://t.me/${atlas.botUsername}` : undefined}
       />
 
       {/* Leads and their Assistants */}
@@ -96,7 +150,11 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
               .join(" · ")}
             tone="blue"
             depth={2}
-            extra={lead.telegramToken ? "has own bot" : undefined}
+            extra={lead.listening ? t("crew_listening") : undefined}
+            extraHref={
+              lead.listening && lead.botUsername ? `https://t.me/${lead.botUsername}` : undefined
+            }
+            warn={lead.enabled && !lead.telegramToken ? t("crew_no_token") : undefined}
           />
           {assistants
             .filter((a) => a.parentId === lead.id)
@@ -149,6 +207,36 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
       {/* Council vote log */}
       <Card title={t("crew_council")}>
         <p className="mb-3 text-sm text-fg-dim">{t("crew_council_desc")}</p>
+
+        {/* Trigger a new vote */}
+        <div className="mb-4 rounded-lg border border-accent/30 bg-accent/5 p-3">
+          <textarea
+            value={proposal}
+            onChange={(e) => setProposal(e.target.value)}
+            placeholder={t("crew_council_placeholder")}
+            rows={3}
+            disabled={voting}
+            className="w-full resize-y rounded-md border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none disabled:opacity-60"
+          />
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <span className="text-xs text-fg-dim">
+              {enabledLeads === 0
+                ? t("crew_council_no_leads")
+                : t("crew_council_lead_count").replace("{n}", String(enabledLeads))}
+            </span>
+            <button
+              onClick={runVote}
+              disabled={voting || !proposal.trim() || enabledLeads === 0}
+              className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {voting ? t("crew_council_voting") : t("crew_council_call")}
+            </button>
+          </div>
+          {voteError && (
+            <p className="mt-2 text-xs text-red-400">{voteError}</p>
+          )}
+        </div>
+
         {council.length === 0 ? (
           <Empty>{t("crew_council_empty")}</Empty>
         ) : (
@@ -168,34 +256,77 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
         ) : (
           <div className="space-y-2">
             {delegations.map((d, i) => (
-              <div key={i} className="rounded-lg border border-line p-2.5 text-xs">
-                <div className="flex items-center gap-2 text-fg-dim">
-                  <span className="tabular">{relTime(d.ts)}</span>
-                  {d.fromAgentId && (
-                    <span className="text-fg-faint">
-                      {d.fromAgentId} → {d.toAgentId ?? "president"}
-                    </span>
-                  )}
-                  {d.leadName && <span className="font-medium text-fg">{d.leadName}</span>}
-                  {d.durationMs != null && (
-                    <span className="tabular text-fg-faint ml-auto">
-                      {(d.durationMs / 1000).toFixed(1)}s
-                    </span>
-                  )}
-                  {d.costUsd != null && (
-                    <span className="tabular text-fg-faint">${d.costUsd.toFixed(4)}</span>
-                  )}
-                </div>
-                {d.task && <p className="mt-1 text-fg-muted truncate">{d.task}</p>}
-                {d.summary && <p className="mt-1 text-fg-muted truncate">{d.summary}</p>}
-                {d.outputTail && (
-                  <p className="mt-1 font-mono text-fg-faint truncate">{d.outputTail.slice(0, 120)}</p>
-                )}
-              </div>
+              <DelegationCard key={i} d={d} resolveAgent={resolveAgent} />
             ))}
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+function DelegationCard({
+  d,
+  resolveAgent,
+}: {
+  d: DelegationRecord;
+  resolveAgent: (id: string | undefined) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  // Expandable when any field carries more than fits on a single truncated line.
+  const expandable =
+    (d.task?.length ?? 0) > 80 ||
+    (d.summary?.length ?? 0) > 80 ||
+    (d.outputTail?.length ?? 0) > 120;
+
+  return (
+    <div
+      className={`rounded-lg border border-line p-2.5 text-xs ${
+        expandable ? "cursor-pointer hover:bg-surface-2 transition-colors" : ""
+      }`}
+      onClick={expandable ? () => setOpen((o) => !o) : undefined}
+    >
+      <div className="flex items-center gap-2 text-fg-dim">
+        <span className="tabular">{relTime(d.ts)}</span>
+        {(d.fromAgentId || d.toAgentId) && (
+          <span className="text-fg-faint">
+            {resolveAgent(d.fromAgentId)} → {resolveAgent(d.toAgentId ?? "president")}
+          </span>
+        )}
+        {d.leadName && <span className="font-medium text-fg">{d.leadName}</span>}
+        {d.durationMs != null && (
+          <span className="tabular text-fg-faint ml-auto">
+            {(d.durationMs / 1000).toFixed(1)}s
+          </span>
+        )}
+        {d.costUsd != null && (
+          <span className="tabular text-fg-faint">${d.costUsd.toFixed(4)}</span>
+        )}
+        {expandable && (
+          <span className={`shrink-0 text-fg-dim ${d.durationMs == null && d.costUsd == null ? "ml-auto" : ""}`}>
+            {open ? "▴" : "▾"}
+          </span>
+        )}
+      </div>
+      {d.task && (
+        <p className={`mt-1 text-fg-muted ${open ? "whitespace-pre-wrap break-words" : "truncate"}`}>
+          {d.task}
+        </p>
+      )}
+      {d.summary && (
+        <p className={`mt-1 text-fg-muted ${open ? "whitespace-pre-wrap break-words" : "truncate"}`}>
+          {d.summary}
+        </p>
+      )}
+      {d.outputTail && (
+        <p
+          className={`mt-1 font-mono text-fg-faint ${
+            open ? "whitespace-pre-wrap break-words" : "truncate"
+          }`}
+        >
+          {open ? d.outputTail : d.outputTail.slice(0, 120)}
+        </p>
+      )}
     </div>
   );
 }
@@ -279,6 +410,8 @@ function CrewNode({
   tone,
   depth,
   extra,
+  extraHref,
+  warn,
 }: {
   icon: string;
   title: string;
@@ -286,6 +419,9 @@ function CrewNode({
   tone: Tone;
   depth: number;
   extra?: string;
+  /** When set, the `extra` badge becomes a link (e.g. a t.me handle). */
+  extraHref?: string;
+  warn?: string;
 }) {
   const indent = depth * 24;
   const toneClass: Record<Tone, string> = {
@@ -306,7 +442,15 @@ function CrewNode({
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-medium text-fg">{title}</span>
-          {extra && <span className="text-xs text-fg-faint">{extra}</span>}
+          {extra &&
+            (extraHref ? (
+              <a href={extraHref} target="_blank" rel="noreferrer" className="hover:underline">
+                <Badge tone="green">{extra}</Badge>
+              </a>
+            ) : (
+              <Badge tone="green">{extra}</Badge>
+            ))}
+          {warn && <Badge tone="amber">⚠ {warn}</Badge>}
         </div>
         <div className="text-xs text-fg-dim">{subtitle}</div>
       </div>

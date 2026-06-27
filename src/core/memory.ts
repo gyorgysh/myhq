@@ -44,6 +44,22 @@ export interface MemoryEntry {
   embeddingModel?: string;
 }
 
+/** Aggregate overview of the memory store, surfaced in the panel. */
+export interface MemoryStats {
+  total: number;
+  byTier: Record<"hot" | "warm" | "cold", number>;
+  /** Sum of useCount across all entries. */
+  totalRecalls: number;
+  /** Number of entries recalled at least once. */
+  recalledCount: number;
+  /** Number of entries with a computed embedding vector. */
+  embedded: number;
+  /** Distinct tags in use. */
+  tagCount: number;
+  /** Most recent lastUsedAt across all entries. */
+  lastRecalledAt?: number;
+}
+
 interface MemoryFile {
   version: 1;
   entries: MemoryEntry[];
@@ -259,8 +275,10 @@ export class MemoryStore {
   recallForPrompt(prompt: string, warmLimit = 5): MemoryEntry[] {
     this.applyDecay();
     const hot = this.entries.filter((e) => e.tier === "hot");
-    const warmHits = this.search(prompt, warmLimit).filter((e) => e.tier === "warm");
-    return this.finishRecall(hot, warmHits);
+    const hits = this.search(prompt, warmLimit + hot.length);
+    const warmHits = hits.filter((e) => e.tier === "warm").slice(0, warmLimit);
+    const hitIds = new Set(hits.map((e) => e.id));
+    return this.finishRecall(hot, warmHits, hitIds);
   }
 
   /**
@@ -276,21 +294,33 @@ export class MemoryStore {
     // hot entries are added unconditionally below.
     const hits = await this.semanticSearch(prompt, warmLimit + hot.length);
     const warmHits = hits.filter((e) => e.tier === "warm").slice(0, warmLimit);
-    return this.finishRecall(hot, warmHits);
+    const hitIds = new Set(hits.map((e) => e.id));
+    return this.finishRecall(hot, warmHits, hitIds);
   }
 
-  /** Merge hot + warm hits, de-dupe, bump usage stats, persist, return. */
-  private finishRecall(hot: MemoryEntry[], warmHits: MemoryEntry[]): MemoryEntry[] {
+  /**
+   * Merge hot + warm hits, de-dupe, return them for injection. Only entries that
+   * were a genuine relevance hit for this prompt (`hitIds`) get their usage bumped
+   * — hot entries are injected every turn regardless, so counting that as "use"
+   * would refresh their decay timer forever and they'd never age down to warm.
+   * Bumping only on real hits lets an unused hot entry decay (hot→warm→cold).
+   */
+  private finishRecall(
+    hot: MemoryEntry[],
+    warmHits: MemoryEntry[],
+    hitIds: Set<string>,
+  ): MemoryEntry[] {
     const now = Date.now();
     const hotIds = new Set(hot.map((e) => e.id));
     const combined = [...hot, ...warmHits.filter((e) => !hotIds.has(e.id))];
-    if (combined.length > 0) {
-      for (const e of combined) {
-        e.useCount++;
-        e.lastUsedAt = now;
-      }
-      this.persist();
+    let changed = false;
+    for (const e of combined) {
+      if (!hitIds.has(e.id)) continue; // injected-but-irrelevant: don't refresh
+      e.useCount++;
+      e.lastUsedAt = now;
+      changed = true;
     }
+    if (changed) this.persist();
     return combined;
   }
 
@@ -357,6 +387,34 @@ export class MemoryStore {
     const counts = { hot: 0, warm: 0, cold: 0 };
     for (const e of this.entries) counts[e.tier]++;
     return counts;
+  }
+
+  /** Aggregate overview stats for the panel: counts, recalls, embeddings, tags. */
+  stats(): MemoryStats {
+    this.applyDecay();
+    const byTier = this.countByTier();
+    let totalRecalls = 0;
+    let recalledCount = 0;
+    let embedded = 0;
+    let lastRecalledAt: number | undefined;
+    const tagSet = new Set<string>();
+    for (const e of this.entries) {
+      totalRecalls += e.useCount;
+      if (e.useCount > 0) recalledCount++;
+      if (e.embedding && e.embedding.length) embedded++;
+      if (e.lastUsedAt && (lastRecalledAt === undefined || e.lastUsedAt > lastRecalledAt))
+        lastRecalledAt = e.lastUsedAt;
+      for (const tag of e.tags) tagSet.add(tag);
+    }
+    return {
+      total: this.entries.length,
+      byTier,
+      totalRecalls,
+      recalledCount,
+      embedded,
+      tagCount: tagSet.size,
+      lastRecalledAt,
+    };
   }
 
   /** All entries including cold, unordered (for maintenance compaction). */

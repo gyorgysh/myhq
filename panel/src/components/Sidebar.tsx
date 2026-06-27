@@ -9,6 +9,7 @@ export type Tab =
   | "health"
   | "status"
   | "workers"
+  | "inbox"
   | "tasks"
   | "skills"
   | "prompt"
@@ -43,6 +44,7 @@ export const NAV: Group[] = [
       { id: "terminal", labelKey: "nav_terminal", icon: "▸" },
       { id: "crew", labelKey: "nav_crew", icon: "⬡" },
       { id: "workers", labelKey: "nav_workers", icon: "◈" },
+      { id: "inbox", labelKey: "nav_inbox", icon: "✉" },
       { id: "tasks", labelKey: "nav_tasks", icon: "▤" },
       { id: "schedules", labelKey: "nav_schedules", icon: "◷" },
       { id: "heartbeat", labelKey: "nav_heartbeat", icon: "♡" },
@@ -90,6 +92,7 @@ export function Sidebar({
   onSignOut,
   chatEnabled = true,
   updateAvailable = false,
+  inboxPending = 0,
   expanded = false,
   brandName = "MyHQ",
 }: {
@@ -100,6 +103,7 @@ export function Sidebar({
   onSignOut: () => void;
   chatEnabled?: boolean;
   updateAvailable?: boolean;
+  inboxPending?: number;
   expanded?: boolean;
   brandName?: string;
 }) {
@@ -132,7 +136,9 @@ export function Sidebar({
             </div>
             {group.items.map((it) => {
               const active = it.id === tab;
-              const badge = it.id === "updates" && updateAvailable;
+              const inboxBadge = it.id === "inbox" && inboxPending > 0;
+              const badge = (it.id === "updates" && updateAvailable) || inboxBadge;
+              const badgeText = inboxBadge ? (inboxPending > 99 ? "99+" : String(inboxPending)) : "1";
               return (
                 <button
                   key={it.id}
@@ -153,7 +159,7 @@ export function Sidebar({
                   <span className={`flex-1 text-left ${labelCls}`}>{t(it.labelKey)}</span>
                   {badge && (
                     <span className={`rounded-full bg-accent/15 px-1.5 text-[10px] font-semibold text-accent ${labelCls}`}>
-                      1
+                      {badgeText}
                     </span>
                   )}
                 </button>

@@ -1,6 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { config } from "../config.js";
-import { memory } from "./memory.js";
+import { memory, type MemoryEntry } from "./memory.js";
 import { listSkills, updateSkill } from "./skills.js";
 import { isResult, type SdkMessage } from "../claude/events.js";
 import { loadJson, saveJson } from "./jsonStore.js";
@@ -9,6 +9,10 @@ import { log } from "../logger.js";
 
 const BATCH_SIZE = 20;
 const STORE_FILE = "maintenance.json";
+/** Interval-mode cadence: run once last run was this long ago (24h). */
+const MAINTENANCE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+/** Guard so an HH:MM clock match can't double-fire (must be < 24h). */
+const MIN_RUN_GAP_MS = 23 * 60 * 60 * 1000;
 
 export interface MaintenanceStats {
   lastRunAt?: number;
@@ -19,7 +23,37 @@ export interface MaintenanceStats {
   memoriesMerged: number;
   /** Entries whose text the dedup pass rewrote into a clearer consolidated form. */
   memoriesRewritten: number;
+  /** Verbose entries the shorten pass condensed into a terse one-liner. */
+  memoriesShortened: number;
   skillsArchived: number;
+}
+
+/** A memory entry as shown in a preview (no embedding vector). */
+export type PreviewEntry = Omit<MemoryEntry, "embedding" | "embeddingModel">;
+
+/**
+ * Dry-run result of the deterministic compaction steps (salience thresholds),
+ * computed without committing any change. Only the deterministic passes are
+ * previewable; the AI consolidation/shortening steps depend on a live model
+ * call and can't be predicted ahead of time.
+ */
+export interface MaintenancePreview {
+  /** Cold-overflow entries that an actual run would delete (lowest salience first). */
+  toDelete: PreviewEntry[];
+  /** Warm entries an actual run would demote to cold (over the entry cap). */
+  toDemote: PreviewEntry[];
+  /**
+   * Deterministic merges. Always empty for now — merging is AI-driven, so it
+   * can't be previewed — but kept in the shape so the panel can render it if a
+   * deterministic merge step is ever added.
+   */
+  toMerge: { kept: PreviewEntry; dropped: PreviewEntry[] }[];
+}
+
+/** Strip the bulky embedding fields so a preview stays lightweight over the wire. */
+function toPreviewEntry(e: MemoryEntry): PreviewEntry {
+  const { embedding: _embedding, embeddingModel: _embeddingModel, ...rest } = e;
+  return rest;
 }
 
 /** Pull the first JSON array out of a model reply (tolerates ```json fences / prose). */
@@ -70,16 +104,20 @@ class MaintenanceScheduler {
     memoriesDeleted: 0,
     memoriesMerged: 0,
     memoriesRewritten: 0,
+    memoriesShortened: 0,
     skillsArchived: 0,
   });
   private timer?: ReturnType<typeof setInterval>;
   private running = false;
 
   start(): void {
-    if (this.timer || !config.MAINTENANCE_CRON) return;
-    // Check every minute whether it's time to run.
+    if (this.timer || this.mode() === "off") return;
+    // Check every minute whether it's time to run; the per-mode gate below keeps
+    // an actual run to at most once a day. A long-overdue run catches up on the
+    // first tick rather than waiting for the wall clock.
     this.timer = setInterval(() => void this.checkAndRun(), 60_000);
     this.timer.unref?.();
+    void this.checkAndRun();
   }
 
   stop(): void {
@@ -87,11 +125,29 @@ class MaintenanceScheduler {
     this.timer = undefined;
   }
 
-  /** Next due time from MAINTENANCE_CRON ("HH:MM" daily), or undefined if unset. */
+  /**
+   * Resolve the configured schedule into a mode:
+   * - "off": explicitly disabled (MAINTENANCE_CRON=off).
+   * - "cron": a valid "HH:MM" daily clock time.
+   * - "interval": anything else, including unset — run every 24h (catch-up).
+   */
+  private mode(): "off" | "cron" | "interval" {
+    const spec = config.MAINTENANCE_CRON?.trim();
+    if (spec && spec.toLowerCase() === "off") return "off";
+    if (spec && /^\d{1,2}:\d{2}$/.test(spec) && parseWhen(spec)) return "cron";
+    return "interval";
+  }
+
+  /** Next due time, or undefined when disabled. */
   private computeNextRun(): number | undefined {
-    if (!config.MAINTENANCE_CRON) return undefined;
-    const spec = parseWhen(config.MAINTENANCE_CRON);
-    return spec ? nextRun(spec, Date.now()) : undefined;
+    const mode = this.mode();
+    if (mode === "off") return undefined;
+    if (mode === "cron") {
+      const spec = parseWhen(config.MAINTENANCE_CRON!.trim());
+      return spec ? nextRun(spec, Date.now()) : undefined;
+    }
+    // Interval mode: 24h after the last run (or now, if it's never run).
+    return (this.stats.lastRunAt ?? Date.now()) + MAINTENANCE_INTERVAL_MS;
   }
 
   view(): MaintenanceStats {
@@ -107,6 +163,7 @@ class MaintenanceScheduler {
       memoriesDeleted: 0,
       memoriesMerged: 0,
       memoriesRewritten: 0,
+      memoriesShortened: 0,
       skillsArchived: 0,
     };
     try {
@@ -124,15 +181,71 @@ class MaintenanceScheduler {
     return this.view();
   }
 
+  /**
+   * Dry-run the deterministic compaction steps (the salience-threshold passes)
+   * and report what an actual run would delete or demote, without committing
+   * anything. Pure reads over the live store — no entry is mutated. The AI
+   * consolidation/shortening passes are intentionally excluded: they depend on
+   * a live model call and can't be predicted here.
+   */
+  previewCompaction(): MaintenancePreview {
+    const all = memory.allRaw();
+    const counts = memory.countByTier();
+    const total = counts.hot + counts.warm + counts.cold;
+
+    // Step 1 (demote): warm entries the cap would push to cold, lowest salience first.
+    const toDemote: MemoryEntry[] = [];
+    const demotedIds = new Set<string>();
+    if (total > config.MEMORY_MAX_ENTRIES) {
+      const excess = total - config.MEMORY_MAX_ENTRIES;
+      const warm = all
+        .filter((e) => e.tier === "warm")
+        .sort((a, b) => a.salience - b.salience);
+      for (const e of warm.slice(0, excess)) {
+        toDemote.push(e);
+        demotedIds.add(e.id);
+      }
+    }
+
+    // Step 2 (delete): cold entries over COLD_MAX, lowest salience first. The
+    // real run deletes after demoting, so a just-demoted warm entry counts as
+    // cold for the overflow check here too.
+    const cold = all.filter((e) => e.tier === "cold" || demotedIds.has(e.id));
+    const toDelete: MemoryEntry[] = [];
+    if (cold.length > config.COLD_MAX) {
+      const sorted = [...cold].sort((a, b) => a.salience - b.salience);
+      toDelete.push(...sorted.slice(0, cold.length - config.COLD_MAX));
+    }
+
+    const deleteIds = new Set(toDelete.map((e) => e.id));
+    return {
+      toDelete: toDelete.map(toPreviewEntry),
+      // An entry both demoted and then deleted is reported only as a deletion.
+      toDemote: toDemote.filter((e) => !deleteIds.has(e.id)).map(toPreviewEntry),
+      toMerge: [],
+    };
+  }
+
   private checkAndRun(): void {
-    const spec = config.MAINTENANCE_CRON;
-    if (!spec) return;
+    if (this.running) return;
+    const mode = this.mode();
+    if (mode === "off") return;
+
+    const last = this.stats.lastRunAt ?? 0;
+    if (mode === "interval") {
+      // Run whenever the last run was a full interval (24h) ago — or never.
+      if (Date.now() - last >= MAINTENANCE_INTERVAL_MS) void this.runOnce();
+      return;
+    }
+
+    // Cron mode: fire at the configured HH:MM, guarded so a clock match in the
+    // same day can't double-fire after a recent run.
+    const spec = config.MAINTENANCE_CRON!.trim();
     const [hh, mm] = spec.split(":").map(Number);
     if (Number.isNaN(hh) || Number.isNaN(mm)) return;
     const now = new Date();
     if (now.getHours() === hh && now.getMinutes() === mm) {
-      // Only fire once per minute window.
-      if (this.stats.lastRunAt && Date.now() - this.stats.lastRunAt < 90_000) return;
+      if (Date.now() - last < MIN_RUN_GAP_MS) return;
       void this.runOnce();
     }
   }
@@ -172,6 +285,48 @@ class MaintenanceScheduler {
     // collapse those first, then do the same for warm.
     await this.consolidateTier("hot", run);
     await this.consolidateTier("warm", run);
+
+    // Step 4: shorten any remaining verbose entries into terse one-liners. Dedup
+    // only rewrites duplicate groups; a single long entry with no twin still
+    // bloats recall context, so condense it (meaning preserved) here. Hot first.
+    await this.shortenVerbose("hot", run);
+    await this.shortenVerbose("warm", run);
+  }
+
+  /**
+   * Rewrite any entry longer than MEMORY_SHORTEN_CHARS into one terse sentence
+   * that keeps the meaning, dropping filler and play-by-play detail. Keeps the
+   * recall context small over time even when the agent saved a wordy entry.
+   */
+  private async shortenVerbose(tier: "hot" | "warm", run: MaintenanceStats): Promise<void> {
+    const limit = config.MEMORY_SHORTEN_CHARS;
+    if (limit <= 0) return;
+    const verbose = memory
+      .allRaw()
+      .filter((e) => e.tier === tier && e.text.length > limit);
+    for (let i = 0; i < verbose.length; i += BATCH_SIZE) {
+      const batch = verbose.slice(i, i + BATCH_SIZE);
+      const numbered = batch.map((e) => `[${e.id}] ${e.text}`).join("\n");
+      const prompt =
+        `You are tidying an AI agent's long-term memory. Each line below is a memory ` +
+        `entry (id in square brackets) that is too long. Rewrite EACH into ONE terse ` +
+        `sentence under ${limit} characters that preserves every distinct fact while ` +
+        `dropping filler, long file lists, and play-by-play detail. Keep ids, paths, and ` +
+        `identifiers that matter. Return ONLY a JSON array, no prose:\n` +
+        `[{"id":"<id>","text":"<shortened text>"}]\n\n${numbered}`;
+      const raw = await callHaiku(prompt);
+      if (!raw) continue;
+      const items = parseJsonArray<{ id: string; text?: string }>(raw);
+      if (!items) continue;
+      for (const it of items) {
+        const entry = memory.get(it.id);
+        const newText = it.text?.trim();
+        // Only accept a genuine shortening that didn't blow up or go empty.
+        if (!entry || !newText || newText === entry.text || newText.length >= entry.text.length) continue;
+        memory.update(it.id, { text: newText });
+        run.memoriesShortened++;
+      }
+    }
   }
 
   /**

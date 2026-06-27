@@ -17,9 +17,15 @@ export const memoryMcp = createSdkMcpServer({
       "memory_write",
       "Save a durable fact worth remembering across future conversations " +
         "(a preference, a project detail, a decision, how the user likes things). " +
-        "Keep each fact short and self-contained. Returns the stored entry id.",
+        "Keep it to ONE terse sentence (aim under ~150 chars) that captures the " +
+        "meaning, not a paragraph or changelog. Returns the stored entry id.",
       {
-        text: z.string().describe("The fact to remember, as one concise sentence."),
+        text: z
+          .string()
+          .describe(
+            "The fact, as one short sentence. Drop filler, long file lists, and " +
+              "play-by-play detail; record bulky detail in a commit or file, not here.",
+          ),
         tags: z
           .array(z.string())
           .optional()
@@ -34,7 +40,10 @@ export const memoryMcp = createSdkMcpServer({
           .enum(["hot", "warm", "cold"])
           .optional()
           .describe(
-            "Recall tier. hot = injected every turn. warm = keyword-recalled (default). cold = panel-only.",
+            "Recall tier. warm (default) = recalled only when relevant; use for most " +
+              "facts incl. records of work done. hot = injected into EVERY turn (costs " +
+              "context permanently), reserve for a few always-relevant facts. cold = " +
+              "archival, panel-only. When in doubt use warm, not hot.",
           ),
       },
       async (args) => {

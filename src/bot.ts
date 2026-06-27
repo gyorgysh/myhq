@@ -6,7 +6,7 @@ import { registerCommands } from "./commands.js";
 import { AUTO_ALLOWED_TOOLS, runTurn, type PermissionResult } from "./claude/runner.js";
 import { createTelegramMcp } from "./mcp/sendFile.js";
 import { memoryMcp } from "./mcp/memory.js";
-import { tasksMcp } from "./mcp/tasks.js";
+import { createTasksMcp } from "./mcp/tasks.js";
 import { skillsMcp } from "./mcp/skills.js";
 import { selfUpdateMcp } from "./mcp/selfUpdate.js";
 import { selfUpdate } from "./core/selfUpdate.js";
@@ -17,10 +17,12 @@ import { RichDraftStreamer } from "./telegram/richDraftStreamer.js";
 import { sendFormattedMarkdown, sendRichMarkdown, sendExpandableQuote } from "./telegram/send.js";
 import { PermissionManager, bashLeadCmd } from "./telegram/permissions.js";
 import { LoopPromptManager } from "./telegram/loopPrompt.js";
+import { AskQuestionManager } from "./telegram/askQuestion.js";
 import { LoopDetector } from "./core/loopDetector.js";
 import { downloadIncomingFile, isViewableImage, readImageInput } from "./telegram/files.js";
 import { isGitCallback, resolveGitCallback } from "./telegram/gitFlow.js";
 import { isProjectCallback, resolveProjectCallback } from "./telegram/projects.js";
+import { isInboxCallback, resolveInboxCallback } from "./telegram/inboxFlow.js";
 import { isModelCallback, resolveModelCallback } from "./commands.js";
 import {
   isResumeCallback,
@@ -33,7 +35,13 @@ import { heartbeat } from "./core/heartbeat.js";
 import { taskDelegator } from "./core/taskRunner.js";
 import { resolveMainRun } from "./core/mainSettings.js";
 import { workers } from "./core/workers.js";
-import { escapeHtml, normalizeAgentText } from "./telegram/formatting.js";
+import { suggestions } from "./core/suggestions.js";
+import {
+  escapeHtml,
+  normalizeAgentText,
+  summarizeArg,
+  summarizeInput,
+} from "./telegram/formatting.js";
 import { resolveAsk, hasPendingAsk } from "./core/crewAsk.js";
 import { reflectOnTurn } from "./core/reflect.js";
 import { chatBridge, mainChatId } from "./core/chatBridge.js";
@@ -47,6 +55,7 @@ export function buildBot(): Telegraf {
   const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
   const permissions = new PermissionManager(bot.telegram);
   const loops = new LoopPromptManager(bot.telegram);
+  const asks = new AskQuestionManager(bot.telegram);
 
   bot.use(authMiddleware);
   registerCommands(bot);
@@ -54,7 +63,7 @@ export function buildBot(): Telegraf {
   // Panel Chat is a window onto the main Telegram chat: let it drive turns and
   // abort them through the same flow the Telegram handlers use.
   chatBridge.attach(
-    (chatId, prompt) => runUserPrompt(permissions, loops, chatId, prompt, bot.telegram),
+    (chatId, prompt) => runUserPrompt(permissions, loops, asks, chatId, prompt, bot.telegram),
     (chatId) => {
       const s = sessions.get(chatId);
       s.abort?.abort();
@@ -73,6 +82,10 @@ export function buildBot(): Telegraf {
       log.debug("Loop button pressed", { chatId: ctx.chat?.id, data });
       const toast = await loops.resolve(data);
       await ctx.answerCbQuery(toast.slice(0, 200)).catch(() => {});
+    } else if (data && asks.isAskCallback(data)) {
+      log.debug("AskQuestion button pressed", { chatId: ctx.chat?.id, data });
+      const toast = await asks.resolve(data);
+      await ctx.answerCbQuery(toast.slice(0, 200)).catch(() => {});
     } else if (data && isGitCallback(data) && ctx.chat) {
       log.debug("Git button pressed", { chatId: ctx.chat.id, data });
       const messageId = ctx.callbackQuery.message?.message_id;
@@ -82,6 +95,11 @@ export function buildBot(): Telegraf {
       log.debug("Project button pressed", { chatId: ctx.chat.id, data });
       const messageId = ctx.callbackQuery.message?.message_id;
       const toast = await resolveProjectCallback(ctx.telegram, ctx.chat.id, data, messageId);
+      await ctx.answerCbQuery(toast.slice(0, 200)).catch(() => {});
+    } else if (data && isInboxCallback(data) && ctx.chat) {
+      log.debug("Inbox button pressed", { chatId: ctx.chat.id, data });
+      const messageId = ctx.callbackQuery.message?.message_id;
+      const toast = await resolveInboxCallback(ctx.telegram, ctx.chat.id, data, messageId);
       await ctx.answerCbQuery(toast.slice(0, 200)).catch(() => {});
     } else if (data && isModelCallback(data) && ctx.chat) {
       if (data.startsWith("mdl:noop")) {
@@ -119,7 +137,7 @@ export function buildBot(): Telegraf {
         : `The user uploaded a file, saved at: ${path}. Take a look.`;
       const images = isViewableImage(path) ? await imageInputs(path) : undefined;
       const run = () =>
-        runUserPrompt(permissions, loops, ctx.chat.id, prompt, ctx.telegram, { images });
+        runUserPrompt(permissions, loops, asks, ctx.chat.id, prompt, ctx.telegram, { images });
       if (await maybeOfferResume(ctx.telegram, ctx.chat.id, run)) return;
       run();
     } catch (err) {
@@ -146,7 +164,7 @@ export function buildBot(): Telegraf {
         : `The user sent this image (also saved at: ${path}).`;
       const images = await imageInputs(path);
       const run = () =>
-        runUserPrompt(permissions, loops, ctx.chat.id, prompt, ctx.telegram, { images });
+        runUserPrompt(permissions, loops, asks, ctx.chat.id, prompt, ctx.telegram, { images });
       if (await maybeOfferResume(ctx.telegram, ctx.chat.id, run)) return;
       run();
     } catch (err) {
@@ -179,7 +197,7 @@ export function buildBot(): Telegraf {
       }
       log.info("Voice transcribed", { chatId, text: preview(text) });
       await ctx.replyWithHTML(`🎤 <i>${escapeHtml(text)}</i>`).catch(() => {});
-      const run = () => runUserPrompt(permissions, loops, chatId, text, ctx.telegram);
+      const run = () => runUserPrompt(permissions, loops, asks, chatId, text, ctx.telegram);
       if (await maybeOfferResume(ctx.telegram, chatId, run)) return;
       run();
     } catch (err) {
@@ -199,8 +217,15 @@ export function buildBot(): Telegraf {
         return;
       }
     }
+    // If an AskUserQuestion is armed for a free-text ("Other") answer, consume
+    // this message as the answer instead of starting a new turn (the asking turn
+    // still holds busy=true, so this must short-circuit before the run path).
+    if (asks.hasPendingText(ctx.chat.id) && asks.resolveText(ctx.chat.id, text)) {
+      log.info("AskUserQuestion answered by typed reply", { chatId: ctx.chat.id });
+      return;
+    }
     const chatId = ctx.chat.id;
-    const run = () => runUserPrompt(permissions, loops, chatId, text, ctx.telegram);
+    const run = () => runUserPrompt(permissions, loops, asks, chatId, text, ctx.telegram);
     if (await maybeOfferResume(ctx.telegram, chatId, run)) return;
     run();
   });
@@ -218,7 +243,7 @@ export function buildBot(): Telegraf {
         parse_mode: "HTML",
       })
       .catch(() => {});
-    runUserPrompt(permissions, loops, s.chatId, s.prompt, bot.telegram, {
+    runUserPrompt(permissions, loops, asks, s.chatId, s.prompt, bot.telegram, {
       autonomous: true,
       cwd: s.cwd,
     });
@@ -249,7 +274,7 @@ export function buildBot(): Telegraf {
     runActive: async (prompt) => {
       const chatId = alertTargets[0];
       if (chatId === undefined || sessions.get(chatId).busy) return false;
-      runUserPrompt(permissions, loops, chatId, prompt, bot.telegram, { autonomous: true });
+      runUserPrompt(permissions, loops, asks, chatId, prompt, bot.telegram, { autonomous: true });
       return true;
     },
   });
@@ -259,17 +284,32 @@ export function buildBot(): Telegraf {
   taskDelegator.onReport(async (r) => {
     const chatId = alertTargets[0];
     if (chatId === undefined) return;
+    const by = r.leadName ? ` (${r.leadName})` : "";
     if (r.status === "ok" && r.res) {
-      await sendSummaryReport(bot.telegram, chatId, r.res, `Task: ${r.title}`).catch(() => {});
+      await sendSummaryReport(bot.telegram, chatId, r.res, `Task${by}: ${r.title}`).catch(() => {});
       return;
     }
     const notice =
       r.status === "stopped"
-        ? `⏹ Task stopped — ${r.title}`
-        : `⚠️ Task failed — ${r.title}${r.error ? `: ${r.error}` : ""}`;
+        ? `⏹ Task stopped — ${r.title}${by}`
+        : `⚠️ Task failed — ${r.title}${by}${r.error ? `: ${r.error}` : ""}`;
     await bot.telegram
       .sendMessage(chatId, `<i>${escapeHtml(notice)}</i>`, { parse_mode: "HTML" })
       .catch(() => {});
+  });
+
+  // New inbox suggestion filed by an agent — give the president a light ping so
+  // nothing waits unseen (the full triage/decision still happens via /inbox).
+  suggestions.onAdd(async (s) => {
+    const n = suggestions.pendingCount();
+    const cat = s.category ? ` [${s.category}]` : "";
+    const text =
+      `💡 New inbox suggestion from <b>${escapeHtml(s.fromAgentName)}</b>${escapeHtml(cat)}\n` +
+      `${escapeHtml(s.title)}\n\n` +
+      `${n} pending — review with /inbox`;
+    for (const chatId of alertTargets) {
+      await bot.telegram.sendMessage(chatId, text, { parse_mode: "HTML" }).catch(() => {});
+    }
   });
 
   return bot;
@@ -287,12 +327,13 @@ interface TurnOptions {
 function runUserPrompt(
   permissions: PermissionManager,
   loops: LoopPromptManager,
+  asks: AskQuestionManager,
   chatId: number,
   prompt: string,
   tg: Telegraf["telegram"],
   opts: TurnOptions = {},
 ): void {
-  handleUserPrompt(permissions, loops, chatId, prompt, tg, opts).catch((err) => {
+  handleUserPrompt(permissions, loops, asks, chatId, prompt, tg, opts).catch((err) => {
     const session = sessions.get(chatId);
     session.busy = false;
     session.abort = undefined;
@@ -305,6 +346,7 @@ function runUserPrompt(
 async function handleUserPrompt(
   permissions: PermissionManager,
   loops: LoopPromptManager,
+  asks: AskQuestionManager,
   chatId: number,
   prompt: string,
   tg: Telegraf["telegram"],
@@ -365,6 +407,10 @@ async function handleUserPrompt(
 
   await tg.sendChatAction(chatId, "typing").catch(() => {});
   const typing = setInterval(() => {
+    // While the turn is parked waiting on the user — either crew_ask_president or
+    // an AskUserQuestion prompt — suppress the "typing…" indicator so their input
+    // area isn't stuck spinning (and so a typed "Other" reply isn't masked).
+    if (hasPendingAsk(chatId) || asks.hasPending(chatId)) return;
     void tg.sendChatAction(chatId, "typing").catch(() => {});
   }, 4000);
 
@@ -384,6 +430,17 @@ async function handleUserPrompt(
     toolName: string,
     input: Record<string, unknown>,
   ): Promise<PermissionResult> => {
+    // AskUserQuestion has a TUI-native picker with no Telegram equivalent, so we
+    // intercept it: render the questions as inline buttons (with a free-text
+    // fallback), then hand the collected answers back to the model as the tool
+    // result via a deny message. Runs in every autonomy mode — we always want to
+    // surface the question rather than silently auto-resolve it to nothing.
+    if (toolName === "AskUserQuestion") {
+      log.info("AskUserQuestion intercepted — prompting user", { chatId });
+      const answer = await asks.ask(chatId, input);
+      return { behavior: "deny", message: answer };
+    }
+
     const lead = toolName === "Bash" ? bashLeadCmd(input) : undefined;
 
     // Loop guard runs before the normal permission flow so a runaway retry is
@@ -466,8 +523,26 @@ async function handleUserPrompt(
       ? leads
           .map(
             (w) =>
-              `- ${w.name}${w.portfolio ? ` (${w.portfolio} Lead)` : ""}${w.systemPrompt ? `: ${w.systemPrompt.split("\n")[0]}` : ""}`,
+              `- ${w.name}${w.portfolio ? ` (${w.portfolio} Lead)` : ""}${w.botUsername ? ` — reachable at t.me/${w.botUsername}` : ""}${w.systemPrompt ? `: ${w.systemPrompt.split("\n")[0]}` : ""}`,
           )
+          .join("\n")
+      : undefined;
+
+  // Pending suggestion inbox (main agent only): a compact digest so Atlas can
+  // triage and surface noteworthy items. Capped so it never bloats the prompt.
+  const pendingItems = suggestions.pending();
+  const pendingSuggestions =
+    pendingItems.length > 0
+      ? [
+          ...pendingItems
+            .slice(0, 10)
+            .map(
+              (s) =>
+                `- ${s.id} · ${s.fromAgentName}${s.category ? ` [${s.category}]` : ""}: ${s.title}`,
+            ),
+          pendingItems.length > 10 ? `…and ${pendingItems.length - 10} more` : "",
+        ]
+          .filter(Boolean)
           .join("\n")
       : undefined;
 
@@ -500,6 +575,7 @@ async function handleUserPrompt(
       model: mainRun.model,
       env: mainRun.env,
       crew,
+      pendingSuggestions,
       persona: mainRun.persona,
       language: session.language ?? mainRun.defaultLanguage,
       permissionMode: autonomy === "full" ? "bypassPermissions" : "default",
@@ -507,7 +583,7 @@ async function handleUserPrompt(
       mcpServers: {
         telegram: createTelegramMcp(tg, chatId, cwd),
         memory: memoryMcp,
-        tasks: tasksMcp,
+        tasks: createTasksMcp({ createdBy: "atlas" }),
         skills: skillsMcp,
         self_update: selfUpdateMcp,
         crew: crewMcp,
@@ -691,16 +767,6 @@ function fmtDuration(ms: number): string {
   return `${m}m ${Math.round(s % 60)}s`;
 }
 
-function summarizeArg(input: unknown): string {
-  const obj = (input ?? {}) as Record<string, unknown>;
-  return String(obj.command ?? obj.file_path ?? obj.pattern ?? obj.path ?? "");
-}
-
-function summarizeInput(input: unknown): string {
-  const s = summarizeArg(input);
-  return s ? `<code>${escapeHtml(s.slice(0, 80))}</code>` : "";
-}
-
 /** Plain-text summary of a tool call for the loop-detection prompt. */
 function loopSummary(toolName: string, input: unknown): string {
   const arg = summarizeArg(input);
@@ -726,6 +792,30 @@ function fmtCountdown(ms: number): string {
   return `${m}m`;
 }
 
+/**
+ * Build a usage-limit message from the live probe, or null when nothing is
+ * actually exhausted. `strict` only reports a genuine 100%+ limit (used to
+ * explain an otherwise-opaque process exit); the lenient form also surfaces the
+ * soonest non-zero limit (used when the error text already says "limit").
+ */
+function usageLimitMessage(strict: boolean): string | null {
+  const probe = loadProbeResult();
+  const now = Date.now();
+  const exhausted = (probe?.limits ?? []).filter((l) => l.percent >= 100);
+  const nearest = exhausted.sort((a, b) => a.resetsInMs - b.resetsInMs)[0];
+  if (nearest) {
+    const msLeft = Math.max(0, new Date(nearest.resetsAt).getTime() - now);
+    return `📊 ${nearest.label} usage limit reached. Resets in ${fmtCountdown(msLeft)}.`;
+  }
+  if (strict) return null;
+  const soonest = (probe?.limits ?? []).filter((l) => l.percent > 0).sort((a, b) => a.resetsInMs - b.resetsInMs)[0];
+  if (soonest) {
+    const msLeft = Math.max(0, new Date(soonest.resetsAt).getTime() - now);
+    return `📊 Usage limit exhausted. ${soonest.label} resets in ${fmtCountdown(msLeft)}.`;
+  }
+  return "📊 Usage limit exhausted. Wait for the limit to reset, then retry.";
+}
+
 function friendlyError(err: unknown): string {
   const raw = errText(err);
   const low = raw.toLowerCase();
@@ -733,20 +823,7 @@ function friendlyError(err: unknown): string {
     return "⏳ Rate limited by the API. Give it a moment and try again.";
   }
   if (/credit balance|insufficient|out of credit|quota|usage limit|limit reached|too low|daily.*limit|weekly.*limit|limit.*exceeded|reached.*limit/.test(low)) {
-    const probe = loadProbeResult();
-    const now = Date.now();
-    const exhausted = probe?.limits.filter((l) => l.percent >= 100) ?? [];
-    const nearest = exhausted.sort((a, b) => a.resetsInMs - b.resetsInMs)[0];
-    if (nearest) {
-      const msLeft = Math.max(0, new Date(nearest.resetsAt).getTime() - now);
-      return `📊 ${nearest.label} usage limit reached. Resets in ${fmtCountdown(msLeft)}.`;
-    }
-    const soonest = probe?.limits.filter((l) => l.percent > 0).sort((a, b) => a.resetsInMs - b.resetsInMs)[0];
-    if (soonest) {
-      const msLeft = Math.max(0, new Date(soonest.resetsAt).getTime() - now);
-      return `📊 Usage limit exhausted. ${soonest.label} resets in ${fmtCountdown(msLeft)}.`;
-    }
-    return "📊 Usage limit exhausted. Wait for the limit to reset, then retry.";
+    return usageLimitMessage(false)!;
   }
   if (/\b529\b|overloaded/.test(low)) {
     return "🌀 The API is overloaded right now. Try again shortly.";
@@ -755,6 +832,14 @@ function friendlyError(err: unknown): string {
     return "🔑 Authentication failed. Check ANTHROPIC_API_KEY or re-run the `claude` CLI login, then restart.";
   }
   if (/abort/.test(low)) return "⏹ Stopped.";
+  // A non-zero CLI exit ("process exited with code 1") is often an opaque proxy
+  // for a usage limit the SDK didn't spell out. If the live probe shows a limit
+  // sitting at 100%, that's almost certainly the cause — say so instead of the
+  // generic failure, so the user knows to wait for the reset rather than retry.
+  if (/exited with code|exit code|process (?:exited|failed)|non-?zero/.test(low)) {
+    const usage = usageLimitMessage(true);
+    if (usage) return usage;
+  }
   const detail = raw.length > 600 ? raw.slice(0, 600) + "…" : raw;
   return `⚠️ That action failed.\n\n${detail}`;
 }

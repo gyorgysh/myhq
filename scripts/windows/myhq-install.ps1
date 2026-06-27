@@ -260,7 +260,7 @@ function Configure-Env {
 
     $token   = if ($env:MYHQ_TOKEN)    { $env:MYHQ_TOKEN }    else { Ask "Telegram bot token (from @BotFather)" }
     $userIds = if ($env:MYHQ_USER_IDS) { $env:MYHQ_USER_IDS } else { Ask "Your Telegram user ID(s), comma-separated" }
-    $apiKey  = if ($env:MYHQ_API_KEY)  { $env:MYHQ_API_KEY }  else { Ask "Anthropic API key (leave blank to use claude CLI login)" "" }
+    $apiKey  = if ($env:MYHQ_API_KEY)  { $env:MYHQ_API_KEY }  else { Ask "Anthropic API key (blank = log in with a Pro/Max plan instead)" "" }
 
     $model   = Ask "Default Claude model" "claude-opus-4-8"
     $workdir = Ask "Agent working directory (where files go)" (Join-Path $InstallDir "data")
@@ -486,9 +486,20 @@ function Claude-Login {
     $envPath = Join-Path $InstallDir ".env"
     $hasKey = Select-String -Path $envPath -Pattern "^ANTHROPIC_API_KEY=.+" -Quiet 2>$null
     if ($hasKey) { return }
-    if (Confirm "Log in to Claude Code CLI now? (needed if you didn't set an API key)") {
+    if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
+        Say "Claude CLI not in PATH yet — re-open your terminal, then run 'claude setup-token' to log in."
+        return
+    }
+    # `/login` only works inside the interactive TUI; `claude setup-token` is the
+    # launchable login path and requires a Claude subscription (Pro or Max).
+    Write-Host "`n  Claude Code authenticates with your Anthropic login (a Pro or Max plan), or an API key." -ForegroundColor DarkGray
+    if (Confirm "Log in to Claude now? (opens a browser; needs a Pro/Max subscription)") {
         Push-Location $InstallDir
-        try { claude auth login } finally { Pop-Location }
+        try { claude setup-token }
+        catch { Warn "Login didn't complete — run 'claude setup-token' later (needs a Pro/Max plan) or set an API key." }
+        finally { Pop-Location }
+    } else {
+        Say "Skipping login — run 'claude setup-token' later, or set ANTHROPIC_API_KEY in $envPath."
     }
 }
 
@@ -519,4 +530,5 @@ if ($Script:PanelPortChosen) {
 }
 Write-Host "  Tutorial    : $Tutorial" -ForegroundColor Cyan
 Write-Host "  To update   : .\scripts\windows\myhq-update.ps1" -ForegroundColor Cyan
+Write-Host "  If not logged in / no API key: claude setup-token  (needs a Pro/Max plan)" -ForegroundColor Cyan
 Write-Host ""

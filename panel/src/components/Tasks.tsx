@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, AuthError, type Column, type ColumnDef, type Priority, type Task, type Wip } from "../api.ts";
 import { useTaskEvents, type LiveTask } from "../lib/useTaskEvents.ts";
 import { useI18n } from "../lib/useI18n.ts";
-import { Button, Callout, Empty, Input, TextArea } from "./ui.tsx";
+import { Button, Callout, Empty, InfoCard, Input, TextArea } from "./ui.tsx";
 import type { TranslationKey } from "../i18n/en.ts";
 
 /** Translate a default column name when it hasn't been renamed by the user. */
@@ -152,6 +152,14 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
         {t("tasks_did_you_know_body")}
       </Callout>
 
+      <InfoCard id="tasks" title={t("info_tasks_title")} body={t("info_tasks_body")}>
+        <ul className="space-y-1.5">
+          <li>{t("info_tasks_delegate")}</li>
+          <li>{t("info_tasks_agent")}</li>
+          <li>{t("info_tasks_archive")}</li>
+        </ul>
+      </InfoCard>
+
       {/* Main board */}
       <div className={`grid gap-4 ${gridCols}`}>
         {normalCols.map((col, idx) => {
@@ -257,15 +265,35 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
                 <p className="text-xs text-fg-faint">{t("tasks_archive_empty")}</p>
               ) : (
                 <div className="grid gap-1.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                  {archivedCards.map((tk) => (
+                  {archivedCards.map((tk) => {
+                    const restoreCol = normalCols[0];
+                    const restoreLabel = restoreCol
+                      ? t("tasks_archive_restore_to").replace("{col}", columnName(restoreCol, t))
+                      : t("tasks_archive_restore");
+                    return (
                     <div
                       key={tk.id}
                       className="flex items-center justify-between gap-2 rounded border border-line bg-input px-2.5 py-1.5"
                     >
                       <span className="min-w-0 truncate text-xs text-fg-dim">{tk.title}</span>
-                      <span className="shrink-0 text-xs text-fg-faint">{formatDate(tk.updatedAt)}</span>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <span className="text-xs text-fg-faint">{formatDate(tk.updatedAt)}</span>
+                        {restoreCol && (
+                          <button
+                            title={restoreLabel}
+                            onClick={async () => {
+                              await api.updateTask(tk.id, { column: restoreCol.id as Column }).catch(() => {});
+                              void load();
+                            }}
+                            className="rounded px-1.5 py-0.5 text-xs text-accent hover:bg-accent/10 transition-colors"
+                          >
+                            {t("tasks_archive_restore")}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -406,8 +434,13 @@ function Card({
             <div className="mt-1 line-clamp-3 text-xs text-fg-dim">{task.notes}</div>
           )}
           {task.parentId && <div className="mt-1 text-xs text-fg-faint">{t("tasks_subtask")}</div>}
-          <div className="mt-1 text-xs text-fg-faint">
-            {t("tasks_created").replace("{date}", formatDate(task.createdAt))}
+          <div className="mt-1 flex items-center gap-1.5 text-xs text-fg-faint">
+            <span>{t("tasks_created").replace("{date}", formatDate(task.createdAt))}</span>
+            {(task.createdByName || task.createdBy) && (
+              <span className="rounded bg-accent/10 px-1.5 py-0.5 text-accent">
+                {t("tasks_created_by").replace("{name}", task.createdByName || task.createdBy || "")}
+              </span>
+            )}
           </div>
         </div>
       </div>

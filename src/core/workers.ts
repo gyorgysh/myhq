@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { runTurn, AUTO_ALLOWED_TOOLS } from "../claude/runner.js";
 import { memoryMcp } from "../mcp/memory.js";
-import { tasksMcp } from "../mcp/tasks.js";
+import { createTasksMcp } from "../mcp/tasks.js";
 import { skillsMcp } from "../mcp/skills.js";
 import { selfUpdateMcp } from "../mcp/selfUpdate.js";
+import { createCrewMcp } from "../mcp/crew.js";
 import { nextRun, parseWhen, describeSpec } from "../schedule/manager.js";
 import type { ScheduleSpec } from "../schedule/store.js";
 import { loadJson, saveJson } from "./jsonStore.js";
@@ -13,6 +14,7 @@ import { resolveSecret } from "./vault.js";
 import { audit } from "./audit.js";
 import { log } from "../logger.js";
 import type { Autonomy } from "../session/manager.js";
+import { getLeadProtocol } from "../prompt.js";
 
 const FILE = "workers.json";
 const RUNS_FILE = "workerRuns.json";
@@ -53,6 +55,8 @@ export interface Worker {
   portfolio?: string; // e.g. "Finance", "DevOps", "Research"
   parentId?: string; // assistant → id of its Lead
   telegramToken?: string; // vault:<id> reference for the lead's own bot
+  /** The Lead bot's resolved @username (from getMe), for a t.me link. */
+  botUsername?: string;
   /**
    * Character and tone. Injected into the system prompt after the base personality.
    * Separate from systemPrompt (domain knowledge / task instructions).
@@ -99,6 +103,14 @@ export class WorkerManager {
   private active = new Map<string, { abort: AbortController; run: WorkerRun }>();
   private timer?: ReturnType<typeof setInterval>;
   private broadcast: Broadcaster = () => {};
+  private onChangeCb?: () => void;
+
+  /** Notify on any registry mutation (create/update/remove), so a watcher (the
+   *  Lead bot manager) can reconcile live without a restart. Wired in index.ts
+   *  to keep telegraf out of this module. */
+  onChange(cb: () => void): void {
+    this.onChangeCb = cb;
+  }
 
   /** Wire the panel hub and start the schedule tick. Idempotent. */
   start(broadcast: Broadcaster): void {
@@ -129,6 +141,35 @@ export class WorkerManager {
     return this.workers.filter((w) => w.role === "lead" && w.telegramToken && w.enabled);
   }
 
+  /**
+   * Pick the most relevant Lead to hand a suggestion to, so an accepted idea is
+   * worked by the right specialist. If the suggestion was filed BY a Lead, it
+   * routes straight back to that Lead. Otherwise (e.g. Atlas filed it) it scores
+   * every enabled Lead by keyword overlap between the suggestion's category/title
+   * and the Lead's portfolio/name, returning the best match or undefined (→ a
+   * generic run) when nothing matches well.
+   */
+  routeFor(input: { fromAgentId?: string; category?: string; title?: string }): Worker | undefined {
+    // 1. Filed by a Lead → back to that Lead.
+    if (input.fromAgentId) {
+      const self = this.get(input.fromAgentId);
+      if (self && self.role === "lead" && self.enabled) return self;
+    }
+    // 2. Score enabled Leads by keyword overlap with portfolio/name.
+    const leads = this.workers.filter((w) => w.role === "lead" && w.enabled);
+    if (leads.length === 0) return undefined;
+    const needle = tokenize(`${input.category ?? ""} ${input.title ?? ""}`);
+    if (needle.size === 0) return undefined;
+    let best: { lead: Worker; score: number } | undefined;
+    for (const lead of leads) {
+      const hay = tokenize(`${lead.portfolio ?? ""} ${lead.name}`);
+      let score = 0;
+      for (const w of needle) if (hay.has(w)) score++;
+      if (score > 0 && (!best || score > best.score)) best = { lead, score };
+    }
+    return best?.lead;
+  }
+
   create(input: WorkerInput): Worker {
     const now = Date.now();
     const worker: Worker = {
@@ -155,6 +196,7 @@ export class WorkerManager {
     this.workers.push(worker);
     this.persist();
     audit("worker.create", { id: worker.id, name: worker.name });
+    this.onChangeCb?.();
     return worker;
   }
 
@@ -180,6 +222,7 @@ export class WorkerManager {
     w.updatedAt = Date.now();
     this.persist();
     audit("worker.update", { id });
+    this.onChangeCb?.();
     return w;
   }
 
@@ -189,7 +232,19 @@ export class WorkerManager {
     this.workers = next;
     this.persist();
     audit("worker.delete", { id });
+    this.onChangeCb?.();
     return true;
+  }
+
+  /** Record a Lead bot's resolved @username (captured at bot start). Persists
+   *  only when it actually changed, and skips the onChange/audit churn since
+   *  this is incidental metadata, not a user edit. */
+  setBotUsername(id: string, username: string): void {
+    const w = this.workers.find((x) => x.id === id);
+    if (w && w.botUsername !== username) {
+      w.botUsername = username;
+      this.persist();
+    }
   }
 
   // --- runs ---
@@ -239,7 +294,10 @@ export class WorkerManager {
   private async execute(w: Worker, run: WorkerRun, abort: AbortController): Promise<void> {
     const skill = w.skillId ? getSkill(w.skillId) : undefined;
     if (skill && w.skillId) recordSkillUse(w.skillId);
-    const append = [skill?.prompt, w.systemPrompt].filter(Boolean).join("\n\n") || undefined;
+    // Lead workers get the crew-protocol block prepended so they know to use
+    // crew_report / crew_suggest / crew_delegate after every meaningful turn.
+    const protocol = w.role === "lead" ? getLeadProtocol(w.name, w.portfolio) : undefined;
+    const append = [protocol, skill?.prompt, w.systemPrompt].filter(Boolean).join("\n\n") || undefined;
     // Point the run at a local model server / proxy if a provider is set.
     // Clear ANTHROPIC_API_KEY so the auth token (not a stale key) is used.
     const provider = w.providerId ? getProvider(w.providerId) : undefined;
@@ -258,6 +316,14 @@ export class WorkerManager {
     //   supervised → deny everything that isn't in AUTO_ALLOWED_TOOLS.
     const permissionMode = autonomy === "full" ? "bypassPermissions" : "default";
 
+    // Unattended worker: no human chat, so crew_suggest just files into the
+    // president's inbox (notify is a no-op; it never DMs from a worker run).
+    const crewMcp = createCrewMcp({
+      notify: async () => {},
+      primaryChatId: 0,
+      fromAgentId: w.id,
+    });
+
     try {
       const res = await runTurn({
         prompt: w.prompt,
@@ -269,7 +335,7 @@ export class WorkerManager {
         language: w.language,
         permissionMode,
         abortController: abort,
-        mcpServers: { memory: memoryMcp, tasks: tasksMcp, skills: skillsMcp, self_update: selfUpdateMcp },
+        mcpServers: { memory: memoryMcp, tasks: createTasksMcp({ createdBy: w.id }), skills: skillsMcp, self_update: selfUpdateMcp, crew: crewMcp },
         canUseTool: async (toolName, input) => {
           // supervised/standard: only AUTO_ALLOWED_TOOLS pass for unattended workers.
           if (AUTO_ALLOWED_TOOLS.has(toolName)) return { behavior: "allow", updatedInput: input };
@@ -368,6 +434,20 @@ export function describeWorkerSchedule(w: Worker): string {
 function summarize(input: unknown): string {
   const o = (input ?? {}) as Record<string, unknown>;
   return String(o.command ?? o.file_path ?? o.pattern ?? o.path ?? "").slice(0, 80);
+}
+
+const STOPWORDS = new Set([
+  "the", "and", "for", "with", "a", "an", "to", "of", "in", "on", "add", "new",
+  "fix", "update", "make", "lead", "support", "system",
+]);
+
+/** Lowercase word set (≥3 chars, stopwords dropped) for cheap keyword overlap. */
+function tokenize(s: string): Set<string> {
+  const out = new Set<string>();
+  for (const w of s.toLowerCase().split(/[^a-z0-9]+/)) {
+    if (w.length >= 3 && !STOPWORDS.has(w)) out.add(w);
+  }
+  return out;
 }
 
 export const workers = new WorkerManager();

@@ -53,6 +53,7 @@ import { taskDelegator } from "../core/taskRunner.js";
 import { workers, describeWorkerSchedule, type Worker } from "../core/workers.js";
 import { chat } from "../core/chat.js";
 import { memory, type MemoryEntry } from "../core/memory.js";
+import { suggestions } from "../core/suggestions.js";
 import { getStatus } from "../core/status.js";
 import { heartbeat } from "../core/heartbeat.js";
 import { listConnectors, setConnector } from "../core/connectors.js";
@@ -81,6 +82,7 @@ import { ptyManager } from "../core/ptyManager.js";
 import { tunnelManager, BASIC_AUTH_USER } from "../core/tunnelManager.js";
 import { PanelHub } from "./hub.js";
 import { runTurn } from "../claude/runner.js";
+import { runCouncil } from "../core/council.js";
 
 const STATIC_DIR = join(repoRoot, "panel", "dist");
 
@@ -118,6 +120,8 @@ export async function startPanel(): Promise<(() => Promise<void>) | undefined> {
   ptyManager.start((m) => hub.broadcast(m));
   // Wire remote-access tunnel state changes to all clients.
   tunnelManager.start((m) => hub.broadcast(m));
+  // Push suggestion-inbox changes to every panel client.
+  suggestions.onChange(() => hub.broadcast({ type: "suggestion", suggestions: suggestions.list() }));
   // Stream live log lines to every panel client.
   const unsubLog = onLog((entry) => hub.broadcast({ type: "log", entry }));
 
@@ -263,6 +267,17 @@ function noteAuthSuccess(ip: string): void {
   authFailures.delete(ip);
 }
 
+/**
+ * Map a task's stored creator id to a friendly display name: the main agent's
+ * configured name for "atlas", a worker/lead's name when the id matches one,
+ * "Panel" for panel/REST-created cards, else the raw id.
+ */
+function creatorName(id: string): string {
+  if (id === "atlas") return config.ATLAS_NAME;
+  if (id === "panel") return "Panel";
+  return workers.get(id)?.name ?? id;
+}
+
 /** Panel view of a worker: registry fields + derived run state. */
 function workerView(w: Worker) {
   return {
@@ -289,9 +304,13 @@ function workerView(w: Worker) {
     portfolio: w.portfolio ?? "",
     parentId: w.parentId ?? "",
     telegramToken: w.telegramToken ?? "",
+    botUsername: w.botUsername ?? "",
     persona: w.persona ?? "",
     autonomy: w.autonomy ?? "full",
     language: w.language ?? "",
+    // True when this Lead has a live Telegram bot listening (role lead + token
+    // + enabled). The panel warns when a Lead is enabled but has no token.
+    listening: w.role === "lead" && !!w.telegramToken && w.enabled,
   };
 }
 
@@ -541,6 +560,7 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
     const { embedding, ...rest } = e;
     return { ...rest, embedded: !!(embedding && embedding.length) };
   };
+  app.get("/api/memories/stats", async () => memory.stats());
   app.get("/api/memories", async (req) => {
     const { q, all } = req.query as { q?: string; all?: string };
     if (q) {
@@ -567,6 +587,29 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
     if (!memory.remove((req.params as { id: string }).id))
       return reply.code(404).send({ error: "not found" });
     return { ok: true };
+  });
+
+  // --- suggestion inbox ---
+  app.get("/api/suggestions", async (req) => {
+    const { status } = req.query as { status?: string };
+    const filter =
+      status === "pending" || status === "accepted" || status === "dismissed" ? status : undefined;
+    return { suggestions: suggestions.list(filter) };
+  });
+  app.post("/api/suggestions/:id/accept", async (req, reply) => {
+    const updated = suggestions.accept((req.params as { id: string }).id);
+    if (!updated) return reply.code(404).send({ error: "not found" });
+    return updated;
+  });
+  app.post("/api/suggestions/:id/delegate", async (req, reply) => {
+    const { suggestion, leadName, started } = suggestions.delegate((req.params as { id: string }).id);
+    if (!suggestion) return reply.code(404).send({ error: "not found" });
+    return { suggestion, leadName, started };
+  });
+  app.post("/api/suggestions/:id/dismiss", async (req, reply) => {
+    const updated = suggestions.dismiss((req.params as { id: string }).id);
+    if (!updated) return reply.code(404).send({ error: "not found" });
+    return updated;
   });
 
   // --- external connectors (placeholders) ---
@@ -618,7 +661,12 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
   app.get("/api/tasks", async () => {
     pruneArchive();
     autoArchive();
-    return { tasks: listTasks(), columns: listColumns(), wip: getWip() };
+    // Resolve each card's creator id to a friendly display name for the board.
+    const tasks = listTasks().map((t) => ({
+      ...t,
+      createdByName: t.createdBy ? creatorName(t.createdBy) : undefined,
+    }));
+    return { tasks, columns: listColumns(), wip: getWip() };
   });
   // Column config CRUD
   app.get("/api/tasks/columns", async () => ({ columns: listColumns() }));
@@ -657,7 +705,12 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
   app.post("/api/tasks/:id/stop", async (req) => ({
     ok: taskDelegator.stop((req.params as { id: string }).id),
   }));
-  app.post("/api/tasks", async (req) => createTask(req.body as never));
+  app.post("/api/tasks", async (req) => {
+    const body = (req.body ?? {}) as Parameters<typeof createTask>[0];
+    // Cards made through the panel/REST are attributed to "panel" unless the
+    // caller explicitly passes a creator id.
+    return createTask({ ...body, createdBy: body.createdBy || "panel" });
+  });
   app.patch("/api/tasks/:id", async (req, reply) => {
     const updated = updateTask((req.params as { id: string }).id, req.body as never);
     if (!updated) return reply.code(404).send({ error: "not found" });
@@ -853,6 +906,7 @@ Respond with ONLY a JSON array, no markdown fences, no explanation. Example form
 
   // --- maintenance scheduler ---
   app.get("/api/maintenance", async () => maintenance.view());
+  app.post("/api/maintenance/preview", async () => maintenance.previewCompaction());
   app.post("/api/maintenance/run", async () => maintenance.runOnce());
 
   // --- language catalogue ---
@@ -874,6 +928,20 @@ Respond with ONLY a JSON array, no markdown fences, no explanation. Example form
       return { sessions };
     } catch {
       return { sessions: [] };
+    }
+  });
+
+  // Trigger a council vote (same flow as the Telegram /council command)
+  app.post("/api/council", async (req, reply) => {
+    const { proposal } = (req.body ?? {}) as { proposal?: string };
+    if (!proposal?.trim()) return reply.code(400).send({ error: "proposal required" });
+    try {
+      const session = await runCouncil(proposal.trim());
+      return { session };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error("Panel council vote failed", { error: message });
+      return reply.code(500).send({ error: message });
     }
   });
 

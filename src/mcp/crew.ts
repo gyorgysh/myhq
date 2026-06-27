@@ -4,12 +4,14 @@ import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { runTurn, AUTO_ALLOWED_TOOLS } from "../claude/runner.js";
 import { memoryMcp } from "./memory.js";
-import { tasksMcp } from "./tasks.js";
+import { createTasksMcp } from "./tasks.js";
 import { skillsMcp } from "./skills.js";
 import { workers } from "../core/workers.js";
+import { suggestions } from "../core/suggestions.js";
 import { getSkill } from "../core/skills.js";
 import { getProvider } from "../core/providers.js";
 import { resolveSecret } from "../core/vault.js";
+import { getLeadProtocol } from "../prompt.js";
 import { config } from "../config.js";
 import { log } from "../logger.js";
 import { registerAsk } from "../core/crewAsk.js";
@@ -61,7 +63,8 @@ export function createCrewMcp(opts: CrewMcpOptions) {
             return { content: [{ type: "text", text: `No worker found with id ${args.leadId}.` }] };
           }
           const skill = lead.skillId ? getSkill(lead.skillId) : undefined;
-          const append = [skill?.prompt, lead.systemPrompt].filter(Boolean).join("\n\n") || undefined;
+          const protocol = lead.role === "lead" ? getLeadProtocol(lead.name, lead.portfolio) : undefined;
+          const append = [protocol, skill?.prompt, lead.systemPrompt].filter(Boolean).join("\n\n") || undefined;
           const provider = lead.providerId ? getProvider(lead.providerId) : undefined;
           const env = provider
             ? {
@@ -86,7 +89,7 @@ export function createCrewMcp(opts: CrewMcpOptions) {
               persona: lead.persona,
               permissionMode: "bypassPermissions",
               abortController: abort,
-              mcpServers: { memory: memoryMcp, tasks: tasksMcp, skills: skillsMcp },
+              mcpServers: { memory: memoryMcp, tasks: createTasksMcp({ createdBy: lead.id }), skills: skillsMcp },
               canUseTool: async (name, input) => {
                 if (AUTO_ALLOWED_TOOLS.has(name)) return { behavior: "allow", updatedInput: input };
                 return { behavior: "deny", message: "Tool not permitted for delegated lead." };
@@ -116,14 +119,20 @@ export function createCrewMcp(opts: CrewMcpOptions) {
 
       tool(
         "crew_report",
-        "Record a summary of completed work in the delegation log and optionally " +
-          "send it to the president over Telegram.",
+        "Record a summary of COMPLETED WORK in the delegation log. For a " +
+          "proposal, idea, or finding the president should review, use " +
+          "crew_suggest instead (it queues in the inbox for triage). Set " +
+          "toPresident only for time-critical results that can't wait.",
         {
           summary: z.string().describe("Concise summary of the work done or outcome."),
           toPresident: z
             .boolean()
             .optional()
-            .describe("If true, also sends the summary to the president via Telegram."),
+            .describe(
+              "If true, also DMs the summary to the president immediately. Use " +
+                "sparingly, only for time-critical results; otherwise prefer " +
+                "crew_suggest so Atlas can triage and batch.",
+            ),
         },
         async (args) => {
           logDelegation({
@@ -143,6 +152,43 @@ export function createCrewMcp(opts: CrewMcpOptions) {
       ),
 
       tool(
+        "crew_suggest",
+        "File a proposal, idea, or finding for the president's review. It queues " +
+          "in the suggestion inbox (the president gets a light heads-up ping, not " +
+          "the full proposal as a DM) so Atlas can triage and batch it into a " +
+          "digest; the president then accepts (→ a task) or dismisses it. Use this " +
+          "for non-urgent ideas instead of messaging the president directly.",
+        {
+          title: z.string().describe("Short, specific headline for the suggestion."),
+          detail: z.string().describe("The full proposal: what, why, and any specifics."),
+          category: z
+            .string()
+            .optional()
+            .describe("Optional grouping label, e.g. 'ui', 'infra', 'process'."),
+        },
+        async (args) => {
+          const fromId = opts.fromAgentId ?? "atlas";
+          const fromName = workers.get(fromId)?.name ?? fromId;
+          const s = suggestions.add({
+            fromAgentId: fromId,
+            fromAgentName: fromName,
+            title: args.title,
+            detail: args.detail,
+            category: args.category,
+          });
+          logDelegation({ fromAgentId: fromId, type: "suggestion", summary: args.title });
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Suggestion filed for the president's review (id ${s.id}). Atlas will triage it.`,
+              },
+            ],
+          };
+        },
+      ),
+
+      tool(
         "crew_ask_president",
         "Send the president a question over Telegram and wait for their reply. " +
           "Blocks until the user responds or the approval timeout elapses.",
@@ -153,7 +199,9 @@ export function createCrewMcp(opts: CrewMcpOptions) {
           const { id, promise } = registerAsk(opts.primaryChatId, config.APPROVAL_TIMEOUT_MS);
           log.info("crew_ask_president registered", { id, chatId: opts.primaryChatId });
           try {
-            await opts.notify(`❓ Agent question (id ${id}):\n${args.question}`);
+            await opts.notify(
+              `❓ I need your input:\n\n${args.question}\n\nJust reply with your answer (id ${id}).`,
+            );
           } catch (err) {
             log.warn("crew_ask_president notify failed", { error: err instanceof Error ? err.message : String(err) });
           }

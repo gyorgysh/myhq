@@ -321,7 +321,7 @@ configure_env() {
   ids="${MYHQ_USER_IDS:-$(ask "Allowed Telegram user id(s), comma-separated (from @userinfobot)" "")}"
   key="${MYHQ_API_KEY:-}"
   if [ -z "$key" ] && ! command -v claude >/dev/null 2>&1; then
-    key="$(ask "Anthropic API key (leave blank to use 'claude' CLI login)" "")"
+    key="$(ask "Anthropic API key (blank = log in with a Pro/Max plan instead)" "")"
   fi
 
   [ -n "$token" ] || warn "No bot token entered — edit $env before starting."
@@ -331,6 +331,36 @@ configure_env() {
   set_env "$env" ALLOWED_USER_IDS "$ids"
   [ -n "$key" ] && set_env "$env" ANTHROPIC_API_KEY "$key"
   ok "Wrote $env."
+}
+
+# --- Claude CLI login -------------------------------------------------------
+# Offer to log the CLI in now. Skipped when an API key is already configured
+# (the key takes precedence) or when there's no terminal to drive the flow.
+# Uses `claude setup-token`, the only launchable login path: plain `/login`
+# only works inside the interactive TUI. setup-token requires a Claude
+# subscription (Pro or Max), so we say so up front.
+claude_login() {
+  [ -n "${MYHQ_API_KEY:-}" ] && return 0
+  local env="$APP_DIR/.env"
+  if [ -f "$env" ] && grep -Eq '^[[:space:]]*ANTHROPIC_API_KEY=.+' "$env"; then
+    return 0
+  fi
+  command -v claude >/dev/null 2>&1 || {
+    say "Claude CLI not on PATH yet — open a new shell, then run ${B}claude setup-token${R} to log in."
+    return 0
+  }
+  [ -z "$TTY" ] && {
+    say "No terminal for interactive login — run ${B}claude setup-token${R} later (needs a Pro/Max plan)."
+    return 0
+  }
+  printf '\n%s\n' "${DIM}Claude Code authenticates with your Anthropic login (a Pro or Max plan), or an API key.${R}" >"$TTY"
+  confirm "Log in to Claude now? (opens a browser; needs a Pro/Max subscription)" "Y" || {
+    say "Skipping login — run ${B}claude setup-token${R} later, or set ANTHROPIC_API_KEY in $env."
+    return 0
+  }
+  say "Launching ${B}claude setup-token${R}… follow the browser prompt."
+  claude setup-token <"$TTY" >"$TTY" 2>&1 || \
+    warn "Login didn't complete — run ${B}claude setup-token${R} later (needs a Pro/Max plan) or set an API key."
 }
 
 # set_env FILE KEY VALUE — replace `KEY=...` (commented or not) or append it.
@@ -484,12 +514,12 @@ configure_remote_access() {
   local choice="${MYHQ_REMOTE:-}"
   if [ -z "$choice" ]; then
     printf '\n%s\n' "${B}Reach the panel from your phone?${R} ${DIM}(secure public tunnel to this panel, still behind your login)${R}" >"${TTY:-/dev/stdout}"
-    printf '%s\n' "  ${B}1)${R} No, local only ${DIM}(default — most secure)${R}" >"${TTY:-/dev/stdout}"
-    printf '%s\n' "  ${B}2)${R} ngrok ${DIM}(needs a free authtoken from ngrok.com)${R}" >"${TTY:-/dev/stdout}"
-    printf '%s\n' "  ${B}3)${R} Cloudflare ${DIM}(free quick tunnel, no account needed)${R}" >"${TTY:-/dev/stdout}"
+    printf '%s\n' "  ${B}1)${R} No, local only ${DIM}(default, most secure)${R}" >"${TTY:-/dev/stdout}"
+    printf '%s\n' "  ${B}2)${R} Cloudflare ${DIM}(free quick tunnel, no account or token needed)${R}" >"${TTY:-/dev/stdout}"
+    printf '%s\n' "  ${B}3)${R} ngrok ${DIM}(needs a free authtoken from ngrok.com)${R}" >"${TTY:-/dev/stdout}"
     printf '%s\n' "  ${B}4)${R} Install both, decide later in the panel" >"${TTY:-/dev/stdout}"
     case "$(ask "Choose 1-4" "1")" in
-      2) choice=ngrok ;; 3) choice=cloudflare ;; 4) choice=both ;; *) choice=none ;;
+      2) choice=cloudflare ;; 3) choice=ngrok ;; 4) choice=both ;; *) choice=none ;;
     esac
   fi
 
@@ -497,15 +527,15 @@ configure_remote_access() {
     none)
       ok "Remote access off. Enable it later in the panel's Remote Access view."
       return ;;
-    ngrok)       install_tunnel_cli ngrok || true ;;
     cloudflare)  install_tunnel_cli cloudflared || true ;;
-    both)        install_tunnel_cli ngrok || true; install_tunnel_cli cloudflared || true ;;
+    ngrok)       install_tunnel_cli ngrok || true ;;
+    both)        install_tunnel_cli cloudflared || true; install_tunnel_cli ngrok || true ;;
   esac
 
   set_env "$env" PANEL_TUNNEL_ENABLED true
-  ok "Remote access unlocked. Open the panel's ${B}Remote Access${R} view to add a token (if needed) and start the tunnel."
+  ok "Remote access unlocked. Open the panel's ${B}Remote Access${R} view to start the tunnel (Cloudflare needs no token). Ask the bot /status from Telegram for the public URL."
   if [ "$choice" = "ngrok" ] || [ "$choice" = "both" ]; then
-    say "  ngrok needs a free authtoken from https://dashboard.ngrok.com/get-started/your-authtoken — paste it in that view."
+    say "  ngrok needs a free authtoken from https://dashboard.ngrok.com/get-started/your-authtoken, paste it in that view."
   fi
 }
 
@@ -609,7 +639,7 @@ final_notes() {
 ${GR}${B}Done.${R} MyHQ is installed at ${B}${APP_DIR}${R}.
 
 ${B}Next steps${R}
-  • If you didn't set an API key, log the CLI in once: ${B}claude${R}  (then /login)
+  • If you didn't log in or set an API key: ${B}claude setup-token${R}  (needs a Pro/Max plan)
 ${panel_line}  • Tune the operator playbook: ${B}${APP_DIR}/work.md${R}
   • Manage the service: ${B}${APP_DIR}/scripts/agentctl.sh${R} {start|stop|restart|status|logs}
   • Update later:        ${B}${APP_DIR}/scripts/update.sh${R}
@@ -638,6 +668,7 @@ main() {
   clone_repo
   build_app
   configure_env
+  claude_login
   configure_panel
   configure_remote_access
   configure_voice

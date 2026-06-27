@@ -56,11 +56,17 @@ const schema = z.object({
     .enum(["true", "false"])
     .default("true")
     .transform((v) => v === "true"),
-  // Maintenance scheduler: daily run time in HH:MM (server-local 24h). Disabled if unset.
+  // Maintenance scheduler (memory compaction + skill pruning). Three states:
+  //   unset  -> on by default: runs every 24h (catch-up, robust to downtime).
+  //   HH:MM  -> daily at that server-local time.
+  //   off    -> disabled.
   MAINTENANCE_CRON: z.string().optional(),
   // Memory compaction thresholds.
   MEMORY_MAX_ENTRIES: z.coerce.number().int().positive().default(500),
   COLD_MAX: z.coerce.number().int().positive().default(200),
+  // Maintenance rewrites any memory entry longer than this many chars into a
+  // terse one-liner (meaning preserved) to keep recall context small. 0 = off.
+  MEMORY_SHORTEN_CHARS: z.coerce.number().int().nonnegative().default(220),
   // --- Semantic memory (Phase 2): local embeddings for similarity recall ---
   // Tri-state, default "auto": probe Ollama then LM Studio at startup and enable
   // embeddings against whichever is live (the panel can override this). "on" pins

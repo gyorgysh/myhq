@@ -141,6 +141,10 @@ export interface Task {
   parentId?: string;
   delegate?: TaskDelegation;
   order: number;
+  /** Creator id stamped at create-time: "atlas", a worker/lead id, or "panel". */
+  createdBy?: string;
+  /** Friendly creator name resolved by the server (e.g. "Atlas", "Iris", "Panel"). */
+  createdByName?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -166,9 +170,13 @@ export interface Worker {
   portfolio?: string;
   parentId?: string;
   telegramToken?: string;
+  /** The Lead bot's @username (from getMe), for a t.me link. */
+  botUsername?: string;
   persona?: string;
   autonomy?: Autonomy;
   language?: string;
+  /** True when this Lead has a live Telegram bot listening (role+token+enabled). */
+  listening?: boolean;
 }
 
 export interface Skill {
@@ -302,7 +310,15 @@ export interface MaintenanceStats {
   memoriesDeleted: number;
   memoriesMerged: number;
   memoriesRewritten: number;
+  memoriesShortened: number;
   skillsArchived: number;
+}
+
+/** Dry-run of the deterministic compaction steps before an actual run. */
+export interface MaintenancePreview {
+  toDelete: MemoryEntry[];
+  toDemote: MemoryEntry[];
+  toMerge: { kept: MemoryEntry; dropped: MemoryEntry[] }[];
 }
 
 export interface DelegationRecord {
@@ -400,6 +416,32 @@ export interface MemoryEntry {
   createdAt: number;
   updatedAt: number;
   lastUsedAt?: number;
+  embedded?: boolean;
+}
+
+export interface MemoryStats {
+  total: number;
+  byTier: Record<MemoryTier, number>;
+  totalRecalls: number;
+  recalledCount: number;
+  embedded: number;
+  tagCount: number;
+  lastRecalledAt?: number;
+}
+
+export type SuggestionStatus = "pending" | "accepted" | "dismissed";
+
+export interface Suggestion {
+  id: string;
+  fromAgentId: string;
+  fromAgentName: string;
+  title: string;
+  detail: string;
+  category?: string;
+  status: SuggestionStatus;
+  createdAt: number;
+  decidedAt?: number;
+  taskId?: string;
 }
 
 export interface ChatMessage {
@@ -474,6 +516,8 @@ export interface MainAgent {
   persona: string;
   autonomy: Autonomy;
   defaultLanguage: string;
+  /** The main bot's @username (from getMe), for a t.me link. */
+  botUsername?: string;
   embeddings: EmbeddingConfig;
   /** User-preferred local backend when both are running (null = none). */
   preferredBackend: PreferredBackend | null;
@@ -684,6 +728,7 @@ export const api = {
     get<{ memories: MemoryEntry[] }>(
       `/api/memories${q ? `?q=${encodeURIComponent(q)}${all ? "&all=true" : ""}` : ""}`,
     ),
+  memoryStats: () => get<MemoryStats>("/api/memories/stats"),
   createMemory: (m: { text: string; tags?: string[]; salience?: number; tier?: MemoryTier }) =>
     req<MemoryEntry>("POST", "/api/memories", m),
   updateMemory: (id: string, m: { text?: string; tags?: string[]; salience?: number; tier?: MemoryTier }) =>
@@ -692,7 +737,18 @@ export const api = {
     req<MemoryEntry>("PATCH", `/api/memories/${id}/tier`, { tier }),
   deleteMemory: (id: string) => req<{ ok: boolean }>("DELETE", `/api/memories/${id}`),
 
+  suggestions: (status?: SuggestionStatus) =>
+    get<{ suggestions: Suggestion[] }>(`/api/suggestions${status ? `?status=${status}` : ""}`),
+  acceptSuggestion: (id: string) => req<Suggestion>("POST", `/api/suggestions/${id}/accept`),
+  delegateSuggestion: (id: string) =>
+    req<{ suggestion: Suggestion; leadName?: string; started: boolean }>(
+      "POST",
+      `/api/suggestions/${id}/delegate`,
+    ),
+  dismissSuggestion: (id: string) => req<Suggestion>("POST", `/api/suggestions/${id}/dismiss`),
+
   maintenance: () => get<MaintenanceStats>("/api/maintenance"),
+  previewMaintenance: () => req<MaintenancePreview>("POST", "/api/maintenance/preview"),
   runMaintenance: () => req<MaintenanceStats>("POST", "/api/maintenance/run"),
 
   delegations: (limit?: number) =>
@@ -704,6 +760,9 @@ export const api = {
     get<{ sessions: Record<string, unknown>[] }>(
       `/api/council${limit ? `?limit=${limit}` : ""}`,
     ),
+
+  runCouncil: (proposal: string) =>
+    req<{ session: Record<string, unknown> }>("POST", "/api/council", { proposal }),
 
   languages: () => get<{ languages: Record<string, string> }>("/api/languages"),
 
