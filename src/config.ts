@@ -56,7 +56,10 @@ const schema = z.object({
     .enum(["true", "false"])
     .default("true")
     .transform((v) => v === "true"),
-  // Maintenance scheduler: daily run time in HH:MM (server-local 24h). Disabled if unset.
+  // Maintenance scheduler (memory compaction + skill pruning). Three states:
+  //   unset  -> on by default: runs every 24h (catch-up, robust to downtime).
+  //   HH:MM  -> daily at that server-local time.
+  //   off    -> disabled.
   MAINTENANCE_CRON: z.string().optional(),
   // Memory compaction thresholds.
   MEMORY_MAX_ENTRIES: z.coerce.number().int().positive().default(500),

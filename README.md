@@ -182,7 +182,7 @@ You can also ask Atlas to restart himself: "restart yourself" triggers `./script
 | `BRAND_NAME` | no | Override the product name (default `MyHQ`) |
 | `DEFAULT_LANGUAGE` | no | BCP 47 language code for agent responses (default `en`) |
 | `AUTO_SKILL_GENERATION` | no | `true` to auto-extract skills from expensive turns (default `false`) |
-| `MAINTENANCE_CRON` | no | `HH:MM` (24h server time) for daily memory compaction and skill pruning |
+| `MAINTENANCE_CRON` | no | memory compaction + skill pruning. Unset (default) runs every 24h; `HH:MM` (server time) pins a daily run; `off` disables |
 | `MEMORY_MAX_ENTRIES` | no | Warm entry cap before compaction triggers (default `500`) |
 | `COLD_MAX` | no | Cold entry cap before deletion (default `200`) |
 | `EMBEDDING_ENABLED` | no | `auto` (default): probe and auto-detect a live local backend (Ollama or LM Studio). `on`: pin the `EMBEDDING_*` backend below. `off`: force embeddings off. `on`/`off` lock the panel control |

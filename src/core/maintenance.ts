@@ -9,6 +9,10 @@ import { log } from "../logger.js";
 
 const BATCH_SIZE = 20;
 const STORE_FILE = "maintenance.json";
+/** Interval-mode cadence: run once last run was this long ago (24h). */
+const MAINTENANCE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+/** Guard so an HH:MM clock match can't double-fire (must be < 24h). */
+const MIN_RUN_GAP_MS = 23 * 60 * 60 * 1000;
 
 export interface MaintenanceStats {
   lastRunAt?: number;
@@ -76,10 +80,13 @@ class MaintenanceScheduler {
   private running = false;
 
   start(): void {
-    if (this.timer || !config.MAINTENANCE_CRON) return;
-    // Check every minute whether it's time to run.
+    if (this.timer || this.mode() === "off") return;
+    // Check every minute whether it's time to run; the per-mode gate below keeps
+    // an actual run to at most once a day. A long-overdue run catches up on the
+    // first tick rather than waiting for the wall clock.
     this.timer = setInterval(() => void this.checkAndRun(), 60_000);
     this.timer.unref?.();
+    void this.checkAndRun();
   }
 
   stop(): void {
@@ -87,11 +94,29 @@ class MaintenanceScheduler {
     this.timer = undefined;
   }
 
-  /** Next due time from MAINTENANCE_CRON ("HH:MM" daily), or undefined if unset. */
+  /**
+   * Resolve the configured schedule into a mode:
+   * - "off": explicitly disabled (MAINTENANCE_CRON=off).
+   * - "cron": a valid "HH:MM" daily clock time.
+   * - "interval": anything else, including unset — run every 24h (catch-up).
+   */
+  private mode(): "off" | "cron" | "interval" {
+    const spec = config.MAINTENANCE_CRON?.trim();
+    if (spec && spec.toLowerCase() === "off") return "off";
+    if (spec && /^\d{1,2}:\d{2}$/.test(spec) && parseWhen(spec)) return "cron";
+    return "interval";
+  }
+
+  /** Next due time, or undefined when disabled. */
   private computeNextRun(): number | undefined {
-    if (!config.MAINTENANCE_CRON) return undefined;
-    const spec = parseWhen(config.MAINTENANCE_CRON);
-    return spec ? nextRun(spec, Date.now()) : undefined;
+    const mode = this.mode();
+    if (mode === "off") return undefined;
+    if (mode === "cron") {
+      const spec = parseWhen(config.MAINTENANCE_CRON!.trim());
+      return spec ? nextRun(spec, Date.now()) : undefined;
+    }
+    // Interval mode: 24h after the last run (or now, if it's never run).
+    return (this.stats.lastRunAt ?? Date.now()) + MAINTENANCE_INTERVAL_MS;
   }
 
   view(): MaintenanceStats {
@@ -125,14 +150,25 @@ class MaintenanceScheduler {
   }
 
   private checkAndRun(): void {
-    const spec = config.MAINTENANCE_CRON;
-    if (!spec) return;
+    if (this.running) return;
+    const mode = this.mode();
+    if (mode === "off") return;
+
+    const last = this.stats.lastRunAt ?? 0;
+    if (mode === "interval") {
+      // Run whenever the last run was a full interval (24h) ago — or never.
+      if (Date.now() - last >= MAINTENANCE_INTERVAL_MS) void this.runOnce();
+      return;
+    }
+
+    // Cron mode: fire at the configured HH:MM, guarded so a clock match in the
+    // same day can't double-fire after a recent run.
+    const spec = config.MAINTENANCE_CRON!.trim();
     const [hh, mm] = spec.split(":").map(Number);
     if (Number.isNaN(hh) || Number.isNaN(mm)) return;
     const now = new Date();
     if (now.getHours() === hh && now.getMinutes() === mm) {
-      // Only fire once per minute window.
-      if (this.stats.lastRunAt && Date.now() - this.stats.lastRunAt < 90_000) return;
+      if (Date.now() - last < MIN_RUN_GAP_MS) return;
       void this.runOnce();
     }
   }
