@@ -7,6 +7,14 @@ import { parseCallback, isHexId } from "./callback.js";
 
 export type ApprovalChoice = "allow" | "deny" | "always" | "alwayscmd";
 
+/** The set of legitimate approval actions, used to whitelist untrusted callback data. */
+const VALID_CHOICES: ReadonlySet<string> = new Set<ApprovalChoice>([
+  "allow",
+  "deny",
+  "always",
+  "alwayscmd",
+]);
+
 /** The leading program of a Bash command, e.g. "git status -s" -> "git". */
 export function bashLeadCmd(input: unknown): string | undefined {
   const cmd = (input as { command?: unknown })?.command;
@@ -227,7 +235,11 @@ export class PermissionManager {
     if (!entry || entry.settled) return "This request has expired.";
 
     clearTimeout(entry.timeout);
-    const choice = (action as ApprovalChoice) ?? "deny";
+    // Whitelist the action before casting: a crafted callback could carry an
+    // arbitrary string, and an unhandled value must never silently approve.
+    const choice: ApprovalChoice = VALID_CHOICES.has(action)
+      ? (action as ApprovalChoice)
+      : "deny";
     entry.settled = choice;
 
     const label =

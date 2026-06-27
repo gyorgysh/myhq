@@ -417,6 +417,15 @@ function WorkerWizard({
   const [created, setCreated] = useState<Set<number>>(new Set());
   const [genError, setGenError] = useState<string | null>(null);
 
+  // Prefill the working directory with the panel's default so generated configs
+  // (and the editable review step) have a valid cwd out of the box.
+  useEffect(() => {
+    api
+      .me()
+      .then((m) => setAnswers((a) => (a.cwd.trim() ? a : { ...a, cwd: m.defaultWorkdir })))
+      .catch(() => {});
+  }, []);
+
   const generate = async () => {
     if (!answers.goal.trim()) return;
     setPhase("generating");
@@ -843,6 +852,20 @@ function WorkerForm({
   const [fetched, setFetched] = useState<string[]>([]);
   const [fetchingModels, setFetchingModels] = useState(false);
   const listId = useId();
+
+  // Prefill the working directory with the panel's default for a brand-new
+  // worker (empty cwd), so the form can be saved straight away instead of the
+  // save button staying greyed out until a path is typed. The user can edit it.
+  useEffect(() => {
+    if (form.cwd.trim()) return;
+    api
+      .me()
+      .then((m) => {
+        setForm((f) => (f.cwd.trim() ? f : { ...f, cwd: m.defaultWorkdir }));
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchModels = async () => {
     if (!form.providerId) return;

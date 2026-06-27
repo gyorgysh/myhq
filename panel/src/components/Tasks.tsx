@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, AuthError, type Column, type ColumnDef, type Priority, type Task, type TaskRunConfig, type Wip } from "../api.ts";
 import { useTaskEvents, type LiveTask } from "../lib/useTaskEvents.ts";
 import { useI18n } from "../lib/useI18n.ts";
@@ -49,8 +49,18 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [renamingCol, setRenamingCol] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState("");
+  // Inline WIP-limit editor: which column's count is being edited + the draft value.
+  const [editingWip, setEditingWip] = useState<string | null>(null);
+  const [wipVal, setWipVal] = useState("");
+  // Two-step column delete: id of the column awaiting a confirming second click.
+  const [confirmDelCol, setConfirmDelCol] = useState<string | null>(null);
+  // Inline add-column input at the end of the board.
+  const [addingCol, setAddingCol] = useState(false);
+  const [newColVal, setNewColVal] = useState("");
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Transient, non-fatal notice (e.g. "move cards out first") shown as a banner.
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Bulk selection state
   const [selectMode, setSelectMode] = useState(false);
@@ -108,13 +118,21 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
     }
   };
 
-  const editWip = async (col: ColumnDef) => {
+  const startEditWip = (col: ColumnDef) => {
     const cur = wip[col.id];
-    const input = prompt(t("tasks_wip_prompt").replace("{name}", col.name), cur ? String(cur) : "");
-    if (input === null) return;
-    const limit = input.trim() === "" ? null : Number(input);
-    if (limit !== null && Number.isNaN(limit)) return;
-    const r = await api.setWip(col.id, limit);
+    setWipVal(cur != null ? String(cur) : "");
+    setEditingWip(col.id);
+  };
+
+  const commitWip = async (colId: string) => {
+    // Editor already closed (Escape, or a second commit after blur): do nothing.
+    if (editingWip !== colId) return;
+    setEditingWip(null);
+    const trimmed = wipVal.trim();
+    const limit = trimmed === "" ? null : Number(trimmed);
+    // Ignore invalid or negative input — leave the existing limit untouched.
+    if (limit !== null && (Number.isNaN(limit) || limit < 0)) return;
+    const r = await api.setWip(colId, limit);
     setWip(r.wip);
   };
 
@@ -123,10 +141,13 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
     if (r) setRunConfig(r.config);
   };
 
-  const addColumn = async () => {
-    const name = prompt(t("tasks_new_column_prompt"));
-    if (!name?.trim()) return;
-    await api.addColumn(name.trim());
+  const commitAddColumn = async () => {
+    if (!addingCol) return;
+    const name = newColVal.trim();
+    setAddingCol(false);
+    setNewColVal("");
+    if (!name) return;
+    await api.addColumn(name);
     await load();
   };
 
@@ -141,14 +162,34 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
     await load();
   };
 
-  const removeColumn = async (col: ColumnDef) => {
+  const flash = (msg: string) => {
+    setNotice(msg);
+    window.setTimeout(() => setNotice((n) => (n === msg ? null : n)), 4000);
+  };
+
+  // Two-step delete: first click arms the confirm (auto-disarms after 3s),
+  // second click within the window actually removes the (empty) column.
+  const onDeleteColClick = (col: ColumnDef) => {
     const count = inColumn(col.id).length;
     if (count > 0) {
-      alert(t("tasks_move_first").replace("{n}", String(count)).replace("{name}", col.name));
+      flash(t("tasks_move_first").replace("{n}", String(count)).replace("{name}", col.name));
       return;
     }
-    if (!confirm(t("tasks_remove_confirm").replace("{name}", col.name))) return;
-    await api.removeColumn(col.id).catch((e: Error) => alert(e.message));
+    if (confirmDelCol !== col.id) {
+      setConfirmDelCol(col.id);
+      window.setTimeout(() => setConfirmDelCol((c) => (c === col.id ? null : c)), 3000);
+      return;
+    }
+    setConfirmDelCol(null);
+    void removeColumn(col);
+  };
+
+  const removeColumn = async (col: ColumnDef) => {
+    try {
+      await api.removeColumn(col.id);
+    } catch (e) {
+      flash(e instanceof Error ? e.message : String(e));
+    }
     await load();
   };
 
@@ -236,6 +277,13 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
 
   return (
     <div className="space-y-4">
+      {/* Transient, non-fatal notice (e.g. can't delete a non-empty column) */}
+      {notice && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-400">
+          {notice}
+        </div>
+      )}
+
       {/* Did You Know callout */}
       <Callout title={t("tasks_did_you_know_title")} dismissId="tasks-did-you-know">
         {t("tasks_did_you_know_body")}
@@ -371,11 +419,17 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
                   />
                 ) : (
                   <h3
-                    className={`flex-1 cursor-pointer text-xs font-semibold uppercase tracking-wider ${tone} hover:opacity-80`}
+                    className={`group flex flex-1 items-center gap-1 cursor-text text-xs font-semibold uppercase tracking-wider ${tone} hover:opacity-80`}
                     onClick={() => startRename(col)}
                     title={t("tasks_click_rename")}
                   >
                     {columnName(col, t)}
+                    <span
+                      aria-hidden
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ✎
+                    </span>
                   </h3>
                 )}
                 {selectMode ? (
@@ -391,22 +445,45 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
                   </button>
                 ) : (
                   <>
+                    {editingWip === col.id ? (
+                      <input
+                        autoFocus
+                        type="number"
+                        min={0}
+                        value={wipVal}
+                        onChange={(e) => setWipVal(e.target.value)}
+                        onBlur={() => commitWip(col.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void commitWip(col.id);
+                          if (e.key === "Escape") setEditingWip(null);
+                        }}
+                        placeholder={t("tasks_wip_placeholder")}
+                        aria-label={t("tasks_set_wip")}
+                        className="tabular w-12 shrink-0 rounded bg-input px-1 py-0.5 text-xs text-fg outline-none focus:ring-1 focus:ring-accent/50"
+                      />
+                    ) : (
+                      <button
+                        onClick={() => startEditWip(col)}
+                        title={t("tasks_set_wip")}
+                        aria-label={t("tasks_set_wip")}
+                        className={`tabular shrink-0 rounded px-1.5 text-xs ${over ? "bg-red-500/15 text-red-400" : "text-fg-faint hover:text-fg-dim"}`}
+                      >
+                        {cards.length}
+                        {limit != null && ` / ${limit}`}
+                      </button>
+                    )}
                     <button
-                      onClick={() => editWip(col)}
-                      title={t("tasks_set_wip")}
-                      aria-label={t("tasks_set_wip")}
-                      className={`tabular shrink-0 rounded px-1.5 text-xs ${over ? "bg-red-500/15 text-red-400" : "text-fg-faint hover:text-fg-dim"}`}
-                    >
-                      {cards.length}
-                      {limit != null && ` / ${limit}`}
-                    </button>
-                    <button
-                      onClick={() => removeColumn(col)}
+                      onClick={() => onDeleteColClick(col)}
+                      onBlur={() => setConfirmDelCol((c) => (c === col.id ? null : c))}
                       title={t("tasks_remove_column")}
                       aria-label={t("tasks_remove_column")}
-                      className="shrink-0 text-xs text-fg-faint hover:text-red-400 transition-colors"
+                      className={`shrink-0 rounded px-1 text-xs transition-colors ${
+                        confirmDelCol === col.id
+                          ? "bg-red-500/15 text-red-400"
+                          : "text-fg-faint hover:text-red-400"
+                      }`}
                     >
-                      ✕
+                      {confirmDelCol === col.id ? t("tasks_remove_confirm") : "✕"}
                     </button>
                   </>
                 )}
@@ -442,15 +519,34 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
           );
         })}
 
-        {/* Add column button (hidden on mobile where columns are tabbed) */}
+        {/* Add column (inline input; hidden on mobile where columns are tabbed) */}
         <div className="hidden items-start md:flex">
-          <button
-            onClick={addColumn}
-            className="mt-0 flex items-center gap-1.5 rounded-xl border border-dashed border-line px-3 py-2 text-xs text-fg-faint hover:border-fg-dim hover:text-fg-dim transition-colors"
-          >
-            <span>+</span>
-            <span>{t("tasks_add_column")}</span>
-          </button>
+          {addingCol ? (
+            <input
+              autoFocus
+              value={newColVal}
+              onChange={(e) => setNewColVal(e.target.value)}
+              onBlur={commitAddColumn}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void commitAddColumn();
+                if (e.key === "Escape") {
+                  setAddingCol(false);
+                  setNewColVal("");
+                }
+              }}
+              placeholder={t("tasks_new_column_placeholder")}
+              aria-label={t("tasks_add_column")}
+              className="w-40 rounded-xl border border-dashed border-accent/40 bg-input px-3 py-2 text-xs text-fg outline-none focus:ring-1 focus:ring-accent/50"
+            />
+          ) : (
+            <button
+              onClick={() => setAddingCol(true)}
+              className="mt-0 flex items-center gap-1.5 rounded-xl border border-dashed border-line px-3 py-2 text-xs text-fg-faint hover:border-fg-dim hover:text-fg-dim transition-colors"
+            >
+              <span>+</span>
+              <span>{t("tasks_add_column")}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -514,13 +610,24 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
   );
 }
 
-function ageBorder(task: Task): string {
+function staleTier(task: Task): "stale14" | "stale7" | null {
   const col = task.column.toLowerCase();
-  if (col === "done" || col.includes("done") || col.includes("complete") || col === "archive") return "border-line";
+  if (col === "done" || col.includes("done") || col.includes("complete") || col === "archive") return null;
   const age = Date.now() - task.updatedAt;
-  if (age > 14 * DAY) return "border-l-2 border-l-red-500/60 border-line";
-  if (age > 7 * DAY) return "border-l-2 border-l-amber-500/50 border-line";
-  return "border-line";
+  if (age > 14 * DAY) return "stale14";
+  if (age > 7 * DAY) return "stale7";
+  return null;
+}
+
+function ageBorder(task: Task): string {
+  switch (staleTier(task)) {
+    case "stale14":
+      return "border-l-2 border-l-red-500/60 border-line";
+    case "stale7":
+      return "border-l-2 border-l-amber-500/50 border-line";
+    default:
+      return "border-line";
+  }
 }
 
 function Card({
@@ -557,9 +664,18 @@ function Card({
   const [delegateOpen, setDelegateOpen] = useState(!isDone);
   const [notesOpen, setNotesOpen] = useState(!isDone);
   const [fullLogOpen, setFullLogOpen] = useState(false);
+  const [liveLogOpen, setLiveLogOpen] = useState(false);
+  const liveLogRef = useRef<HTMLDivElement>(null);
 
   const running = live?.status === "running" || task.delegate?.status === "running";
   const dstatus = live?.status ?? task.delegate?.status;
+
+  // Keep the live log pinned to the latest output as it streams in.
+  useEffect(() => {
+    if (liveLogOpen && liveLogRef.current) {
+      liveLogRef.current.scrollTop = liveLogRef.current.scrollHeight;
+    }
+  }, [live?.output, live?.tool, liveLogOpen]);
 
   const save = async () => {
     try {
@@ -683,6 +799,14 @@ function Card({
                 {t("tasks_created_by").replace("{name}", task.createdByName || task.createdBy || "")}
               </span>
             )}
+            {staleTier(task) && (
+              <span
+                className="text-fg-faint"
+                title={t("tasks_stale")}
+              >
+                {staleTier(task) === "stale14" ? t("tasks_stale_14d") : t("tasks_stale_7d")}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -719,11 +843,48 @@ function Card({
           </div>
           {delegateOpen && (
             <>
-              {live?.tool && <div className="mono mt-1 text-xs text-fg-dim">{live.tool}</div>}
-              {(live?.output || task.delegate?.output) && (
-                <div className="mono mt-1 line-clamp-4 whitespace-pre-wrap text-xs text-fg-faint">
-                  {live?.output || task.delegate?.output}
-                </div>
+              {!running && live?.tool && <div className="mono mt-1 text-xs text-fg-dim">{live.tool}</div>}
+              {running ? (
+                // While the task runs, the full streamed output is available
+                // live over the WS. Show a compact preview plus an expandable,
+                // auto-scrolling live log so progress can be watched mid-run.
+                (live?.output || live?.tool) && (
+                  <>
+                    {!liveLogOpen && (
+                      <>
+                        {live?.tool && <div className="mono mt-1 text-xs text-fg-dim">{live.tool}</div>}
+                        {live?.output && (
+                          <div className="mono mt-1 line-clamp-4 whitespace-pre-wrap text-xs text-fg-faint">
+                            {live.output}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <button
+                      onClick={() => setLiveLogOpen((o) => !o)}
+                      className="mt-1 text-xs text-accent hover:underline"
+                    >
+                      {liveLogOpen ? t("tasks_hide_live_log") : t("tasks_view_live_log")}
+                    </button>
+                    {liveLogOpen && (
+                      <div
+                        ref={liveLogRef}
+                        className="mono mt-1 max-h-96 overflow-y-auto whitespace-pre-wrap rounded border border-line bg-base p-2 text-xs text-fg-dim"
+                      >
+                        {live?.output}
+                        {live?.tool && (
+                          <div className="mt-1 text-accent">▸ {live.tool}</div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )
+              ) : (
+                (live?.output || task.delegate?.output) && (
+                  <div className="mono mt-1 line-clamp-4 whitespace-pre-wrap text-xs text-fg-faint">
+                    {live?.output || task.delegate?.output}
+                  </div>
+                )
               )}
               {task.delegate?.error && <div className="mt-1 text-xs text-red-400">{task.delegate.error}</div>}
               {!running && task.delegate?.runId && (

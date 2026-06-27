@@ -112,7 +112,7 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 [--crew-indent:14px] sm:[--crew-indent:24px]">
       <div>
         <h1 className="text-lg font-semibold text-fg">{t("crew_title")}</h1>
         <p className="mt-1 text-sm text-fg-dim">{t("crew_subtitle")}</p>
@@ -157,6 +157,16 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
       />
 
       {/* Leads and their Assistants */}
+      {leads.length > 0 && (
+        <div
+          className="text-xs font-medium uppercase tracking-wider text-fg-faint pl-3"
+          style={{ marginLeft: "calc(2 * var(--crew-indent))" }}
+        >
+          {t("crew_leads_count")
+            .replace("{total}", String(leads.length))
+            .replace("{active}", String(enabledLeads))}
+        </div>
+      )}
       {leads.map((lead) => (
         <div key={lead.id}>
           <CrewNode
@@ -167,6 +177,7 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
               .join(" · ")}
             tone="blue"
             depth={2}
+            paused={!lead.enabled}
             extra={lead.listening ? t("crew_listening") : undefined}
             extraHref={
               lead.listening && lead.botUsername ? `https://t.me/${lead.botUsername}` : undefined
@@ -183,6 +194,7 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
                 subtitle={a.portfolio ?? "Assistant"}
                 tone="zinc"
                 depth={3}
+                paused={!a.enabled}
               />
             ))}
         </div>
@@ -199,6 +211,7 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
             subtitle={a.portfolio ?? "Assistant"}
             tone="zinc"
             depth={2}
+            paused={!a.enabled}
           />
         ))}
 
@@ -216,6 +229,7 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
               subtitle={w.model || "default model"}
               tone="zinc"
               depth={2}
+              paused={!w.enabled}
             />
           ))}
         </div>
@@ -502,6 +516,7 @@ function CrewNode({
   extra,
   extraHref,
   warn,
+  paused,
 }: {
   icon: string;
   title: string;
@@ -512,17 +527,31 @@ function CrewNode({
   /** When set, the `extra` badge becomes a link (e.g. a t.me handle). */
   extraHref?: string;
   warn?: string;
+  /** Dim the node and show a "paused" badge when the worker is disabled. */
+  paused?: boolean;
 }) {
-  const indent = depth * 24;
+  const { t } = useI18n();
   const toneClass: Record<Tone, string> = {
     amber: "text-amber-400",
     accent: "text-[var(--accent)]",
     blue: "text-blue-400",
     zinc: "text-fg-dim",
   };
+  // A coloured left rule per depth gives a width-independent hierarchy cue, so
+  // even when the responsive indent is small on a phone the nesting stays legible.
+  const ruleClass: Record<number, string> = {
+    1: "border-l-2 border-[var(--accent)]/40",
+    2: "border-l-2 border-blue-400/40",
+    3: "border-l-2 border-fg-faint/40",
+  };
 
   return (
-    <div className="flex items-center gap-3" style={{ paddingLeft: indent }}>
+    <div
+      className={`flex items-center gap-3 ${depth > 0 ? "pl-3" : ""} ${
+        ruleClass[depth] ?? ""
+      } ${paused ? "opacity-50" : ""}`}
+      style={{ marginLeft: `calc(${depth} * var(--crew-indent))` }}
+    >
       {depth > 0 && (
         <div className="flex items-center">
           <div className="h-px w-4 bg-line" />
@@ -532,6 +561,7 @@ function CrewNode({
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-medium text-fg">{title}</span>
+          {paused && <Badge tone="zinc">{t("crew_paused")}</Badge>}
           {extra &&
             (extraHref ? (
               <a href={extraHref} target="_blank" rel="noreferrer" className="hover:underline">
@@ -542,7 +572,9 @@ function CrewNode({
             ))}
           {warn && <Badge tone="zinc">{warn}</Badge>}
         </div>
-        <div className="text-xs text-fg-dim">{subtitle}</div>
+        <div className="truncate text-xs text-fg-dim" title={subtitle}>
+          {subtitle}
+        </div>
       </div>
     </div>
   );

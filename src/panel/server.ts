@@ -295,8 +295,19 @@ const MAX_FAILS = 10;
 const LOCKOUT_MS = 5 * 60_000;
 const authFailures = new Map<string, { count: number; lockedUntil: number }>();
 
+let warnedUnknownIp = false;
+
 function clientIp(req: FastifyRequest): string {
-  return req.ip || "unknown";
+  const ip = req.ip || req.socket.remoteAddress;
+  if (ip) return ip;
+  if (!warnedUnknownIp) {
+    warnedUnknownIp = true;
+    log.warn(
+      "panel: request has no resolvable client IP (req.ip and socket.remoteAddress both empty); " +
+        "brute-force lockout will bucket all such clients together — check your reverse-proxy / network setup",
+    );
+  }
+  return "unknown";
 }
 
 function isLockedOut(ip: string): boolean {
@@ -379,6 +390,7 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
     atlasName: config.ATLAS_NAME,
     brandName: config.BRAND_NAME,
     defaultLanguage: config.DEFAULT_LANGUAGE,
+    defaultWorkdir: config.WORKDIR,
     languages: AGENT_LANGUAGES,
   }));
 

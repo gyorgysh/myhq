@@ -112,10 +112,10 @@ export function BottomNav({
               active ? "text-accent" : "text-fg-dim"
             }`}
           >
-            <span className="text-base leading-none">
+            <span className="relative text-base leading-none">
               {it.icon}
               {showBadge && (
-                <span className="absolute right-1/2 top-1 ml-2 h-1.5 w-1.5 translate-x-3 rounded-full bg-accent" />
+                <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-accent" />
               )}
             </span>
             <span>{t(it.labelKey)}</span>

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
 import { platform } from "node:os";
 import { randomBytes as id4 } from "node:crypto";
@@ -19,6 +19,8 @@ interface VaultEntry {
   name: string;
   description: string;
   ciphertext: string;
+  /** Masked preview (last 4 chars) computed once at write time, never re-derived. */
+  hint?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -59,8 +61,19 @@ function loadMasterKey(): Buffer {
   writeFileSync(p, key.toString("base64"), { mode: 0o600 });
   try {
     chmodSync(p, 0o600);
-  } catch {
-    /* best effort */
+  } catch (err) {
+    log.error(`vault: failed to chmod key file ${p} to 0600 — master key may be world-readable`, { err: String(err) });
+  }
+  // A world-readable master key defeats the vault entirely; verify the mode landed.
+  try {
+    const mode = statSync(p).mode & 0o777;
+    if (mode !== 0o600) {
+      log.error(
+        `vault: key file ${p} has mode ${mode.toString(8)} (expected 600) — master key is readable by other users`,
+      );
+    }
+  } catch (err) {
+    log.error(`vault: could not stat key file ${p} to verify permissions`, { err: String(err) });
   }
   return (cachedKey = key);
 }
@@ -143,6 +156,26 @@ export class VaultStore {
   private entries = this.file.entries;
   private keyRotatedAt = this.file.keyRotatedAt;
 
+  constructor() {
+    this.backfillHints();
+  }
+
+  /**
+   * One-time migration: older entries have no stored `hint`. Decrypt each such
+   * entry exactly once to compute and persist the masked preview, so `list()`
+   * never has to touch the ciphertext again.
+   */
+  private backfillHints(): void {
+    let changed = false;
+    for (const e of this.entries) {
+      if (e.hint === undefined) {
+        e.hint = safeHint(e.ciphertext);
+        changed = true;
+      }
+    }
+    if (changed) this.persist();
+  }
+
   /** Epoch ms of the last master-key rotation, or undefined if never rotated. */
   lastRotatedAt(): number | undefined {
     return this.keyRotatedAt;
@@ -155,7 +188,7 @@ export class VaultStore {
         id: e.id,
         name: e.name,
         description: e.description,
-        hint: safeHint(e.ciphertext),
+        hint: e.hint ?? "••••",
         createdAt: e.createdAt,
         updatedAt: e.updatedAt,
       }));
@@ -168,6 +201,7 @@ export class VaultStore {
       name: input.name.trim() || "secret",
       description: input.description?.trim() ?? "",
       ciphertext: encrypt(input.value),
+      hint: hint(input.value),
       createdAt: now,
       updatedAt: now,
     };
@@ -182,7 +216,10 @@ export class VaultStore {
     if (!e) return undefined;
     if (patch.name !== undefined) e.name = patch.name.trim() || e.name;
     if (patch.description !== undefined) e.description = patch.description.trim();
-    if (patch.value !== undefined && patch.value !== "") e.ciphertext = encrypt(patch.value);
+    if (patch.value !== undefined && patch.value !== "") {
+      e.ciphertext = encrypt(patch.value);
+      e.hint = hint(patch.value);
+    }
     e.updatedAt = Date.now();
     this.persist();
     audit("vault.update", { id });
@@ -297,6 +334,7 @@ export class VaultStore {
         name: (s.name ?? "secret").trim() || "secret",
         description: (s.description ?? "").trim(),
         ciphertext: encrypt(s.value),
+        hint: hint(s.value),
         createdAt: s.createdAt ?? now,
         updatedAt: now,
       });

@@ -180,15 +180,20 @@ export function MemoryView({ onAuthError }: { onAuthError: () => void }) {
             </div>
             <div>
               <Label>{t("memory_salience")}: {form.salience.toFixed(2)}</Label>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={form.salience}
-                onChange={(e) => setForm({ ...form, salience: Number(e.target.value) })}
-                className="mt-2 w-full accent-[var(--accent)]"
-              />
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs text-fg-faint">{t("memory_salience_low")}</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={form.salience}
+                  onChange={(e) => setForm({ ...form, salience: Number(e.target.value) })}
+                  className="flex-1 accent-[var(--accent)]"
+                />
+                <span className="text-xs text-fg-faint">{t("memory_salience_high")}</span>
+              </div>
+              <p className="mt-1 text-xs text-fg-faint">{t("memory_salience_hint")}</p>
             </div>
           </div>
           <div>

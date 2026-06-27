@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { useI18n } from "../lib/useI18n";
 
 export function Card({
   title,
@@ -296,6 +297,7 @@ export function Callout({
   children: ReactNode;
   dismissId?: string;
 }) {
+  const { t } = useI18n();
   const key = dismissId ? `cct.tip.${dismissId}` : undefined;
   const [hidden, setHidden] = useState(() => (key ? localStorage.getItem(key) === "1" : false));
   if (hidden) return null;
@@ -310,7 +312,11 @@ export function Callout({
               setHidden(true);
             }}
             className="text-xs text-fg-faint hover:text-fg-muted"
-            aria-label="Dismiss"
+            aria-label={
+              typeof title === "string"
+                ? t("callout_dismiss_named").replace("{title}", title)
+                : t("callout_dismiss")
+            }
           >
             ✕
           </button>

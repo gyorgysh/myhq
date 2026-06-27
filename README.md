@@ -1,6 +1,6 @@
 # MyHQ: Your Personal AI Headquarters
 
-**A self-hosted fleet of autonomous AI agents, deeply integrated with Telegram.** Talk to Atlas, your central coordinator, from your phone. He runs day-to-day operations, remembers everything, learns your workflows, and commands a team of specialized Leads. Each Lead owns a domain and can have its own Telegram bot.
+**Your personal AI that actually lives on your machine.** Talk to it over Telegram from anywhere. It can read your files, run your code, check your services, and report back, with your approval before anything risky. Atlas is your central coordinator: he runs day-to-day operations, remembers everything, learns your workflows, and commands a team of specialized Leads. Each Lead owns a domain and can have its own Telegram bot.
 
 ![MyHQ Panel dashboard](images/v01_dashboard.webp)
 
@@ -10,7 +10,7 @@ Open source. Built on real **Claude Code** agents running on your machine, so ev
 
 ## The Command Structure
 
-MyHQ runs a government-style hierarchy. Every agent knows their role and who they report to.
+MyHQ runs like a small ops team. Every agent knows their role and who they report to.
 
 ```
 You (President)
@@ -91,10 +91,10 @@ Also inside: **System** (live CPU per-core, memory, swap, disk I/O), **Status** 
 
 MyHQ isn't locked to Anthropic. Point any agent at any model: a hosted Claude tier, a local model served by **LM Studio** or **Ollama**, or any OpenAI-compatible proxy. Pick the model per role:
 
-- **Main agent.** Set the model and provider that drives Atlas right from Settings (or with `/model` in chat). Switch between Opus, Sonnet, Haiku, or a local model live; the change takes effect on the next message.
-- **Sub-agents.** Every Lead, Assistant, and worker can run on its own model and provider. Run cheap local models for routine background work and reserve a frontier model for the agents that need it.
-- **Embeddings.** Semantic memory recall runs on a local embedding model. Auto mode probes Ollama (`:11434`) then LM Studio (`:1234`) at startup and uses whichever is live, so memory search works offline with no API key. Pin a backend or turn it off from Settings.
-- **Voice.** Transcription runs on any OpenAI-compatible endpoint (OpenAI, Groq's free tier) or fully offline with Vosk.
+- **Per-Lead model routing.** Every Lead, Assistant, and worker runs on its own model and provider. Route routine background work to a cheap local model and reserve a frontier model only for the agents that need it — each agent in the fleet can be on a different backend at once.
+- **Offline semantic memory.** Memory recall ranks by embedding similarity computed locally. Auto mode probes Ollama (`:11434`) then LM Studio (`:1234`) at startup and uses whichever is live, so semantic search works fully offline with no API key. Pin a backend or turn it off from Settings.
+- **Offline voice.** Voice-message transcription runs fully offline with **Vosk**, or against any OpenAI-compatible endpoint (OpenAI, Groq's free tier) if you prefer.
+- **Main agent.** Set the model and provider that drives Atlas from Settings (or with `/model` in chat). Switch between Opus, Sonnet, Haiku, or a local model live; the change takes effect on the next message.
 
 Add a provider once (base URL + token, with LM Studio / Ollama prefill presets), and MyHQ lists its available models server-side so you can pick by name. Provider tokens are stored in the encrypted vault.
 
