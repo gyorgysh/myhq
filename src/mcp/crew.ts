@@ -153,7 +153,9 @@ export function createCrewMcp(opts: CrewMcpOptions) {
           const { id, promise } = registerAsk(opts.primaryChatId, config.APPROVAL_TIMEOUT_MS);
           log.info("crew_ask_president registered", { id, chatId: opts.primaryChatId });
           try {
-            await opts.notify(`❓ Agent question (id ${id}):\n${args.question}`);
+            await opts.notify(
+              `❓ I need your input:\n\n${args.question}\n\nJust reply with your answer (id ${id}).`,
+            );
           } catch (err) {
             log.warn("crew_ask_president notify failed", { error: err instanceof Error ? err.message : String(err) });
           }

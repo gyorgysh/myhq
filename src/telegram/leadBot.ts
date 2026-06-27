@@ -4,6 +4,8 @@ import { runTurn } from "../claude/runner.js";
 import { memoryMcp } from "../mcp/memory.js";
 import { tasksMcp } from "../mcp/tasks.js";
 import { skillsMcp } from "../mcp/skills.js";
+import { createCrewMcp } from "../mcp/crew.js";
+import { hasPendingAsk, resolveAsk } from "../core/crewAsk.js";
 import { SessionManager } from "../session/manager.js";
 import { isAuthorized } from "../auth.js";
 import { resolveSecret } from "../core/vault.js";
@@ -92,6 +94,13 @@ export class LeadBot {
 
     // Text messages → runTurn
     bot.on("text", async (ctx) => {
+      // If this Lead is blocked inside crew_ask_president waiting on the
+      // president, the reply must resolve that ask, not start a new turn —
+      // checked before the busy guard, since the asking turn holds busy=true.
+      if (hasPendingAsk(ctx.chat.id) && resolveAsk(ctx.chat.id, ctx.message.text)) {
+        log.info("crew_ask resolved by user (lead)", { leadId: lead.id, chatId: ctx.chat.id });
+        return;
+      }
       const s = sessions.get(ctx.chat.id);
       if (s.busy) {
         await ctx.reply("Already working on something. /stop to cancel.");
@@ -117,6 +126,17 @@ export class LeadBot {
             }
           : undefined;
 
+        // Crew tools so a Lead can ask its president (this chat) or report back.
+        const crewMcp = createCrewMcp({
+          notify: async (text) => {
+            await ctx.telegram
+              .sendMessage(ctx.chat.id, text)
+              .catch(() => {});
+          },
+          primaryChatId: ctx.chat.id,
+          fromAgentId: lead.id,
+        });
+
         await runTurn({
           prompt: ctx.message.text,
           cwd: s.cwd,
@@ -126,7 +146,7 @@ export class LeadBot {
           systemPromptAppend: append,
           permissionMode: s.autonomy === "full" ? "bypassPermissions" : "default",
           abortController: s.abort,
-          mcpServers: { memory: memoryMcp, tasks: tasksMcp, skills: skillsMcp },
+          mcpServers: { memory: memoryMcp, tasks: tasksMcp, skills: skillsMcp, crew: crewMcp },
           canUseTool: async (_name, input) => ({ behavior: "allow", updatedInput: input }),
           onText: (delta) => {
             reply += delta;
