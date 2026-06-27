@@ -159,7 +159,7 @@ export function LogsView({ onAuthError }: { onAuthError: () => void }) {
   const source = histLogs ?? liveLogs;
 
   return (
-    <div className="flex min-h-[82vh] flex-col gap-3">
+    <div className="flex h-[90vh] flex-col gap-3">
       {/* Top-level tabs */}
       <div className="flex items-center gap-1 rounded-lg border border-line bg-surface p-1 self-start">
         <TabButton active={tab === "activity"} onClick={() => setTab("activity")}>
@@ -562,7 +562,7 @@ function ActivityFeed({
                   </span>
                 </div>
                 {a.diffSnippet && isDiffOpen(a.key) && (
-                  <pre className="mt-1.5 ml-8 overflow-x-auto rounded-lg border border-line bg-surface p-3 text-[11px] leading-relaxed shadow-sm">
+                  <pre className="mt-1 ml-8 overflow-x-auto rounded border border-line bg-surface px-2 py-1 text-[11px] leading-snug">
                     {a.diffSnippet.split("\n").map((line, i) => (
                       <div
                         key={i}

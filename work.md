@@ -392,6 +392,9 @@ A council vote can be triggered from Telegram with `/council <proposal>` or from
 # Trigger a council vote (returns the full tally)
 curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/council \
   -d '{ "proposal": "Should we migrate to PostgreSQL?" }'
+
+# Delete a council session (two-step confirm in the panel Crew tab)
+curl -X DELETE -H "$AUTH" $BASE/api/council/<id>
 ```
 
 ### Local model backends and embeddings
