@@ -65,16 +65,20 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
   );
 
   // Resolve a delegation-log agent id to a display name. "president"/"atlas" are
-  // literals; a worker id resolves to its name; a since-deleted worker falls back
-  // to a short id so the historical record still reads sensibly.
-  const resolveAgent = (id: string | undefined): string => {
-    if (!id) return t("crew_unknown_agent");
+  // literals; a worker id resolves to its name; a name string is matched
+  // case-insensitively (crew_delegate stores the resolved name as toAgentId);
+  // a since-deleted worker falls back to the id itself so the record still reads.
+  const resolveAgent = (id: string | undefined, hint?: string): string => {
+    if (!id) return hint ?? t("crew_unknown_agent");
     const low = id.toLowerCase();
     if (low === "president" || low === "user") return t("crew_president");
     if (low === "atlas") return "Atlas";
-    const w = workers.find((x) => x.id === id);
-    if (w) return w.name;
-    return t("crew_removed_agent").replace("{id}", id.slice(0, 8));
+    const byId = workers.find((x) => x.id === id);
+    if (byId) return byId.name;
+    const byName = workers.find((x) => x.name.toLowerCase() === low);
+    if (byName) return byName.name;
+    // Fall back to the hint (leadName) when available, otherwise show the raw id.
+    return hint ?? id;
   };
 
   const enabledLeads = leads.filter((w) => w.enabled).length;
@@ -280,7 +284,7 @@ function DelegationCard({
   resolveAgent,
 }: {
   d: DelegationRecord;
-  resolveAgent: (id: string | undefined) => string;
+  resolveAgent: (id: string | undefined, hint?: string) => string;
 }) {
   const [open, setOpen] = useState(false);
   // Expandable when any field carries more than fits on a single truncated line.
@@ -300,10 +304,9 @@ function DelegationCard({
         <span className="tabular">{relTime(d.ts)}</span>
         {(d.fromAgentId || d.toAgentId) && (
           <span className="text-fg-faint">
-            {resolveAgent(d.fromAgentId)} → {resolveAgent(d.toAgentId ?? "president")}
+            {resolveAgent(d.fromAgentId)} → {resolveAgent(d.toAgentId ?? "president", d.leadName)}
           </span>
         )}
-        {d.leadName && <span className="font-medium text-fg">{d.leadName}</span>}
         {d.durationMs != null && (
           <span className="tabular text-fg-faint ml-auto">
             {(d.durationMs / 1000).toFixed(1)}s
