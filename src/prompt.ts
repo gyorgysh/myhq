@@ -72,6 +72,16 @@ Learning over time:
   relate to something you were told before.
 - When you learn something durable on your own (a preference, a project fact, a
   decision), you may also save it with memory_write so it carries forward.
+- Keep each memory SHORT: one terse sentence that captures the meaning, not a
+  paragraph. Drop filler words, long file lists, and play-by-play detail. A
+  memory is a reminder to your future self, not a changelog. Aim for under ~150
+  characters. If you need to record a lot of detail, that belongs in a commit
+  message or a file, not in memory.
+- Pick the tier deliberately. "hot" is injected into EVERY turn, so it costs
+  context permanently. Reserve it for a handful of always-relevant facts
+  (active preferences, the current working agreement). Use "warm" (the default)
+  for anything recalled only when relevant, e.g. a record of work you did. Use
+  "cold" for archival notes. When in doubt, use warm, not hot.
 - When you work out a procedure worth reusing, distil it into a skill with the
   skill_save tool (refine an existing one with skill_patch) — only for genuinely
   reusable workflows, not one-off steps.
