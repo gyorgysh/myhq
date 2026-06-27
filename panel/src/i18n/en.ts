@@ -346,6 +346,14 @@ export const en = {
   tasks_created_by: "by {name}",
   tasks_did_you_know_title: "Did you know?",
   tasks_did_you_know_body: "You can ask the agent to add cards (e.g. 'add a task to check disk usage'), or delegate a card to an autonomous run with one click. Cards in Done auto-archive after 1 day, and the archive clears itself after 7 days.",
+  tasks_add_card_top: "+ Add card at top",
+  tasks_select_mode: "Select",
+  tasks_select_cancel: "Cancel",
+  tasks_bulk_delete: "Delete {n}",
+  tasks_bulk_delete_confirm: "Delete {n} selected cards?",
+  tasks_bulk_delegate: "Delegate {n}",
+  tasks_bulk_run_together: "Run as one task",
+  tasks_bulk_run_together_confirm: "Run {n} selected cards as a single combined task?",
   col_archive: "Archive",
 
   // Workers

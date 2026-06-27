@@ -251,9 +251,9 @@ export function autoArchive(): void {
     (byCols[t.column] ??= []).push(t);
   }
   for (const [col, cards] of Object.entries(byCols)) {
-    if (cards.length <= 10) continue;
+    if (cards.length <= 20) continue;
     const sorted = [...cards].sort((a, b) => a.updatedAt - b.updatedAt);
-    const toArchive = sorted.slice(0, cards.length - 10);
+    const toArchive = sorted.slice(0, cards.length - 20);
     const ids = new Set(toArchive.map((t) => t.id));
     for (const t of tasks) {
       if (ids.has(t.id)) {

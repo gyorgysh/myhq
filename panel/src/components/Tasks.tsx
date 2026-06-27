@@ -47,6 +47,10 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Bulk selection state
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
   const load = () =>
     api
       .tasks()
@@ -134,6 +138,58 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
     await load();
   };
 
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelected(new Set());
+  };
+
+  const bulkDelete = async () => {
+    const n = selected.size;
+    if (!n) return;
+    if (!confirm(t("tasks_bulk_delete_confirm").replace("{n}", String(n)))) return;
+    await Promise.all([...selected].map((id) => api.deleteTask(id).catch(() => {})));
+    exitSelectMode();
+    void load();
+  };
+
+  const bulkDelegate = async () => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    await Promise.all(ids.map((id) => api.delegateTask(id).catch(() => {})));
+    exitSelectMode();
+    void load();
+  };
+
+  const bulkRunTogether = async () => {
+    const ids = [...selected];
+    const n = ids.length;
+    if (!n) return;
+    if (!confirm(t("tasks_bulk_run_together_confirm").replace("{n}", String(n)))) return;
+    // Build a combined task from the selected cards' titles + notes.
+    const selectedTasks = tasks.filter((tk) => selected.has(tk.id));
+    const combinedTitle = selectedTasks.map((tk) => tk.title).join("; ");
+    const combinedNotes = selectedTasks
+      .map((tk) => `### ${tk.title}\n${tk.notes}`.trim())
+      .join("\n\n");
+    const combined = await api.createTask({
+      title: combinedTitle,
+      notes: combinedNotes,
+      column: "backlog" as Column,
+    });
+    await api.delegateTask(combined.id).catch(() => {});
+    exitSelectMode();
+    void load();
+  };
+
   if (error) return <Empty>{t("tasks_failed_load").replace("{error}", error)}</Empty>;
 
   // Split columns: normal (non-archive) and the archive column.
@@ -159,6 +215,51 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
           <li>{t("info_tasks_archive")}</li>
         </ul>
       </InfoCard>
+
+      {/* Bulk action toolbar */}
+      {selectMode ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-accent/30 bg-accent/5 px-3 py-2">
+          <span className="text-xs text-fg-dim">
+            {selected.size} selected
+          </span>
+          <button
+            onClick={bulkDelete}
+            disabled={selected.size === 0}
+            className="rounded border border-red-500/40 px-2.5 py-1 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-40 transition-colors"
+          >
+            {t("tasks_bulk_delete").replace("{n}", String(selected.size))}
+          </button>
+          <button
+            onClick={bulkDelegate}
+            disabled={selected.size === 0}
+            className="rounded border border-line px-2.5 py-1 text-xs text-accent hover:bg-accent/10 disabled:opacity-40 transition-colors"
+          >
+            {t("tasks_bulk_delegate").replace("{n}", String(selected.size))}
+          </button>
+          <button
+            onClick={bulkRunTogether}
+            disabled={selected.size < 2}
+            className="rounded border border-line px-2.5 py-1 text-xs text-fg-dim hover:bg-surface-2 disabled:opacity-40 transition-colors"
+          >
+            {t("tasks_bulk_run_together")}
+          </button>
+          <button
+            onClick={exitSelectMode}
+            className="ml-auto rounded px-2.5 py-1 text-xs text-fg-faint hover:text-fg-dim transition-colors"
+          >
+            {t("tasks_select_cancel")}
+          </button>
+        </div>
+      ) : (
+        <div className="flex justify-end">
+          <button
+            onClick={() => setSelectMode(true)}
+            className="rounded px-2.5 py-1 text-xs text-fg-faint hover:text-fg-dim transition-colors"
+          >
+            {t("tasks_select_mode")}
+          </button>
+        </div>
+      )}
 
       {/* Main board */}
       <div className={`grid gap-4 ${gridCols}`}>
@@ -213,7 +314,10 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
                 </button>
               </div>
 
-              <div className="flex flex-1 flex-col gap-2">
+              {/* Add card at top */}
+              <AddCard column={col.id} onAdded={load} onAuthError={onAuthError} atTop />
+
+              <div className="flex flex-1 flex-col gap-2 mt-2">
                 {cards.map((tk) => (
                   <Card
                     key={tk.id}
@@ -223,6 +327,9 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
                     onDropBefore={() => drop(col.id, tk.id)}
                     onChange={load}
                     onAuthError={onAuthError}
+                    selectMode={selectMode}
+                    selected={selected.has(tk.id)}
+                    onToggleSelect={() => toggleSelect(tk.id)}
                   />
                 ))}
               </div>
@@ -320,6 +427,9 @@ function Card({
   onDropBefore,
   onChange,
   onAuthError,
+  selectMode,
+  selected,
+  onToggleSelect,
 }: {
   task: Task;
   live?: LiveTask;
@@ -327,6 +437,9 @@ function Card({
   onDropBefore: () => void;
   onChange: () => void;
   onAuthError: () => void;
+  selectMode: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
 }) {
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
@@ -367,7 +480,7 @@ function Card({
     onChange();
   };
 
-  if (editing) {
+  if (editing && !selectMode) {
     return (
       <div className="rounded-lg border border-accent/40 bg-input p-2">
         <Input value={title} onChange={(e) => setTitle(e.target.value)} className="mb-2" />
@@ -406,21 +519,33 @@ function Card({
 
   return (
     <div
-      draggable={!running}
+      draggable={!running && !selectMode}
       onDragStart={onDragStart}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.stopPropagation();
         onDropBefore();
       }}
-      className={`rounded-lg border bg-input p-2.5 ${ageBorder(task)}`}
+      className={`rounded-lg border bg-input p-2.5 ${ageBorder(task)} ${selected ? "ring-1 ring-accent/60" : ""}`}
     >
       <div className="flex items-start gap-2">
-        <span
-          className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${PRIO_DOT[task.priority]}`}
-          title={t("tasks_priority_label").replace("{priority}", task.priority)}
-        />
-        <div className="min-w-0 flex-1 cursor-pointer" onClick={() => setEditing(true)}>
+        {selectMode ? (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            className="mt-1 h-3.5 w-3.5 shrink-0 cursor-pointer accent-accent"
+          />
+        ) : (
+          <span
+            className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${PRIO_DOT[task.priority]}`}
+            title={t("tasks_priority_label").replace("{priority}", task.priority)}
+          />
+        )}
+        <div
+          className="min-w-0 flex-1 cursor-pointer"
+          onClick={() => (selectMode ? onToggleSelect() : setEditing(true))}
+        >
           <div className="text-sm text-fg">{task.title}</div>
           {task.notes && isDone && (
             <button
@@ -445,7 +570,7 @@ function Card({
         </div>
       </div>
 
-      {(running || dstatus) && (
+      {!selectMode && (running || dstatus) && (
         <div className="mt-2 rounded border border-line bg-surface p-2">
           <div className="flex items-center justify-between">
             <button
@@ -483,7 +608,7 @@ function Card({
         </div>
       )}
 
-      {!running && !isDone && (dstatus === "stopped" || dstatus === "error") && (
+      {!selectMode && !running && !isDone && (dstatus === "stopped" || dstatus === "error") && (
         <div className="mt-2 flex gap-1.5">
           {dstatus === "error" && (
             <button
@@ -508,7 +633,7 @@ function Card({
         </div>
       )}
 
-      {!running && !isDone && !dstatus && (
+      {!selectMode && !running && !isDone && !dstatus && (
         <button
           onClick={delegate}
           className="mt-2 w-full rounded border border-line py-1 text-xs text-fg-dim hover:bg-surface-2 hover:text-fg"
@@ -524,10 +649,12 @@ function AddCard({
   column,
   onAdded,
   onAuthError,
+  atTop,
 }: {
   column: Column;
   onAdded: () => void;
   onAuthError: () => void;
+  atTop?: boolean;
 }) {
   const { t } = useI18n();
   const [adding, setAdding] = useState(false);
@@ -549,14 +676,14 @@ function AddCard({
     return (
       <button
         onClick={() => setAdding(true)}
-        className="mt-2 rounded-lg px-2 py-1.5 text-left text-xs text-fg-faint hover:bg-surface-2 hover:text-fg-dim"
+        className={`${atTop ? "" : "mt-2"} rounded-lg px-2 py-1.5 text-left text-xs text-fg-faint hover:bg-surface-2 hover:text-fg-dim`}
       >
-        {t("tasks_add_card")}
+        {atTop ? t("tasks_add_card_top") : t("tasks_add_card")}
       </button>
     );
 
   return (
-    <div className="mt-2">
+    <div className={atTop ? "mb-1" : "mt-2"}>
       <Input
         autoFocus
         value={title}

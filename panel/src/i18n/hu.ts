@@ -348,6 +348,14 @@ export const hu: Translations = {
   tasks_created_by: "{name} által",
   tasks_did_you_know_title: "Tudtad?",
   tasks_did_you_know_body: "Kérheted az ügynököt, hogy adjon hozzá kártyát (pl. 'adj hozzá egy feladatot a lemezhasználat ellenőrzéséhez'), vagy delegálj egy kártyát autonóm futtatásra egy kattintással. A Kész oszlopból 1 nap után kerülnek az archívumba, ami 7 nap után automatikusan törlődik.",
+  tasks_add_card_top: "+ Kártya hozzáadása a tetejére",
+  tasks_select_mode: "Kijelölés",
+  tasks_select_cancel: "Mégse",
+  tasks_bulk_delete: "{n} törlése",
+  tasks_bulk_delete_confirm: "Törlöd a(z) {n} kijelölt kártyát?",
+  tasks_bulk_delegate: "{n} delegálása",
+  tasks_bulk_run_together: "Futtatás egy feladatként",
+  tasks_bulk_run_together_confirm: "Futtatod a(z) {n} kijelölt kártyát egyetlen kombinált feladatként?",
   col_archive: "Archívum",
 
   // Munkások
