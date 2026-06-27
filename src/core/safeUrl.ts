@@ -136,7 +136,10 @@ export async function safeFetch(raw: string, init?: RequestInit): Promise<Respon
   let pinned: { address: string; family: number } | undefined;
   for (const a of addrs) {
     if (isBlockedIp(a.address)) throw new BlockedUrlError(`blocked address: ${host} -> ${a.address}`);
-    if (!pinned) pinned = a;
+    // Prefer IPv4 over IPv6 when both are available: local model servers
+    // (Ollama, LM Studio) typically bind only to 127.0.0.1, and pinning to
+    // ::1 would cause ECONNREFUSED even though the service is running.
+    if (!pinned || (pinned.family === 6 && a.family === 4)) pinned = a;
   }
   if (!pinned) return fetch(url, init);
 
