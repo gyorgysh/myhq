@@ -99,6 +99,14 @@ export class WorkerManager {
   private active = new Map<string, { abort: AbortController; run: WorkerRun }>();
   private timer?: ReturnType<typeof setInterval>;
   private broadcast: Broadcaster = () => {};
+  private onChangeCb?: () => void;
+
+  /** Notify on any registry mutation (create/update/remove), so a watcher (the
+   *  Lead bot manager) can reconcile live without a restart. Wired in index.ts
+   *  to keep telegraf out of this module. */
+  onChange(cb: () => void): void {
+    this.onChangeCb = cb;
+  }
 
   /** Wire the panel hub and start the schedule tick. Idempotent. */
   start(broadcast: Broadcaster): void {
@@ -155,6 +163,7 @@ export class WorkerManager {
     this.workers.push(worker);
     this.persist();
     audit("worker.create", { id: worker.id, name: worker.name });
+    this.onChangeCb?.();
     return worker;
   }
 
@@ -180,6 +189,7 @@ export class WorkerManager {
     w.updatedAt = Date.now();
     this.persist();
     audit("worker.update", { id });
+    this.onChangeCb?.();
     return w;
   }
 
@@ -189,6 +199,7 @@ export class WorkerManager {
     this.workers = next;
     this.persist();
     audit("worker.delete", { id });
+    this.onChangeCb?.();
     return true;
   }
 

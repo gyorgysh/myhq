@@ -11,7 +11,7 @@ import { tunnelManager } from "./core/tunnelManager.js";
 import { workers } from "./core/workers.js";
 import { memory } from "./core/memory.js";
 import { embeddingsEnabled, autoProbeEmbeddings } from "./core/embeddings.js";
-import { LeadBot } from "./telegram/leadBot.js";
+import { leadBots } from "./telegram/leadBotManager.js";
 import { log } from "./logger.js";
 import { registerIdleGate, whenSettled } from "./core/activity.js";
 
@@ -39,9 +39,13 @@ async function main(): Promise<void> {
   // whole turn, not just the SDK stream.
   registerIdleGate(() => sessions.all().some((s) => s.busy));
 
-  // Start lead bots for any Lead worker with a telegramToken.
-  const leadBots: LeadBot[] = workers.leads().map((w) => new LeadBot(w));
-  await Promise.all(leadBots.map((lb) => lb.start()));
+  // Start lead bots for any enabled Lead worker with a telegramToken, and keep
+  // them in sync live: a Lead created/enabled/edited later comes online (or a
+  // disabled/deleted one goes offline) without a restart.
+  await leadBots.sync();
+  workers.onChange(() => {
+    void leadBots.sync();
+  });
 
   // Optional embedded management panel (off unless PANEL_ENABLED=true).
   const stopPanel = await startPanel();
@@ -107,7 +111,7 @@ async function main(): Promise<void> {
     sessions.flush();
     void stopPanel?.();
     bot.stop(signal);
-    for (const lb of leadBots) lb.stop(signal);
+    leadBots.stopAll(signal);
 
     // Give in-flight turns up to 30 s to finish naturally before we abort them.
     // whenSettled() waits for the *whole* turn, not just the SDK stream: the

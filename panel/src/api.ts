@@ -169,6 +169,8 @@ export interface Worker {
   persona?: string;
   autonomy?: Autonomy;
   language?: string;
+  /** True when this Lead has a live Telegram bot listening (role+token+enabled). */
+  listening?: boolean;
 }
 
 export interface Skill {

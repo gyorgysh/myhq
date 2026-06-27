@@ -96,7 +96,8 @@ export function CrewView({ onAuthError }: { onAuthError: () => void }) {
               .join(" · ")}
             tone="blue"
             depth={2}
-            extra={lead.telegramToken ? "has own bot" : undefined}
+            extra={lead.listening ? t("crew_listening") : undefined}
+            warn={lead.enabled && !lead.telegramToken ? t("crew_no_token") : undefined}
           />
           {assistants
             .filter((a) => a.parentId === lead.id)
@@ -279,6 +280,7 @@ function CrewNode({
   tone,
   depth,
   extra,
+  warn,
 }: {
   icon: string;
   title: string;
@@ -286,6 +288,7 @@ function CrewNode({
   tone: Tone;
   depth: number;
   extra?: string;
+  warn?: string;
 }) {
   const indent = depth * 24;
   const toneClass: Record<Tone, string> = {
@@ -306,7 +309,8 @@ function CrewNode({
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-medium text-fg">{title}</span>
-          {extra && <span className="text-xs text-fg-faint">{extra}</span>}
+          {extra && <Badge tone="green">{extra}</Badge>}
+          {warn && <Badge tone="amber">⚠ {warn}</Badge>}
         </div>
         <div className="text-xs text-fg-dim">{subtitle}</div>
       </div>

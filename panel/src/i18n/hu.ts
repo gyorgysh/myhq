@@ -103,6 +103,8 @@ export const hu: Translations = {
   crew_president_sub: "Elnök · irányt ad, végső döntés",
   crew_atlas_sub: "Főkoordinátor",
   crew_leads: "Vezetők",
+  crew_listening: "Figyel",
+  crew_no_token: "Nincs token, Telegramon nem elérhető",
   crew_specialists: "Specialisták",
   crew_delegations: "Delegálási napló",
   crew_delegations_desc: "Legutóbbi ügynökök közötti feladatok és jelentések.",

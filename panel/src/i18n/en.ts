@@ -101,6 +101,8 @@ export const en = {
   crew_president_sub: "President · sets direction, final say",
   crew_atlas_sub: "Chief coordinator",
   crew_leads: "Leads",
+  crew_listening: "Listening",
+  crew_no_token: "No token, not reachable on Telegram",
   crew_specialists: "Specialists",
   crew_delegations: "Delegation log",
   crew_delegations_desc: "Recent inter-agent tasks and reports.",

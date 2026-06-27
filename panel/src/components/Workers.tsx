@@ -234,6 +234,10 @@ function WorkerRow({
         {worker.model && <Badge>{shortModel(worker.model)}</Badge>}
         {providerName && <Badge tone="blue">⌂ {providerName}</Badge>}
         {!worker.enabled && <Badge tone="amber">{t("disabled")}</Badge>}
+        {worker.listening && <Badge tone="green">{t("crew_listening")}</Badge>}
+        {worker.role === "lead" && worker.enabled && !worker.telegramToken && (
+          <Badge tone="amber">⚠ {t("crew_no_token")}</Badge>
+        )}
         {running && <Badge tone="green">{t("running")}</Badge>}
         <span className="ml-auto flex gap-1.5">
           {running ? (
