@@ -271,7 +271,13 @@ function describeTool(tool: string, t: TFn): { icon: string; verb: string } {
       return { icon: "🌐", verb: t("logs_act_browsing") };
     case "Task":
     case "crew_delegate":
-      return { icon: "🤝", verb: t("logs_act_task") };
+      return { icon: "🤝", verb: t("logs_act_delegating") };
+    case "crew_ask_president":
+      return { icon: "❓", verb: t("logs_act_asking") };
+    case "crew_report":
+      return { icon: "📣", verb: t("logs_act_reporting") };
+    case "crew_suggest":
+      return { icon: "💡", verb: t("logs_act_suggesting") };
     case "TodoWrite":
       return { icon: "✅", verb: t("logs_act_todo") };
     case "send_file":
