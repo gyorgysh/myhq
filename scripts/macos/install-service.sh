@@ -16,6 +16,14 @@ LOG="$LOG_DIR/${LABEL}.log"
 
 NODE_BIN="$(command -v node || true)"
 [ -n "$NODE_BIN" ] || { echo "✖ node not found in PATH." >&2; exit 1; }
+NODE_DIR="$(dirname "$NODE_BIN")"
+
+# launchd starts the agent with a minimal PATH. The bot itself is launched by
+# absolute node path, but the Claude Code SDK spawns the `claude` CLI as a
+# `node` child process and relies on `node` (and `claude`) being on PATH — so
+# without this the bot starts but every turn fails with "spawn node ENOENT".
+# Prepend node's own dir, then the usual Homebrew/local bin dirs.
+SERVICE_PATH="${NODE_DIR}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 [ -f "$APP_DIR/.env" ] || {
   echo "✖ $APP_DIR/.env is missing. Run 'cp .env.example .env' and fill it in first." >&2
@@ -39,6 +47,10 @@ cat > "$PLIST" <<EOF
     <string>${APP_DIR}/dist/index.js</string>
   </array>
   <key>WorkingDirectory</key><string>${APP_DIR}</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>${SERVICE_PATH}</string>
+  </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>StandardOutPath</key><string>${LOG}</string>
