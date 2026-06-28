@@ -30,6 +30,7 @@ import { TerminalView } from "./components/Terminal.tsx";
 import { RemoteAccessView } from "./components/RemoteAccess.tsx";
 import { FeedbackView } from "./components/Feedback.tsx";
 import { ToastViewport } from "./components/ui.tsx";
+import { ConnectionBanner } from "./components/ConnectionBanner.tsx";
 
 /** Tab from the URL path (e.g. /status), falling back to health. */
 function tabFromPath(): Tab | "settings" {
@@ -204,6 +205,8 @@ export function App() {
             </span>
           </span>
         </header>
+
+        <ConnectionBanner />
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-6 sm:px-6 md:pb-6">
           {tab === "setup" && <SetupView onAuthError={onAuthError} onGoto={select} />}

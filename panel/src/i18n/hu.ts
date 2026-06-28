@@ -70,6 +70,14 @@ export const hu: Translations = {
   connecting: "Csatlakozás…",
   reconnecting: "Kapcsolat megszakadt — újracsatlakozás…",
   sign_out: "Kijelentkezés",
+  // Globális backend kapcsolat sáv
+  conn_reconnecting: "Újracsatlakozás a backendhez…",
+  conn_reconnecting_hint: "A kapcsolat megszakadt. Automatikus újrapróbálkozás.",
+  conn_offline: "A backend nem elérhető",
+  conn_offline_hint: "A szerver nem érhető el. Lehet, hogy újraindul vagy leállt.",
+  conn_reconnected: "Újracsatlakozva",
+  conn_retry_in: "Újrapróbálkozás {s} mp múlva",
+  conn_retry_now: "Újrapróbálás most",
   // Általános feliratok
   model: "Modell",
   provider: "Szolgáltató",

@@ -68,6 +68,14 @@ export const en = {
   connecting: "Connecting…",
   reconnecting: "Connection lost — retrying…",
   sign_out: "Sign out",
+  // Global backend connection banner
+  conn_reconnecting: "Reconnecting to the backend…",
+  conn_reconnecting_hint: "The connection dropped. Retrying automatically.",
+  conn_offline: "Backend offline",
+  conn_offline_hint: "Can't reach the server. It may be restarting or down.",
+  conn_reconnected: "Reconnected",
+  conn_retry_in: "Retrying in {s}s",
+  conn_retry_now: "Retry now",
   // Common labels
   model: "Model",
   provider: "Provider",
