@@ -17,6 +17,9 @@ const ATLAS = "atlas";
 export function ChatView({ onAuthError }: { onAuthError: () => void }) {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [selected, setSelected] = useState<string>(ATLAS);
+  const [fabOpen, setFabOpen] = useState(false);
+  // Bumping this remounts the active pane to start a fresh conversation.
+  const [chatNonce, setChatNonce] = useState(0);
 
   useEffect(() => {
     const load = () =>
@@ -37,19 +40,158 @@ export function ChatView({ onAuthError }: { onAuthError: () => void }) {
     }
   }, [workers, selected]);
 
+  // Start a fresh conversation with whoever is selected, then remount the pane.
+  const newChat = async () => {
+    try {
+      if (selected === ATLAS) await api.clearChat();
+      else await api.clearAgentChat(selected);
+    } catch { /* the pane will resync on remount */ }
+    setChatNonce((n) => n + 1);
+  };
+
   return (
-    <div className="flex h-[calc(100dvh-var(--nav-h-mobile))] flex-col pb-safe md:h-[calc(100dvh-var(--nav-h-desktop))] md:pb-0">
+    <div className="relative flex h-[calc(100dvh-var(--nav-h-mobile))] flex-col pb-safe md:h-[calc(100dvh-var(--nav-h-desktop))] md:pb-0">
       <AgentSwitcher
         workers={workers}
         selected={selected}
         onSelect={setSelected}
       />
       {selected === ATLAS ? (
-        <AtlasChat onAuthError={onAuthError} />
+        <AtlasChat key={`atlas-${chatNonce}`} onAuthError={onAuthError} />
       ) : (
-        <AgentChat key={selected} agentId={selected} onAuthError={onAuthError} />
+        <AgentChat key={`${selected}-${chatNonce}`} agentId={selected} onAuthError={onAuthError} />
       )}
+
+      {/* Mobile-only quick switcher / new-chat FAB (hidden on md+ where the rail is roomy). */}
+      <ChatFab
+        open={fabOpen}
+        onToggle={() => setFabOpen((o) => !o)}
+        onClose={() => setFabOpen(false)}
+        workers={workers}
+        selected={selected}
+        onSelect={(id) => { setSelected(id); setFabOpen(false); }}
+        onNewChat={() => { void newChat(); setFabOpen(false); }}
+      />
     </div>
+  );
+}
+
+/**
+ * Floating action button for small screens: opens a compact sheet to start a
+ * new chat or jump to a recent agent (Atlas + the most recently active crew).
+ */
+function ChatFab({
+  open,
+  onToggle,
+  onClose,
+  workers,
+  selected,
+  onSelect,
+  onNewChat,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  workers: Worker[];
+  selected: string;
+  onSelect: (id: string) => void;
+  onNewChat: () => void;
+}) {
+  const { t } = useI18n();
+  // A short "recent" list: Atlas plus up to 4 crew (leads first), so the sheet
+  // stays glanceable. The full roster lives in the always-present switcher rail.
+  const leads = workers.filter((w) => w.role === "lead");
+  const rest = workers.filter((w) => w.role !== "lead");
+  const recent = [...leads, ...rest].slice(0, 4);
+
+  return (
+    <div className="md:hidden">
+      {open && (
+        <button
+          aria-label={t("chat_fab_close")}
+          onClick={onClose}
+          className="fixed inset-0 z-40 bg-black/30"
+        />
+      )}
+      <div
+        className={`fixed bottom-[calc(var(--nav-h-mobile)+0.5rem)] right-4 z-50 origin-bottom-right transition-all duration-200 ${
+          open ? "scale-100 opacity-100" : "pointer-events-none scale-90 opacity-0"
+        }`}
+      >
+        <div className="mb-2 w-56 overflow-hidden rounded-2xl border border-line bg-surface shadow-xl">
+          <button
+            onClick={onNewChat}
+            className="flex w-full items-center gap-2 border-b border-line px-3 py-3 text-left text-sm font-medium text-accent hover:bg-accent/10"
+          >
+            <span className="text-base leading-none">＋</span>
+            {t("chat_fab_new")}
+          </button>
+          <div className="max-h-64 overflow-y-auto py-1">
+            <SheetAgent
+              label={t("chat_agent_atlas")}
+              sub={t("chat_agent_atlas_sub")}
+              active={selected === ATLAS}
+              onClick={() => onSelect(ATLAS)}
+              tone="atlas"
+            />
+            {recent.map((w) => (
+              <SheetAgent
+                key={w.id}
+                label={w.name}
+                sub={w.role === "lead" ? t("workers_lead") : shortModel(w.model) || t("workers_role_specialist")}
+                active={selected === w.id}
+                onClick={() => onSelect(w.id)}
+                tone={w.role === "lead" ? "lead" : "agent"}
+                listening={w.listening}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+      <button
+        aria-label={t("chat_fab_new")}
+        onClick={onToggle}
+        className={`fixed bottom-[calc(var(--nav-h-mobile)+0.5rem)] right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-accent-fg shadow-lg transition-transform active:scale-95 ${
+          open ? "rotate-45" : ""
+        }`}
+      >
+        <span className="text-2xl leading-none">＋</span>
+      </button>
+    </div>
+  );
+}
+
+function SheetAgent({
+  label,
+  sub,
+  active,
+  onClick,
+  tone,
+  listening,
+}: {
+  label: string;
+  sub?: string;
+  active: boolean;
+  onClick: () => void;
+  tone: "atlas" | "lead" | "agent";
+  listening?: boolean;
+}) {
+  const dot = tone === "atlas" ? "bg-accent" : tone === "lead" ? "bg-blue-400" : "bg-fg-faint";
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors ${
+        active ? "bg-accent/10" : "hover:bg-surface-2"
+      }`}
+    >
+      <span className={`relative h-2 w-2 shrink-0 rounded-full ${dot}`}>
+        {listening && <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-ok" />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={`block truncate text-sm ${active ? "font-medium text-accent" : "text-fg"}`}>{label}</span>
+        {sub && <span className="block truncate text-[10px] text-fg-faint">{sub}</span>}
+      </span>
+    </button>
   );
 }
 

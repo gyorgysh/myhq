@@ -55,6 +55,13 @@ export const hu: Translations = {
   nav_updates_hint: "Új verziók keresése és telepítése",
   nav_feedback_hint: "Hibajelentés vagy javaslat küldése a projektnek",
   nav_settings_hint: "Modell, személyiség, nyelv és egyéb opciók",
+  // Mobil "Több" alsó lap
+  nav_more_search: "Keresés a menüpontok között…",
+  nav_more_no_results: "Nincs találat a keresésre.",
+  nav_more_new: "Új",
+  // Chat mobil FAB
+  chat_fab_new: "Új beszélgetés",
+  chat_fab_close: "Bezárás",
   // Témák
   theme_light: "Világos",
   theme_dark: "Sötét",
@@ -858,6 +865,7 @@ export const hu: Translations = {
   health_process_up_desc: "Mennyi ideje fut a {brand} az utolsó újraindítás vagy frissítés óta",
   health_live: "élő",
   health_reconnecting: "újracsatlakozás",
+  health_status: "Állapot",
   health_load: "terhelés",
   health_none: "nincs",
   health_check_now: "Ellenőrzés most",

@@ -117,8 +117,12 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Mobile: show one column at a time (tabs), since the grid stacks below md.
-  const [mobileCol, setMobileCol] = useState<string | null>(null);
+  // Mobile: columns scroll horizontally with snap; the chips jump to a column.
+  // Refs let a chip tap smooth-scroll its column into view.
+  const colRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const scrollToCol = (id: string) => {
+    colRefs.current[id]?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+  };
 
   const load = () =>
     api
@@ -342,10 +346,6 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
     normalCols.length <= 3 ? "md:grid-cols-3" :
     normalCols.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3 lg:grid-cols-5";
 
-  // Default the mobile column to the first one once columns are known.
-  const activeMobileCol =
-    mobileCol && normalCols.some((c) => c.id === mobileCol) ? mobileCol : normalCols[0]?.id ?? null;
-
   return (
     <div className="space-y-4">
       {/* Did You Know callout */}
@@ -479,19 +479,16 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
         </div>
       )}
 
-      {/* Mobile column tabs — only one column shows at a time below md. */}
+      {/* Mobile column jump-chips — tap to scroll-snap a column into view. */}
       {normalCols.length > 1 && (
         <div className="-mx-1 flex gap-1 overflow-x-auto pb-1 md:hidden">
           {normalCols.map((col, idx) => {
             const count = inColumn(col.id).length;
-            const isActive = col.id === activeMobileCol;
             return (
               <button
                 key={col.id}
-                onClick={() => setMobileCol(col.id)}
-                className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
-                  isActive ? "bg-accent/15 text-accent" : `${colTone(col, idx)} hover:bg-surface-2`
-                }`}
+                onClick={() => scrollToCol(col.id)}
+                className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${colTone(col, idx)} hover:bg-surface-2`}
               >
                 {columnName(col, t)}
                 <span className="ml-1.5 opacity-60">{count}</span>
@@ -523,18 +520,18 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
         </div>
       )}
 
-      {/* Main board */}
+      {/* Main board — mobile: horizontal snap-scroll, desktop: grid. */}
       {loaded && (
-      <div className={`grid gap-4 ${gridCols}`}>
+      <div className={`-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2 md:mx-0 md:grid md:overflow-visible md:px-0 md:pb-0 ${gridCols}`}>
         {normalCols.map((col, idx) => {
           const cards = inColumn(col.id);
           const limit = wip[col.id];
           const over = limit != null && cards.length > limit;
           const tone = colTone(col, idx);
-          const hiddenOnMobile = col.id !== activeMobileCol;
           return (
             <div
               key={col.id}
+              ref={(el) => { colRefs.current[col.id] = el; }}
               onDragOver={(e) => {
                 e.preventDefault();
                 if (dragId && dragOverCol !== col.id) setDragOverCol(col.id);
@@ -554,9 +551,9 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
                 setDropBeforeId(null);
                 void drop(col.id, null);
               }}
-              className={`flex-col rounded-xl border bg-surface p-3 transition-colors md:flex ${
-                hiddenOnMobile ? "hidden" : "flex"
-              } ${dragId && dragOverCol === col.id ? "border-dashed border-accent ring-2 ring-accent/40" : "border-line"}`}
+              className={`flex w-[85vw] shrink-0 snap-start flex-col rounded-xl border bg-surface p-3 transition-colors sm:w-[70vw] md:w-auto md:shrink ${
+                dragId && dragOverCol === col.id ? "border-dashed border-accent ring-2 ring-accent/40" : "border-line"
+              }`}
             >
               <div className="mb-3 flex items-center justify-between gap-1">
                 {renamingCol === col.id ? (

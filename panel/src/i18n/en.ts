@@ -53,6 +53,13 @@ export const en = {
   nav_updates_hint: "Check for and install new versions",
   nav_feedback_hint: "Report a bug or send a suggestion to the project",
   nav_settings_hint: "Model, persona, language, and other options",
+  // Mobile "More" bottom-sheet drawer
+  nav_more_search: "Search destinations…",
+  nav_more_no_results: "Nothing matches your search.",
+  nav_more_new: "New",
+  // Chat mobile FAB
+  chat_fab_new: "New chat",
+  chat_fab_close: "Close",
   // Themes
   theme_light: "Light",
   theme_dark: "Dark",
@@ -854,6 +861,7 @@ export const en = {
   health_process_up_desc: "How long {brand} has been running since its last restart or update",
   health_live: "live",
   health_reconnecting: "reconnecting",
+  health_status: "Status",
   health_load: "load",
   health_none: "none",
   health_check_now: "Check now",

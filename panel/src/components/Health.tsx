@@ -97,6 +97,9 @@ export function HealthView({ onGoto }: { onGoto?: (t: Tab) => void }) {
         </span>
       </div>
 
+      {/* At-a-glance status strip: compact health pills, scrolls on mobile. */}
+      <StatusStrip health={health} memPct={memPct} swapPct={swapPct} status={status} />
+
       {/* Claude usage: real OAuth data */}
       <ClaudeUsageCard />
 
@@ -136,6 +139,119 @@ export function HealthView({ onGoto }: { onGoto?: (t: Tab) => void }) {
       </div>
 
       <MaintenanceCard />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// At-a-glance status strip
+// ---------------------------------------------------------------------------
+
+/** Severity tone for a 0..100 utilisation pill. */
+function pillTone(pct: number): { dot: string; bar: string; val: string } {
+  if (pct >= 90) return { dot: "bg-critical", bar: "bg-critical", val: "text-critical-fg" };
+  if (pct >= 75) return { dot: "bg-warn", bar: "bg-warn", val: "text-warn-fg" };
+  return { dot: "bg-ok", bar: "bg-accent", val: "text-fg" };
+}
+
+function StatusPill({
+  label, value, pct, sub, dotClass, barClass, valClass,
+}: {
+  label: string;
+  value: string;
+  pct?: number;
+  sub?: string;
+  dotClass?: string;
+  barClass?: string;
+  valClass?: string;
+}) {
+  return (
+    <div className="flex w-40 shrink-0 snap-start flex-col gap-1.5 rounded-xl border border-line bg-surface px-3 py-2.5 md:w-auto md:flex-1">
+      <div className="flex items-center gap-1.5">
+        {dotClass && <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${dotClass}`} />}
+        <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-fg-faint">{label}</span>
+      </div>
+      <span className={`text-lg font-bold leading-none tabular ${valClass ?? "text-fg"}`}>{value}</span>
+      {pct != null && (
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+          <div className={`h-full rounded-full transition-all duration-500 ${barClass ?? "bg-accent"}`} style={{ width: `${Math.min(100, pct)}%` }} />
+        </div>
+      )}
+      {sub && <span className="truncate text-[11px] text-fg-faint">{sub}</span>}
+    </div>
+  );
+}
+
+function StatusStrip({
+  health, memPct, swapPct, status,
+}: {
+  health: Health;
+  memPct: number;
+  swapPct: number;
+  status: ConnStatus;
+}) {
+  const { t } = useI18n();
+  const cpu = pillTone(health.cpu.load);
+  const mem = pillTone(memPct);
+  const swap = pillTone(swapPct);
+  const ioTotal = (health.io.readBytesSec ?? 0) + (health.io.writeBytesSec ?? 0);
+  // Worst disk drives the disk pill colour.
+  const worstDisk = health.disks.reduce((m, d) => Math.max(m, d.usePct), 0);
+  const disk = pillTone(worstDisk);
+
+  return (
+    <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0">
+      <StatusPill
+        label={t("health_status")}
+        value={status === "live" ? t("health_live") : t("health_reconnecting")}
+        dotClass={status === "live" ? "bg-ok" : "bg-warn"}
+        valClass={status === "live" ? "text-ok-fg" : "text-warn-fg"}
+      />
+      <StatusPill
+        label={t("health_cpu")}
+        value={`${health.cpu.load.toFixed(0)}%`}
+        pct={health.cpu.load}
+        dotClass={cpu.dot}
+        barClass={cpu.bar}
+        valClass={cpu.val}
+        sub={health.cpu.tempC ? `${health.cpu.tempC}°C` : undefined}
+      />
+      <StatusPill
+        label={t("health_memory")}
+        value={`${memPct.toFixed(0)}%`}
+        pct={memPct}
+        dotClass={mem.dot}
+        barClass={mem.bar}
+        valClass={mem.val}
+        sub={`${bytes(health.mem.used)} / ${bytes(health.mem.total)}`}
+      />
+      {health.swap.total > 0 && (
+        <StatusPill
+          label={t("health_swap")}
+          value={`${swapPct.toFixed(0)}%`}
+          pct={swapPct}
+          dotClass={swap.dot}
+          barClass={swap.bar}
+          valClass={swap.val}
+          sub={`${bytes(health.swap.used)} / ${bytes(health.swap.total)}`}
+        />
+      )}
+      <StatusPill
+        label={t("health_disk_io")}
+        value={bytesPerSec(ioTotal || undefined)}
+        sub={`r ${bytesPerSec(health.io.readBytesSec)} · w ${bytesPerSec(health.io.writeBytesSec)}`}
+      />
+      {health.disks.length > 0 && (
+        <StatusPill
+          label={t("health_filesystems")}
+          value={`${worstDisk.toFixed(0)}%`}
+          pct={worstDisk}
+          dotClass={disk.dot}
+          barClass={disk.bar}
+          valClass={disk.val}
+          sub={health.disks[0]?.mount}
+        />
+      )}
     </div>
   );
 }

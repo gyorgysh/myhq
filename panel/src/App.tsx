@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, checkToken, clearToken, getToken, setToken } from "./api.ts";
 import { useTheme } from "./lib/useTheme.ts";
 import { Login } from "./components/Login.tsx";
-import { Sidebar, BottomNav, tabLabel, isTab, type Tab } from "./components/Sidebar.tsx";
+import { Sidebar, BottomNav, MoreDrawer, tabLabel, isTab, type Tab } from "./components/Sidebar.tsx";
 import { useI18n } from "./lib/useI18n.ts";
 import type { TranslationKey } from "./i18n/en.ts";
 import { ChatView } from "./components/Chat.tsx";
@@ -178,30 +178,17 @@ export function App() {
         />
       </aside>
 
-      {/* Mobile drawer */}
-      {drawer && (
-        <div className="fixed inset-0 z-40 md:hidden">
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setDrawer(false)}
-          />
-          <aside className="absolute left-0 top-0 h-full w-64 border-r border-line shadow-xl">
-            <Sidebar
-              tab={tab}
-              onSelect={select}
-              theme={theme}
-              onToggleTheme={onToggleTheme}
-              onSignOut={onAuthError}
-              chatEnabled={chatEnabled}
-              updateAvailable={updateAvailable}
-              updateCount={updateCount}
-              inboxPending={inboxPending}
-              expanded
-              brandName={brandName}
-            />
-          </aside>
-        </div>
-      )}
+      {/* Mobile "More" drawer — a grouped, searchable bottom sheet over the full
+          set of destinations (replaces the old flat left-drawer). */}
+      <MoreDrawer
+        open={drawer}
+        tab={tab}
+        onSelect={select}
+        onClose={() => setDrawer(false)}
+        chatEnabled={chatEnabled}
+        inboxPending={inboxPending}
+        updateAvailable={updateAvailable}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile top bar */}

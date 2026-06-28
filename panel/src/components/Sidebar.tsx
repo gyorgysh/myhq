@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { Theme } from "../lib/useTheme.ts";
 import { useI18n } from "../lib/useI18n.ts";
 import type { TranslationKey } from "../i18n/en.ts";
@@ -64,20 +65,27 @@ export const NAV: Group[] = [
       { id: "prompt", labelKey: "nav_prompt", icon: "❝", hintKey: "nav_prompt_hint" },
     ],
   },
-  {
-    headingKey: "nav_others",
-    items: [
-      { id: "status", labelKey: "nav_status", icon: "◉", hintKey: "nav_status_hint" },
-      { id: "updates", labelKey: "nav_updates", icon: "⤓", hintKey: "nav_updates_hint" },
-      { id: "backup", labelKey: "nav_backup", icon: "⛁", hintKey: "nav_backup_hint" },
-      { id: "remote", labelKey: "nav_remote", icon: "⇆", hintKey: "nav_remote_hint" },
-      { id: "feedback", labelKey: "nav_feedback", icon: "✍", hintKey: "nav_feedback_hint" },
-    ],
-  },
 ];
 
+/**
+ * Utility / meta items visited rarely (Status, Updates, Backup, Remote Access,
+ * Feedback). They live in the sidebar footer rather than the main nav flow, so
+ * the high-traffic groups above stay short. Status/update badges still surface
+ * here via the footer link icons.
+ */
+export const FOOTER_NAV: Item[] = [
+  { id: "status", labelKey: "nav_status", icon: "◉", hintKey: "nav_status_hint" },
+  { id: "updates", labelKey: "nav_updates", icon: "⤓", hintKey: "nav_updates_hint" },
+  { id: "backup", labelKey: "nav_backup", icon: "⛁", hintKey: "nav_backup_hint" },
+  { id: "remote", labelKey: "nav_remote", icon: "⇆", hintKey: "nav_remote_hint" },
+  { id: "feedback", labelKey: "nav_feedback", icon: "✍", hintKey: "nav_feedback_hint" },
+];
+
+/** Every group + the footer items, for search/lookup that must span all tabs. */
+export const ALL_GROUPS: Group[] = [...NAV, { headingKey: "nav_others", items: FOOTER_NAV }];
+
 export function tabLabel(tab: Tab): string {
-  for (const g of NAV) for (const i of g.items) if (i.id === tab) return i.labelKey;
+  for (const g of ALL_GROUPS) for (const i of g.items) if (i.id === tab) return i.labelKey;
   return "";
 }
 
@@ -139,8 +147,187 @@ export function BottomNav({
   );
 }
 
+/**
+ * Mobile "More" bottom-sheet drawer. Replaces the flat drawer with a grouped,
+ * searchable surface: a filter input at the top instantly narrows the 20-odd
+ * destinations (the core discoverability problem on a phone), and the results
+ * keep the same section headings as the sidebar. Springs up from the bottom;
+ * tapping the backdrop or swiping down dismisses it.
+ */
+export function MoreDrawer({
+  open,
+  tab,
+  onSelect,
+  onClose,
+  chatEnabled = true,
+  inboxPending = 0,
+  updateAvailable = false,
+}: {
+  open: boolean;
+  tab: Tab | "settings";
+  onSelect: (t: Tab | "settings") => void;
+  onClose: () => void;
+  chatEnabled?: boolean;
+  inboxPending?: number;
+  updateAvailable?: boolean;
+}) {
+  const { t } = useI18n();
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Track touch for a swipe-down-to-dismiss gesture on the sheet handle.
+  const touchStartY = useRef<number | null>(null);
+
+  // Reset the filter each time the sheet opens and focus the search field.
+  useEffect(() => {
+    if (open) {
+      setQuery("");
+      // Defer focus until the sheet has sprung into place.
+      const id = window.setTimeout(() => inputRef.current?.focus(), 250);
+      return () => window.clearTimeout(id);
+    }
+  }, [open]);
+
+  // Close on Escape for keyboard users / external bluetooth keyboards.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  const q = query.trim().toLowerCase();
+  const groups = ALL_GROUPS.map((g) => ({
+    headingKey: g.headingKey,
+    items: g.items.filter((it) => {
+      if (it.id === "chat" && !chatEnabled) return false;
+      if (!q) return true;
+      const label = t(it.labelKey).toLowerCase();
+      const hint = it.hintKey ? t(it.hintKey).toLowerCase() : "";
+      return label.includes(q) || hint.includes(q);
+    }),
+  })).filter((g) => g.items.length > 0);
+
+  // The standalone Settings destination is searchable too.
+  const settingsMatches =
+    !q || t("nav_settings").toLowerCase().includes(q) || t("nav_settings_hint").toLowerCase().includes(q);
+
+  return (
+    <div
+      className={`fixed inset-0 z-40 md:hidden ${open ? "" : "pointer-events-none"}`}
+      aria-hidden={!open}
+    >
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${
+          open ? "opacity-100" : "opacity-0"
+        }`}
+      />
+      {/* Sheet */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("nav_more")}
+        onTouchStart={(e) => (touchStartY.current = e.touches[0].clientY)}
+        onTouchEnd={(e) => {
+          if (touchStartY.current == null) return;
+          if (e.changedTouches[0].clientY - touchStartY.current > 60) onClose();
+          touchStartY.current = null;
+        }}
+        className={`absolute inset-x-0 bottom-0 max-h-[80dvh] overflow-y-auto rounded-t-2xl border-t border-line bg-surface pb-safe shadow-2xl transition-transform duration-300 ${
+          open ? "translate-y-0 ease-[cubic-bezier(0.22,1,0.36,1)]" : "translate-y-full"
+        }`}
+      >
+        {/* Grab handle */}
+        <div className="sticky top-0 z-10 bg-surface pt-2">
+          <div className="mx-auto h-1 w-10 rounded-full bg-line" aria-hidden />
+          <div className="px-4 pb-2 pt-3">
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("nav_more_search")}
+              aria-label={t("nav_more_search")}
+              className="w-full rounded-lg border border-line bg-input px-3 py-2.5 text-sm text-fg outline-none focus:border-accent"
+            />
+          </div>
+        </div>
+
+        <div className="px-2 pb-4">
+          {groups.length === 0 && !settingsMatches ? (
+            <p className="px-2 py-8 text-center text-sm text-fg-faint">{t("nav_more_no_results")}</p>
+          ) : (
+            <>
+              {groups.map((g) => (
+                <div key={g.headingKey} className="mb-3">
+                  <div className="mono mb-1 px-2 text-[10px] font-medium uppercase tracking-widest text-fg-faint">
+                    {t(g.headingKey)}
+                  </div>
+                  {g.items.map((it) => {
+                    const active = it.id === tab;
+                    const inboxBadge = it.id === "inbox" && inboxPending > 0;
+                    const updateBadge = it.id === "updates" && updateAvailable;
+                    return (
+                      <button
+                        key={it.id}
+                        onClick={() => {
+                          onSelect(it.id);
+                          onClose();
+                        }}
+                        aria-current={active ? "page" : undefined}
+                        className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm transition-colors ${
+                          active
+                            ? "bg-accent/10 text-accent"
+                            : "text-fg-dim hover:bg-surface-2 active:bg-surface-2"
+                        }`}
+                      >
+                        <span className="w-4 shrink-0 text-center">{it.icon}</span>
+                        <span className="min-w-0 flex-1 text-left">
+                          <span className="block truncate">{t(it.labelKey)}</span>
+                          {it.hintKey && (
+                            <span className="block truncate text-xs text-fg-faint">{t(it.hintKey)}</span>
+                          )}
+                        </span>
+                        {(inboxBadge || updateBadge) && (
+                          <span className="shrink-0 rounded-full bg-accent/15 px-1.5 text-[10px] font-semibold text-accent">
+                            {inboxBadge ? (inboxPending > 99 ? "99+" : inboxPending) : t("nav_more_new")}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+              {settingsMatches && (
+                <button
+                  onClick={() => {
+                    onSelect("settings");
+                    onClose();
+                  }}
+                  aria-current={tab === "settings" ? "page" : undefined}
+                  className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm transition-colors ${
+                    tab === "settings"
+                      ? "bg-accent/10 text-accent"
+                      : "text-fg-dim hover:bg-surface-2 active:bg-surface-2"
+                  }`}
+                >
+                  <span className="w-4 shrink-0 text-center">⚙</span>
+                  <span className="min-w-0 flex-1 text-left">
+                    <span className="block truncate">{t("nav_settings")}</span>
+                    <span className="block truncate text-xs text-fg-faint">{t("nav_settings_hint")}</span>
+                  </span>
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** All known tab ids, for URL <-> tab mapping. */
-export const TAB_IDS: Tab[] = NAV.flatMap((g) => g.items.map((i) => i.id));
+export const TAB_IDS: Tab[] = ALL_GROUPS.flatMap((g) => g.items.map((i) => i.id));
 
 export function isTab(value: string): value is Tab {
   return (TAB_IDS as string[]).includes(value);
@@ -241,6 +428,42 @@ export function Sidebar({
 
       {/* Footer controls */}
       <div className="border-t border-line p-2 space-y-0.5">
+        {/* Utility / meta links (Status, Updates, Backup, Remote, Feedback):
+            demoted out of the main nav into a compact icon row so the
+            high-traffic groups above stay short. Labels appear inline only when
+            the sidebar is expanded; on the icon rail they're icon-only links. */}
+        <div
+          className={`mb-1 flex gap-0.5 pb-1 ${expanded ? "flex-wrap" : "flex-col lg:flex-row lg:flex-wrap"}`}
+        >
+          {FOOTER_NAV.map((it) => {
+            const active = it.id === tab;
+            const updateBadge = it.id === "updates" && updateAvailable;
+            return (
+              <button
+                key={it.id}
+                onClick={() => onSelect(it.id)}
+                title={it.hintKey ? `${t(it.labelKey)} — ${t(it.hintKey)}` : t(it.labelKey)}
+                aria-label={it.hintKey ? `${t(it.labelKey)}: ${t(it.hintKey)}` : t(it.labelKey)}
+                aria-current={active ? "page" : undefined}
+                className={`group flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors ${
+                  expanded ? "w-full" : "lg:w-auto"
+                } ${
+                  active
+                    ? "bg-accent/10 text-accent"
+                    : "text-fg-faint hover:bg-surface-2 hover:text-fg-dim"
+                }`}
+              >
+                <span className="relative w-4 shrink-0 text-center text-sm">
+                  {it.icon}
+                  {updateBadge && (
+                    <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-accent ring-2 ring-surface" />
+                  )}
+                </span>
+                <span className={labelCls}>{t(it.labelKey)}</span>
+              </button>
+            );
+          })}
+        </div>
         <button
           onClick={onToggleTheme}
           title={t("theme_toggle")}
