@@ -3,10 +3,12 @@ import { usePoll } from "../lib/usePoll.ts";
 import { Badge, Card, Empty } from "./ui.tsx";
 import { SessionsArt } from "./onboarding.tsx";
 import { ms, usd } from "../lib/format.ts";
+import { useSubscription } from "../lib/useSubscription.ts";
 import { useI18n } from "../lib/useI18n.ts";
 
 export function SessionsView({ onAuthError }: { onAuthError: () => void }) {
   const { t } = useI18n();
+  const hideCost = useSubscription();
   const { data, error } = usePoll(api.sessions, 5000, onAuthError);
 
   if (error) return <Empty>{t("sessions_failed_load").replace("{error}", error)}</Empty>;
@@ -40,7 +42,7 @@ export function SessionsView({ onAuthError }: { onAuthError: () => void }) {
               <Badge tone="zinc">{t("sessions_no_context")}</Badge>
             )}
             <span className="ml-auto tabular text-xs text-fg-dim">
-              {s.usage.total.turns} {t("sessions_turns")} · {usd(s.usage.total.costUsd)} · {ms(s.usage.total.durationMs)}
+              {s.usage.total.turns} {t("sessions_turns")}{hideCost ? "" : ` · ${usd(s.usage.total.costUsd)}`} · {ms(s.usage.total.durationMs)}
             </span>
           </div>
           <div className="mt-2 truncate font-mono text-xs text-fg-dim" title={s.cwd}>
@@ -58,7 +60,7 @@ export function SessionsView({ onAuthError }: { onAuthError: () => void }) {
           )}
           {s.usage.today.turns > 0 && (
             <div className="tabular mt-2 text-xs text-fg-faint">
-              {t("sessions_today")}: {s.usage.today.turns} {t("sessions_turns")} · {usd(s.usage.today.costUsd)}
+              {t("sessions_today")}: {s.usage.today.turns} {t("sessions_turns")}{hideCost ? "" : ` · ${usd(s.usage.today.costUsd)}`}
             </div>
           )}
         </Card>

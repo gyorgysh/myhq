@@ -13,6 +13,7 @@ import {
 import { usePoll } from "../lib/usePoll.ts";
 import { Card, Button, Empty, Metric } from "./ui.tsx";
 import { ms, usd, tokens, relTime, friendlyProbeError } from "../lib/format.ts";
+import { useSubscription } from "../lib/useSubscription.ts";
 import { useI18n } from "../lib/useI18n.ts";
 import type { TranslationKey } from "../i18n/en.ts";
 
@@ -30,6 +31,7 @@ function limitLabel(label: string, t: (k: TranslationKey) => string): string {
 export function UsageView({ onAuthError }: { onAuthError: () => void }) {
   const { t } = useI18n();
   const { data: myhq, error } = usePoll(api.usage, 15000, onAuthError);
+  const configSubscription = useSubscription();
   const [plan, setPlan] = useState<PlanView | null>(null);
   const [probe, setProbe] = useState<ProbeResult | null>(null);
   const [claude, setClaude] = useState<ClaudeUsageSnapshot | null>(null);
@@ -69,7 +71,10 @@ export function UsageView({ onAuthError }: { onAuthError: () => void }) {
     probe?.account?.subscriptionType ? capFirst(probe.account.subscriptionType) :
     null;
 
-  const isSubscription = Boolean(probe?.account?.hasPro || probe?.account?.hasMax);
+  // Subscription = no extra per-token cost, so hide every USD figure. Trust the
+  // OAuth probe when it detects Pro/Max, and fall back to the configured plan
+  // (subscriptionPlan from /api/me) so it still works when the probe is stale.
+  const isSubscription = Boolean(probe?.account?.hasPro || probe?.account?.hasMax) || configSubscription;
   const hasApiCap = !isSubscription && plan && plan.monthlyCap > 0;
 
   return (
@@ -97,7 +102,7 @@ export function UsageView({ onAuthError }: { onAuthError: () => void }) {
       {myhq && <TokenUsageCard myhq={myhq} />}
 
       {/* Per-agent breakdown — always rendered so empty state is visible. */}
-      <AgentBreakdownCard agents={agentEntries ?? []} dailyByRole={agentDaily} />
+      <AgentBreakdownCard agents={agentEntries ?? []} dailyByRole={agentDaily} hideCost={isSubscription} />
 
       {/* MyHQ session metrics — cost is meaningless on a subscription plan, so omit it */}
       {myhq && (
@@ -429,9 +434,11 @@ function sumAgents(agents: AgentUsageEntry[]) {
 function AgentBreakdownCard({
   agents,
   dailyByRole,
+  hideCost,
 }: {
   agents: AgentUsageEntry[];
   dailyByRole: AgentDailyByRole;
+  hideCost: boolean;
 }) {
   const { t } = useI18n();
 
@@ -448,7 +455,10 @@ function AgentBreakdownCard({
     agents: agents.filter((a) => a.role === cat.role),
   })).filter((g) => g.agents.length > 0);
 
-  const COL = "grid grid-cols-[1fr_80px_80px_72px_52px] gap-2 px-1";
+  // Drop the cost column entirely on subscription plans (no marginal API cost).
+  const COL = hideCost
+    ? "grid grid-cols-[1fr_80px_80px_52px] gap-2 px-1"
+    : "grid grid-cols-[1fr_80px_80px_72px_52px] gap-2 px-1";
 
   return (
     <Card title={t("usage_agents_title")}>
@@ -484,9 +494,11 @@ function AgentBreakdownCard({
                 </span>
                 <span className="text-right font-mono text-fg-dim">{tokens(sub.inputTokens)}</span>
                 <span className="text-right font-mono text-fg-dim">{tokens(sub.outputTokens)}</span>
-                <span className="text-right font-mono text-fg-dim">
-                  {sub.costUsd > 0 ? usd(sub.costUsd) : "—"}
-                </span>
+                {!hideCost && (
+                  <span className="text-right font-mono text-fg-dim">
+                    {sub.costUsd > 0 ? usd(sub.costUsd) : "—"}
+                  </span>
+                )}
                 <span className="text-right font-mono text-fg-dim">{sub.turns}</span>
               </div>
 
@@ -496,7 +508,7 @@ function AgentBreakdownCard({
                   <span className="pl-3">{t("usage_agents_col_agent")}</span>
                   <span className="text-right">{t("usage_agents_col_input")}</span>
                   <span className="text-right">{t("usage_agents_col_output")}</span>
-                  <span className="text-right">{t("usage_agents_col_cost")}</span>
+                  {!hideCost && <span className="text-right">{t("usage_agents_col_cost")}</span>}
                   <span className="text-right">{t("usage_agents_col_turns")}</span>
                 </div>
               )}
@@ -510,9 +522,11 @@ function AgentBreakdownCard({
                   <span className="truncate pl-3 text-fg-dim">{a.name}</span>
                   <span className="text-right font-mono text-xs text-fg-faint">{tokens(a.total.inputTokens)}</span>
                   <span className="text-right font-mono text-xs text-fg-faint">{tokens(a.total.outputTokens)}</span>
-                  <span className="text-right font-mono text-xs text-fg-faint">
-                    {a.total.costUsd > 0 ? usd(a.total.costUsd) : "—"}
-                  </span>
+                  {!hideCost && (
+                    <span className="text-right font-mono text-xs text-fg-faint">
+                      {a.total.costUsd > 0 ? usd(a.total.costUsd) : "—"}
+                    </span>
+                  )}
                   <span className="text-right font-mono text-xs text-fg-faint">{a.total.turns}</span>
                 </div>
               ))}

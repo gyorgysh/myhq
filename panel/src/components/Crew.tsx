@@ -4,6 +4,7 @@ import { Card, Empty, Badge, InfoCard, Skeleton } from "./ui.tsx";
 import { CrewArt } from "./onboarding.tsx";
 import { relTime } from "../lib/format.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { useSubscription } from "../lib/useSubscription.ts";
 
 interface CouncilVote {
   leadId: string;
@@ -357,6 +358,7 @@ function DelegationCard({
   resolveAgent: (id: string | undefined, hint?: string) => string;
 }) {
   const { t } = useI18n();
+  const hideCost = useSubscription();
   const [open, setOpen] = useState(false);
   // Expandable when any field carries more than fits on a single truncated line.
   const expandable =
@@ -400,13 +402,13 @@ function DelegationCard({
             {(d.durationMs / 1000).toFixed(1)}s
           </span>
         )}
-        {d.costUsd != null && (
+        {!hideCost && d.costUsd != null && (
           <span className="tabular text-fg-faint">${d.costUsd.toFixed(4)}</span>
         )}
         {expandable && (
           <span
             aria-hidden
-            className={`shrink-0 text-fg-dim ${d.durationMs == null && d.costUsd == null ? "ml-auto" : ""}`}
+            className={`shrink-0 text-fg-dim ${d.durationMs == null && (hideCost || d.costUsd == null) ? "ml-auto" : ""}`}
           >
             {open ? "▴" : "▾"}
           </span>

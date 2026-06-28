@@ -660,7 +660,7 @@ export interface TunnelPassword {
 
 export const api = {
   me: () =>
-    get<{ ok: boolean; chatEnabled: boolean; version: string; updateAvailable: boolean; updateCount: number; atlasName: string; brandName: string; defaultWorkdir: string; allowedUserCount: number; panelHost: string; panelPort: number; tunnelEnabled: boolean; terminalEnabled: boolean }>("/api/me"),
+    get<{ ok: boolean; chatEnabled: boolean; version: string; updateAvailable: boolean; updateCount: number; atlasName: string; brandName: string; subscriptionPlan: boolean; defaultWorkdir: string; allowedUserCount: number; panelHost: string; panelPort: number; tunnelEnabled: boolean; terminalEnabled: boolean }>("/api/me"),
   sendFeedback: (kind: "bug" | "suggestion" | "other", message: string, email?: string) =>
     req<{ ok: boolean }>("POST", "/api/feedback", { kind, message, email }),
   health: () => get<Health>("/api/health"),

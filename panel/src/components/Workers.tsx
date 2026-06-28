@@ -7,6 +7,7 @@ import { Badge, Button, Card, Empty, InfoCard, Input, Label, Select, TextArea } 
 import { RunLog } from "./RunLog.tsx";
 import { CrewArt } from "./onboarding.tsx";
 import { ms, relTime, usd } from "../lib/format.ts";
+import { useSubscription } from "../lib/useSubscription.ts";
 import { AGENT_LANGUAGES } from "../i18n/languages.ts";
 
 const emptyForm = {
@@ -374,6 +375,7 @@ function WorkerRow({
  */
 function RunRow({ run: r }: { run: WorkerRun }) {
   const { t } = useI18n();
+  const hideCost = useSubscription();
   const [open, setOpen] = useState(false);
   return (
     <div className="text-xs">
@@ -383,7 +385,7 @@ function RunRow({ run: r }: { run: WorkerRun }) {
         </Badge>
         <span className="tabular text-fg-dim">{relTime(r.startedAt)}</span>
         {r.durationMs != null && <span className="tabular text-fg-faint">{ms(r.durationMs)}</span>}
-        {r.costUsd != null && <span className="tabular text-fg-faint">{usd(r.costUsd)}</span>}
+        {!hideCost && r.costUsd != null && <span className="tabular text-fg-faint">{usd(r.costUsd)}</span>}
         {r.error && <span className="truncate text-red-400">{r.error}</span>}
         <span className="ml-auto shrink-0 text-accent">
           {open ? t("workers_hide_full_log") : t("workers_view_full_log")}

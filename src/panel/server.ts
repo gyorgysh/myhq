@@ -426,6 +426,11 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
     updateCount: getUpdateStatus().behindBy,
     atlasName: config.ATLAS_NAME,
     brandName: config.BRAND_NAME,
+    // Claude Pro/Max are flat-rate subscriptions where Claude Code usage costs
+    // nothing extra, so the SDK's per-token cost estimate is misleading. The
+    // panel hides every USD figure when this is true (the OAuth probe can also
+    // detect it, but this config-set value works even when the probe is stale).
+    subscriptionPlan: getPlanSettings().plan !== "api",
     defaultLanguage: config.DEFAULT_LANGUAGE,
     defaultWorkdir: config.WORKDIR,
     languages: AGENT_LANGUAGES,

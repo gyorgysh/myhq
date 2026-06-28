@@ -38,9 +38,12 @@ export function uptime(sec: number): string {
 
 export function ms(n: number): string {
   if (n < 1000) return `${Math.round(n)}ms`;
-  const s = n / 1000;
-  if (s < 60) return `${s.toFixed(1)}s`;
-  return `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`;
+  const s = Math.floor(n / 1000);
+  if (s < 60) return `${(n / 1000).toFixed(1)}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+  // Roll long durations up into hours so a lifetime total reads "9h 10m",
+  // not "550m 25s".
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
 }
 
 export function usd(n: number): string {
