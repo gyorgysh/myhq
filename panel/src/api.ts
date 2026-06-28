@@ -421,7 +421,7 @@ export interface Connector {
 }
 
 export type HeartbeatMode = "off" | "alert" | "active";
-export type HeartbeatSignalKey = "cpu" | "mem" | "swap" | "disk" | "stale" | "spend";
+export type HeartbeatSignalKey = "cpu" | "mem" | "swap" | "disk" | "stale" | "spend" | "calendar";
 export interface HeartbeatConfig {
   mode: HeartbeatMode;
   intervalMs: number;
@@ -432,6 +432,11 @@ export interface HeartbeatConfig {
   staleCardHours: number;
   spendAlertEnabled: boolean;
   mutedSignals: HeartbeatSignalKey[];
+  calendarEnabled: boolean;
+  calendarWindowMin: number;
+  calendarLeadMin: number;
+  quietStart?: string;
+  quietEnd?: string;
 }
 export interface HeartbeatView {
   config: HeartbeatConfig;

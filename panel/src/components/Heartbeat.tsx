@@ -121,6 +121,7 @@ export function HeartbeatView_({ onAuthError }: { onAuthError: () => void }) {
                 { key: "swap" as HeartbeatSignalKey, label: "hb_swap" as TranslationKey },
                 { key: "disk" as HeartbeatSignalKey, label: "hb_disk" as TranslationKey },
                 { key: "stale" as HeartbeatSignalKey, label: "hb_stale_card" as TranslationKey },
+                { key: "calendar" as HeartbeatSignalKey, label: "hb_calendar" as TranslationKey },
               ] satisfies Array<{ key: HeartbeatSignalKey; label: TranslationKey }>
             ).map(({ key, label }) => {
               const muted = (c.mutedSignals ?? []).includes(key);
@@ -151,6 +152,49 @@ export function HeartbeatView_({ onAuthError }: { onAuthError: () => void }) {
         <p className="mt-3 text-xs text-fg-faint">
           {t("hb_last_checked").replace("{time}", view.lastTickAt ? relTime(view.lastTickAt) : t("hb_never"))}
         </p>
+      </Card>
+
+      <Card title={t("hb_calendar_title")}>
+        <p className="mb-3 text-sm text-fg-dim">{t("hb_calendar_desc")}</p>
+        <label className="flex cursor-pointer items-start gap-2.5">
+          <input
+            type="checkbox"
+            checked={c.calendarEnabled}
+            onChange={(e) => save({ calendarEnabled: e.target.checked })}
+            className="mt-0.5 h-4 w-4 accent-accent"
+          />
+          <span>
+            <span className="text-sm font-medium text-fg">{t("hb_calendar_enable")}</span>
+            <span className="block text-xs text-fg-faint">{t("hb_calendar_enable_hint")}</span>
+          </span>
+        </label>
+        {c.calendarEnabled && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div>
+              <Label>{t("hb_calendar_window")}</Label>
+              <NumberField value={c.calendarWindowMin} onCommit={(n) => save({ calendarWindowMin: n })} />
+            </div>
+            <div>
+              <Label>{t("hb_calendar_lead")}</Label>
+              <NumberField value={c.calendarLeadMin} onCommit={(n) => save({ calendarLeadMin: n })} />
+            </div>
+          </div>
+        )}
+
+        <div className="mt-5 border-t border-line pt-4">
+          <Label>{t("hb_quiet_hours")}</Label>
+          <p className="mb-2 text-xs text-fg-faint">{t("hb_quiet_hours_hint")}</p>
+          <div className="grid max-w-sm gap-3 sm:grid-cols-2">
+            <div>
+              <Label>{t("hb_quiet_start")}</Label>
+              <TimeField value={c.quietStart ?? ""} onCommit={(v) => save({ quietStart: v })} />
+            </div>
+            <div>
+              <Label>{t("hb_quiet_end")}</Label>
+              <TimeField value={c.quietEnd ?? ""} onCommit={(v) => save({ quietEnd: v })} />
+            </div>
+          </div>
+        </div>
       </Card>
 
       <Card title={t("hb_recent_alerts")}>
@@ -185,6 +229,17 @@ function NumberField({ value, onCommit }: { value: number; onCommit: (n: number)
         const n = Number(v);
         if (!Number.isNaN(n) && n !== value) onCommit(n);
       }}
+      className="h-[38px] w-full rounded-lg border border-line bg-input px-3 text-sm text-fg outline-none focus:border-accent"
+    />
+  );
+}
+
+function TimeField({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+  return (
+    <input
+      type="time"
+      value={value}
+      onChange={(e) => onCommit(e.target.value)}
       className="h-[38px] w-full rounded-lg border border-line bg-input px-3 text-sm text-fg outline-none focus:border-accent"
     />
   );

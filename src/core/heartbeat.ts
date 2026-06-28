@@ -11,6 +11,7 @@ import {
 } from "./planSettings.js";
 import { usageSummary } from "./snapshot.js";
 import { loadProbeResult, runProbe } from "./usageProbe.js";
+import { collectCalendarSignals, anyCalendarConnected } from "./calendarSignals.js";
 
 const FILE = "heartbeat.json";
 const TICK_MS = 60_000; // wake-up granularity; actual cadence is config.intervalMs
@@ -19,7 +20,7 @@ const ALERT_HISTORY = 50;
 
 export type HeartbeatMode = "off" | "alert" | "active";
 
-export type HeartbeatSignalKey = "cpu" | "mem" | "swap" | "disk" | "stale" | "spend";
+export type HeartbeatSignalKey = "cpu" | "mem" | "swap" | "disk" | "stale" | "spend" | "calendar";
 
 export interface HeartbeatConfig {
   mode: HeartbeatMode;
@@ -44,6 +45,23 @@ export interface HeartbeatConfig {
    * without disabling the whole heartbeat.
    */
   mutedSignals: HeartbeatSignalKey[];
+  /**
+   * Calendar-aware mode: when on (and a Google/Apple Calendar connector is
+   * live), the heartbeat surfaces imminent events and scheduling conflicts.
+   * Opt-in; off by default.
+   */
+  calendarEnabled: boolean;
+  /** How far ahead (minutes) to scan the calendar for events. */
+  calendarWindowMin: number;
+  /** Flag events starting within this many minutes as "upcoming". */
+  calendarLeadMin: number;
+  /**
+   * Quiet hours: HH:MM..HH:MM (server-local) during which no heartbeat
+   * messages are sent (signals are still skipped). Empty = always on. A window
+   * whose end is <= start wraps past midnight (e.g. 22:00..07:00).
+   */
+  quietStart?: string;
+  quietEnd?: string;
 }
 
 interface Signal {
@@ -63,6 +81,30 @@ function fmtCountdown(ms: number): string {
   }
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
+}
+
+/** True for a valid "HH:MM" 24h clock string. */
+function isHHMM(s: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
+}
+
+/** Minutes since midnight for an "HH:MM" string (NaN if malformed). */
+function hhmmToMin(s: string): number {
+  const [h, m] = s.split(":").map(Number);
+  return h * 60 + m;
+}
+
+/**
+ * Whether `now` falls inside a [start, end) quiet window (server-local). Both
+ * bounds must be set; a window whose end <= start wraps past midnight.
+ */
+function inQuietHours(start: string | undefined, end: string | undefined, now = new Date()): boolean {
+  if (!start || !end || !isHHMM(start) || !isHHMM(end)) return false;
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const s = hhmmToMin(start);
+  const e = hhmmToMin(end);
+  if (s === e) return false;
+  return s < e ? cur >= s && cur < e : cur >= s || cur < e;
 }
 
 interface AlertRecord {
@@ -88,6 +130,9 @@ const DEFAULTS: HeartbeatConfig = {
   staleCardHours: 48,
   spendAlertEnabled: false,
   mutedSignals: [],
+  calendarEnabled: false,
+  calendarWindowMin: 720, // 12h lookahead
+  calendarLeadMin: 30,
 };
 
 export interface HeartbeatDeps {
@@ -145,11 +190,19 @@ export class HeartbeatManager {
     }
     if (typeof patch.spendAlertEnabled === "boolean") c.spendAlertEnabled = patch.spendAlertEnabled;
     if (Array.isArray(patch.mutedSignals)) {
-      const valid: HeartbeatSignalKey[] = ["cpu", "mem", "swap", "disk", "stale", "spend"];
+      const valid: HeartbeatSignalKey[] = ["cpu", "mem", "swap", "disk", "stale", "spend", "calendar"];
       c.mutedSignals = patch.mutedSignals.filter((s): s is HeartbeatSignalKey => valid.includes(s as HeartbeatSignalKey));
     }
-    // Ensure the field exists on legacy configs loaded from disk.
+    if (typeof patch.calendarEnabled === "boolean") c.calendarEnabled = patch.calendarEnabled;
+    if (typeof patch.calendarWindowMin === "number") c.calendarWindowMin = Math.max(15, patch.calendarWindowMin);
+    if (typeof patch.calendarLeadMin === "number") c.calendarLeadMin = Math.max(1, patch.calendarLeadMin);
+    if (patch.quietStart !== undefined) c.quietStart = isHHMM(patch.quietStart) ? patch.quietStart : undefined;
+    if (patch.quietEnd !== undefined) c.quietEnd = isHHMM(patch.quietEnd) ? patch.quietEnd : undefined;
+    // Ensure fields exist on legacy configs loaded from disk.
     if (!Array.isArray(c.mutedSignals)) c.mutedSignals = [];
+    if (typeof c.calendarEnabled !== "boolean") c.calendarEnabled = false;
+    if (typeof c.calendarWindowMin !== "number") c.calendarWindowMin = 720;
+    if (typeof c.calendarLeadMin !== "number") c.calendarLeadMin = 30;
     this.persist();
     audit("heartbeat.config", { mode: c.mode, intervalMs: c.intervalMs });
     return c;
@@ -158,10 +211,12 @@ export class HeartbeatManager {
   private async maybeTick(): Promise<void> {
     // Always run the cost report check regardless of heartbeat mode.
     void this.maybeSendCostReport();
-    const { mode, intervalMs } = this.state.config;
-    if (mode === "off" || this.running) return;
+    const c = this.state.config;
+    if (c.mode === "off" || this.running) return;
+    // Quiet hours: skip scheduled evaluation entirely so nothing is messaged.
+    if (inQuietHours(c.quietStart, c.quietEnd)) return;
     const now = Date.now();
-    if (this.state.lastTickAt && now - this.state.lastTickAt < intervalMs) return;
+    if (this.state.lastTickAt && now - this.state.lastTickAt < c.intervalMs) return;
     await this.runOnce("scheduled");
   }
 
@@ -241,6 +296,18 @@ export class HeartbeatManager {
         }
       } catch {
         // Non-fatal if plan check fails.
+      }
+    }
+    // Calendar-aware signals: imminent events + scheduling conflicts.
+    if (c.calendarEnabled && !muted.has("calendar") && anyCalendarConnected()) {
+      try {
+        const calSignals = await collectCalendarSignals({
+          windowMs: c.calendarWindowMin * 60_000,
+          leadMs: c.calendarLeadMin * 60_000,
+        });
+        for (const s of calSignals) out.push({ key: s.key, text: s.text });
+      } catch (err) {
+        log.warn("Heartbeat calendar probe failed", { error: err instanceof Error ? err.message : String(err) });
       }
     }
     return out;
