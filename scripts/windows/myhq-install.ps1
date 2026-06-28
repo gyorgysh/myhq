@@ -21,6 +21,8 @@
 .NOTES
     Non-interactive overrides (set before running):
       MYHQ_REPO         Git repository URL
+      MYHQ_INSTALLER_URL  URL to re-download this script from when self-elevating
+                          a piped (irm | iex) run (default: gyorgy.sh copy)
       MYHQ_DIR          Install directory (default: $HOME\myhq)
       MYHQ_BRANCH       Branch to clone (default: main)
       MYHQ_TOKEN        Telegram bot token
@@ -36,6 +38,13 @@
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+# npm/npx/claude ship PowerShell shims (npm.ps1, …). On a machine whose execution
+# policy is Restricted (the Windows default) those shims fail to load with
+# "running scripts is disabled on this system". Relax the policy for THIS process
+# only — no admin needed, not persisted to the machine/user — so the child .ps1
+# shims this installer calls can run.
+try { Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force } catch {}
 
 # ---------------------------------------------------------------------------
 # Config / defaults
@@ -87,12 +96,38 @@ function Confirm {
 # ---------------------------------------------------------------------------
 function Ensure-Admin {
     $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        Warn "Not running as Administrator. Attempting to re-launch elevated…"
-        $args = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
-        Start-Process powershell -Verb RunAs -ArgumentList $args
-        exit 0
+    if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { return }
+
+    Warn "Not running as Administrator. Re-launching elevated…"
+
+    # Find a runnable copy of this script. When invoked via `irm … | iex` there
+    # is no file on disk ($PSCommandPath is empty), so download a copy to TEMP
+    # and elevate that — otherwise the elevated PowerShell would have nothing to
+    # run and the install would silently do nothing.
+    $scriptPath = $PSCommandPath
+    if (-not $scriptPath) {
+        $url = if ($env:MYHQ_INSTALLER_URL) { $env:MYHQ_INSTALLER_URL } else { "https://gyorgy.sh/myhq-install.ps1" }
+        $scriptPath = Join-Path $env:TEMP "myhq-install.ps1"
+        Say "Downloading installer for elevation → $scriptPath"
+        try {
+            Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $scriptPath
+        } catch {
+            Die "Couldn't download the installer to elevate ($url). Save it to a .ps1 file and run it from an elevated PowerShell."
+        }
     }
+
+    # Forward MYHQ_* overrides across the elevation boundary — UAC starts a fresh
+    # process that does NOT inherit env vars set in the current session, so without
+    # this an elevated run would lose MYHQ_YES and any other non-interactive flags.
+    $fwd = Get-ChildItem Env: | Where-Object { $_.Name -like "MYHQ_*" } |
+        ForEach-Object { "`$env:$($_.Name)='$($_.Value -replace "'","''")'" }
+    $inner   = (@($fwd) + "& '$($scriptPath -replace "'","''")'") -join "; "
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($inner))
+
+    Start-Process powershell -Verb RunAs -ArgumentList @(
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded
+    )
+    exit 0
 }
 
 # ---------------------------------------------------------------------------
@@ -140,7 +175,7 @@ function Ensure-Git {
 function Ensure-ClaudeCLI {
     if (Get-Command claude -ErrorAction SilentlyContinue) { Ok "Claude Code CLI found."; return }
     Say "Installing Claude Code CLI (npm install -g @anthropic-ai/claude-code)…"
-    npm install -g "@anthropic-ai/claude-code" 2>&1 | Out-Null
+    npm.cmd install -g "@anthropic-ai/claude-code" 2>&1 | Out-Null
     if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
         Warn "Claude CLI not in PATH yet — you may need to re-open your terminal after setup."
     } else {
@@ -204,9 +239,9 @@ function Build-App {
     Say "Installing npm dependencies…"
     Push-Location $InstallDir
     try {
-        npm install
+        npm.cmd install
         Say "Building…"
-        npm run build
+        npm.cmd run build
         Ok "Build complete."
     } finally {
         Pop-Location
@@ -472,11 +507,12 @@ function Write-UpdateScript {
     $updatePath = Join-Path $InstallDir "scripts\windows\myhq-update.ps1"
     $content = @"
 # Auto-generated update script for MyHQ
+try { Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force } catch {}
 Set-Location '$InstallDir'
 git pull origin $Branch
-npm install
-npm run build
-nssm restart myhq 2>$null; Start-ScheduledTask -TaskName 'MyHQ Bot' 2>$null
+npm.cmd install
+npm.cmd run build
+nssm restart myhq 2>`$null; Start-ScheduledTask -TaskName 'MyHQ Bot' 2>`$null
 Write-Host '✓ MyHQ updated and restarted.' -ForegroundColor Green
 "@
     $content | Set-Content $updatePath -Encoding UTF8
