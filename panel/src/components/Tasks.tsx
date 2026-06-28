@@ -650,6 +650,7 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
                     <Card
                       key={tk.id}
                       task={tk}
+                      allTasks={tasks}
                       live={live[tk.id]}
                       isDragging={dragId === tk.id}
                       onDragStart={() => setDragId(tk.id)}
@@ -787,6 +788,7 @@ function ageBorder(task: Task): string {
 
 function Card({
   task,
+  allTasks,
   live,
   isDragging,
   onDragStart,
@@ -799,6 +801,7 @@ function Card({
   onToggleSelect,
 }: {
   task: Task;
+  allTasks: Task[];
   live?: LiveTask;
   isDragging: boolean;
   onDragStart: () => void;
@@ -815,6 +818,7 @@ function Card({
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes);
   const [priority, setPriority] = useState<Priority>(task.priority);
+  const [blockedBy, setBlockedBy] = useState<string[]>(task.blockedBy ?? []);
   const isDone = task.column.toLowerCase().includes("done") || task.column === "archive";
   const [delegateOpen, setDelegateOpen] = useState(!isDone);
   const [notesOpen, setNotesOpen] = useState(!isDone);
@@ -838,7 +842,7 @@ function Card({
 
   const save = async () => {
     try {
-      await api.updateTask(task.id, { title, notes, priority });
+      await api.updateTask(task.id, { title, notes, priority, blockedBy });
       setEditing(false);
       onChange();
     } catch (e) {
@@ -893,6 +897,12 @@ function Card({
             </button>
           ))}
         </div>
+        <DependencyPicker
+          task={task}
+          allTasks={allTasks}
+          value={blockedBy}
+          onChange={setBlockedBy}
+        />
         <div className="flex gap-1.5">
           <Button variant="primary" onClick={save}>
             {t("save")}
@@ -954,6 +964,22 @@ function Card({
             <div className="mt-1 line-clamp-3 text-xs text-fg-dim">{task.notes}</div>
           )}
           {task.parentId && <div className="mt-1 text-xs text-fg-faint">{t("tasks_subtask")}</div>}
+          {task.blockingIds && task.blockingIds.length > 0 && (
+            <div className="mt-1 flex flex-wrap items-center gap-1 text-xs">
+              <span className="rounded bg-warn-subtle px-1.5 py-0.5 text-warn-fg" title={t("tasks_blocked_title")}>
+                {task.waitingOnPrereq ? t("tasks_blocked_waiting") : t("tasks_blocked_by")}
+              </span>
+              {task.blockingIds.map((bid) => {
+                const dep = allTasks.find((x) => x.id === bid);
+                return (
+                  <span key={bid} className="font-mono text-[10px] text-fg-faint" title={dep?.title}>
+                    ↳ #{bid}
+                    {dep && <span className="ml-1 font-sans text-fg-dim">{dep.title.slice(0, 24)}</span>}
+                  </span>
+                );
+              })}
+            </div>
+          )}
           <div className="mt-1 flex items-center gap-1.5 text-xs text-fg-faint">
             <span className="font-mono text-[10px] text-fg-faint opacity-60">#{task.id}</span>
             <span>{t("tasks_created").replace("{date}", formatDate(task.createdAt))}</span>
@@ -1159,6 +1185,65 @@ function AddCard({
         onBlur={add}
         placeholder={t("tasks_card_title_placeholder")}
       />
+    </div>
+  );
+}
+
+/**
+ * Prerequisite ("blocked by") picker shown in the card editor: a collapsible
+ * list of other cards the user can mark this one as depending on. Self and
+ * already-done/archived cards are excluded as sensible choices.
+ */
+function DependencyPicker({
+  task,
+  allTasks,
+  value,
+  onChange,
+}: {
+  task: Task;
+  allTasks: Task[];
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(value.length > 0);
+  const candidates = allTasks.filter((tk) => tk.id !== task.id && tk.column !== "archive");
+  const toggle = (id: string) =>
+    onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
+
+  return (
+    <div className="mb-2 rounded border border-line bg-surface px-2 py-1.5">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between text-xs text-fg-dim hover:text-fg"
+      >
+        <span>
+          {t("tasks_blocked_by")}
+          {value.length > 0 && <span className="ml-1 text-accent">({value.length})</span>}
+        </span>
+        <span className="opacity-50">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="mt-1.5 max-h-40 space-y-1 overflow-y-auto">
+          {candidates.length === 0 ? (
+            <p className="text-xs text-fg-faint">{t("tasks_dep_none")}</p>
+          ) : (
+            candidates.map((c) => (
+              <label key={c.id} className="flex cursor-pointer items-center gap-2 text-xs text-fg-dim hover:text-fg">
+                <input
+                  type="checkbox"
+                  checked={value.includes(c.id)}
+                  onChange={() => toggle(c.id)}
+                  className="h-3.5 w-3.5 accent-accent"
+                />
+                <span className="font-mono text-[10px] text-fg-faint">#{c.id}</span>
+                <span className="truncate">{c.title}</span>
+                {c.column === "done" && <span className="ml-auto text-ok-fg">✓</span>}
+              </label>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }

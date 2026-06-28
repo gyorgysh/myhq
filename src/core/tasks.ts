@@ -33,6 +33,12 @@ export interface Task {
   priority: Priority;
   /** Optional parent for agent-created subtasks (auto-breakdown). */
   parentId?: string;
+  /**
+   * Ids of cards this one is blocked by: a delegated run waits until every
+   * prerequisite is in the done column before it can execute. Self-references
+   * and unknown ids are tolerated (treated as not-blocking).
+   */
+  blockedBy?: string[];
   /** Set while/after the card has been delegated to an agent run. */
   delegate?: TaskDelegation;
   /** How many times this card has been re-delegated after a failure. */
@@ -163,12 +169,42 @@ export function prepareRetry(id: string): Task | undefined {
   return task;
 }
 
+/** Normalise a blockedBy list: dedupe, drop the card's own id, keep only strings. */
+function cleanBlockedBy(ids: unknown, selfId?: string): string[] | undefined {
+  if (!Array.isArray(ids)) return undefined;
+  const out = [...new Set(ids.filter((x): x is string => typeof x === "string" && x.length > 0))].filter(
+    (id) => id !== selfId,
+  );
+  return out.length ? out : [];
+}
+
+/**
+ * Of a card's `blockedBy` prerequisites, return the ones that are NOT yet
+ * satisfied (i.e. not in the done column). An empty array means the card is
+ * free to run. Unknown ids are ignored (a deleted prerequisite no longer blocks).
+ */
+export function blockingPrereqs(id: string): Task[] {
+  const tasks = load();
+  const card = tasks.find((t) => t.id === id);
+  if (!card?.blockedBy?.length) return [];
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  return card.blockedBy
+    .map((bid) => byId.get(bid))
+    .filter((t): t is Task => !!t && t.column !== "done" && t.column !== "archive");
+}
+
+/** True when every prerequisite of the card is satisfied (or it has none). */
+export function isUnblocked(id: string): boolean {
+  return blockingPrereqs(id).length === 0;
+}
+
 export function createTask(input: {
   title: string;
   notes?: string;
   column?: string;
   priority?: string;
   parentId?: string;
+  blockedBy?: string[];
   createdBy?: string;
 }): Task {
   const now = Date.now();
@@ -184,6 +220,7 @@ export function createTask(input: {
     column,
     priority: isPriority(input.priority) ? input.priority : "normal",
     parentId: input.parentId,
+    blockedBy: cleanBlockedBy(input.blockedBy),
     order: maxOrder + 1,
     createdBy: input.createdBy?.trim() || undefined,
     createdAt: now,
@@ -201,6 +238,8 @@ export interface TaskPatch {
   column?: string;
   priority?: string;
   order?: number;
+  /** Replace the card's prerequisite list (pass [] to clear). */
+  blockedBy?: string[];
 }
 
 export function updateTask(id: string, patch: TaskPatch): Task | undefined {
@@ -212,6 +251,7 @@ export function updateTask(id: string, patch: TaskPatch): Task | undefined {
   if (isColumn(patch.column)) task.column = patch.column;
   if (isPriority(patch.priority)) task.priority = patch.priority;
   if (typeof patch.order === "number") task.order = patch.order;
+  if (patch.blockedBy !== undefined) task.blockedBy = cleanBlockedBy(patch.blockedBy, id);
   task.updatedAt = Date.now();
   persist(tasks);
   audit("task.update", { id, column: task.column });

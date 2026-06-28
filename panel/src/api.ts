@@ -169,6 +169,12 @@ export interface Task {
   column: Column;
   priority: Priority;
   parentId?: string;
+  /** Ids of cards this one is blocked by (must reach done before it can run). */
+  blockedBy?: string[];
+  /** Subset of blockedBy that's still unsatisfied (server-computed). */
+  blockingIds?: string[];
+  /** True when the delegator is holding this card waiting on a prerequisite. */
+  waitingOnPrereq?: boolean;
   delegate?: TaskDelegation;
   /** How many times this card has been re-delegated after a failure. */
   retryCount?: number;
@@ -186,6 +192,8 @@ export type Wip = Record<string, number | undefined>;
 export interface QueueState {
   paused: boolean;
   queued: number;
+  /** Cards held waiting on a blockedBy prerequisite. */
+  blocked?: number;
 }
 
 export interface Worker {

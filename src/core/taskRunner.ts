@@ -6,7 +6,7 @@ import { createTasksMcp } from "../mcp/tasks.js";
 import { skillsMcp } from "../mcp/skills.js";
 import { selfUpdateMcp } from "../mcp/selfUpdate.js";
 import { buildConnectorMcps } from "../mcp/connectorsMcp.js";
-import { getTask, setDelegate, updateTask, listTasks, archiveTask, prepareRetry, getTaskRunConfig } from "./tasks.js";
+import { getTask, setDelegate, updateTask, listTasks, archiveTask, prepareRetry, getTaskRunConfig, blockingPrereqs } from "./tasks.js";
 import { memory } from "./memory.js";
 import { workers, type Worker } from "./workers.js";
 import { getSkill } from "./skills.js";
@@ -93,6 +93,13 @@ export class TaskDelegator {
   /** Cards waiting for a free slot when maxConcurrent is reached. */
   private queue: QueuedRun[] = [];
   /**
+   * Cards held because a `blockedBy` prerequisite isn't in done yet. Re-checked
+   * whenever any run settles; once unblocked they re-enter delegate(). In-memory
+   * (like the queue), so a restart drops the waiting state and the card simply
+   * needs to be delegated again.
+   */
+  private blocked = new Map<string, QueuedRun>();
+  /**
    * When true, no queued card is dispatched even if a slot is free. In-flight
    * runs continue, but the queue is held (e.g. to test, or when close to a
    * token limit and we want some time off). Resets on restart since the queue
@@ -150,6 +157,7 @@ export class TaskDelegator {
 
   stopAll(): void {
     this.queue = [];
+    this.blocked.clear();
     for (const a of this.active.values()) a.abort();
   }
 
@@ -163,6 +171,12 @@ export class TaskDelegator {
   }
 
   stop(id: string): boolean {
+    // Drop from the blocked-wait set if it's parked on a prerequisite.
+    if (this.blocked.delete(id)) {
+      setDelegate(id, { status: "stopped", runId: "", startedAt: Date.now(), endedAt: Date.now() });
+      this.broadcast({ type: "task", event: "end", taskId: id, runId: "", delegate: getTask(id)?.delegate, column: getTask(id)?.column });
+      return true;
+    }
     // Drop from the wait queue if it hasn't started yet.
     const qi = this.queue.findIndex((q) => q.id === id);
     if (qi >= 0) {
@@ -182,11 +196,23 @@ export class TaskDelegator {
    * persona/cwd/systemPrompt/skill/model/provider, so e.g. an Iris suggestion is
    * completed in Iris's voice and context. Without a leadId it's a generic run.
    */
-  delegate(id: string, leadId?: string): { ok: boolean; error?: string; queued?: boolean } {
+  delegate(id: string, leadId?: string): { ok: boolean; error?: string; queued?: boolean; blocked?: boolean } {
     const task = getTask(id);
     if (!task) return { ok: false, error: "not found" };
     if (this.active.has(id)) return { ok: false, error: "already running" };
     if (this.isQueued(id)) return { ok: false, error: "already queued" };
+
+    // Hold the card if it still has unsatisfied `blockedBy` prerequisites: it
+    // waits (marked queued) until each prerequisite reaches done, re-evaluated
+    // after every run settles in pump().
+    const prereqs = blockingPrereqs(id);
+    if (prereqs.length > 0) {
+      this.blocked.set(id, { id, leadId });
+      setDelegate(id, { status: "queued", runId: "", startedAt: Date.now() });
+      this.broadcast({ type: "task", event: "blocked", taskId: id, column: task.column, blockedBy: prereqs.map((t) => t.id) });
+      log.info("Task delegate blocked (waiting on prerequisites)", { taskId: id, title: task.title, prereqs: prereqs.map((t) => t.id) });
+      return { ok: true, blocked: true };
+    }
 
     // Respect the global concurrency limit: if all slots are full — or the
     // queue is paused — park the card in the queue and mark it "queued" so the
@@ -225,6 +251,9 @@ export class TaskDelegator {
 
   /** After a run finishes, start the next queued card if a slot is free. */
   private pump(): void {
+    // A prerequisite may have just reached done — release any blocked cards
+    // whose dependencies are now satisfied back into the normal flow.
+    this.releaseUnblocked();
     if (this.paused) return;
     const { maxConcurrent } = getTaskRunConfig();
     while (this.queue.length > 0 && (maxConcurrent <= 0 || this.active.size < maxConcurrent)) {
@@ -233,6 +262,36 @@ export class TaskDelegator {
       if (!getTask(next.id)) continue;
       this.startRun(next.id, next.leadId);
     }
+  }
+
+  /**
+   * Re-check every card held on a `blockedBy` prerequisite. Any whose
+   * prerequisites are now all satisfied (or that has been deleted) leaves the
+   * blocked set; satisfied ones are re-delegated (which re-queues them if all
+   * concurrency slots are full).
+   */
+  private releaseUnblocked(): void {
+    for (const [id, q] of [...this.blocked]) {
+      if (!getTask(id)) {
+        this.blocked.delete(id);
+        continue;
+      }
+      if (blockingPrereqs(id).length === 0) {
+        this.blocked.delete(id);
+        log.info("Task unblocked, delegating", { taskId: id });
+        this.delegate(id, q.leadId);
+      }
+    }
+  }
+
+  /** True when the card is held waiting on a prerequisite. */
+  isBlocked(id: string): boolean {
+    return this.blocked.has(id);
+  }
+
+  /** Number of cards held on prerequisites. */
+  blockedCount(): number {
+    return this.blocked.size;
   }
 
   /**

@@ -35,6 +35,10 @@ export function createTasksMcp(opts: TasksMcpOptions = {}) {
           column: z.enum(["backlog", "doing", "done"]).optional().describe("Default backlog."),
           priority: z.enum(["low", "normal", "high"]).optional(),
           parentId: z.string().optional().describe("Parent card id, for a subtask."),
+          blockedBy: z
+            .array(z.string())
+            .optional()
+            .describe("Ids of cards this one is blocked by; a delegated run waits until they are all done."),
         },
         async (a) => {
           const t = createTask({ ...a, createdBy: opts.createdBy });
@@ -68,6 +72,7 @@ export function createTasksMcp(opts: TasksMcpOptions = {}) {
           priority: z.enum(["low", "normal", "high"]).optional(),
           title: z.string().optional(),
           notes: z.string().optional(),
+          blockedBy: z.array(z.string()).optional().describe("Replace the prerequisite list (pass [] to clear)."),
         },
         async (a) => {
           const t = updateTask(a.id, a);

@@ -46,6 +46,7 @@ import {
   setTaskRunConfig,
   pruneArchive,
   autoArchive,
+  blockingPrereqs,
 } from "../core/tasks.js";
 import {
   listColumns,
@@ -931,17 +932,21 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
   app.get("/api/tasks", async () => {
     pruneArchive();
     autoArchive();
-    // Resolve each card's creator id to a friendly display name for the board.
+    // Resolve each card's creator id to a friendly display name for the board,
+    // and annotate which prerequisite ids (blockedBy) are still unsatisfied so
+    // the board can render a "blocked" badge + dependency arrows.
     const tasks = listTasks().map((t) => ({
       ...t,
       createdByName: t.createdBy ? creatorName(t.createdBy) : undefined,
+      blockingIds: t.blockedBy?.length ? blockingPrereqs(t.id).map((p) => p.id) : undefined,
+      waitingOnPrereq: taskDelegator.isBlocked(t.id) || undefined,
     }));
     return {
       tasks,
       columns: listColumns(),
       wip: getWip(),
       config: getTaskRunConfig(),
-      queue: { paused: taskDelegator.isQueuePaused(), queued: taskDelegator.queuedCount() },
+      queue: { paused: taskDelegator.isQueuePaused(), queued: taskDelegator.queuedCount(), blocked: taskDelegator.blockedCount() },
     };
   });
   // Column config CRUD
