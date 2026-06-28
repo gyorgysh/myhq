@@ -24,6 +24,7 @@ export const en = {
   nav_connectors: "Connectors",
   nav_prompt: "Prompt",
   nav_status: "Status",
+  nav_backup: "Backup",
   nav_remote: "Remote Access",
   nav_updates: "Updates",
   nav_feedback: "Send Feedback",
@@ -47,6 +48,7 @@ export const en = {
   nav_connectors_hint: "Link outside services like Notion and Calendar",
   nav_prompt_hint: "The agent's standing instructions and playbook",
   nav_status_hint: "Is Claude and each model backend reachable?",
+  nav_backup_hint: "Export or restore the whole fleet state as one encrypted archive",
   nav_remote_hint: "Open the panel to your phone over the internet",
   nav_updates_hint: "Check for and install new versions",
   nav_feedback_hint: "Report a bug or send a suggestion to the project",
@@ -538,6 +540,33 @@ export const en = {
   vault_import_desc:
     "Paste a backup blob and its passphrase. Secrets are added (existing ones are untouched) and re-encrypted under this host's key.",
   vault_import_btn: "Restore",
+
+  // Backup & restore (whole-fleet)
+  backup_title: "Backup & Restore",
+  backup_desc:
+    "Export the entire fleet state (sessions, memory, tasks, schedules, workers, providers, connectors, vault secrets) as one passphrase-protected archive, for disaster recovery or moving to a new machine.",
+  backup_contents: "What's included",
+  backup_vault_secrets: "{n} vault secret(s)",
+  backup_total: "Total state size: {size} (compressed in the archive).",
+  backup_skipped: "Not included: {names}",
+  backup_export_title: "Create a backup",
+  backup_export_desc:
+    "Choose a passphrase. It encrypts the archive and the vault secrets inside it, so the same passphrase restores everything.",
+  backup_passphrase: "Passphrase (min 8 chars)",
+  backup_passphrase_hint:
+    "Store the passphrase safely. Without it the archive cannot be decrypted; there is no recovery.",
+  backup_export_btn: "Download backup",
+  backup_exported: "Backup downloaded.",
+  backup_import_title: "Restore from a backup",
+  backup_import_desc: "Select a .mhq archive and enter its passphrase.",
+  backup_warn_title: "This overwrites current state",
+  backup_warn_desc:
+    "Restoring replaces sessions, memory, tasks, schedules, workers and other state files with the archive's. Restart the agent afterwards for the restored state to take effect.",
+  backup_include_vault: "Also restore vault secrets (added alongside existing ones)",
+  backup_import_btn: "Restore",
+  backup_import_confirm:
+    "Restore this backup? It overwrites the current state files. A restart is needed afterwards.",
+  backup_imported: "Restored {files} file(s) and {secrets} secret(s). Restart the agent to apply.",
 
   // Tasks
   tasks_add_column: "Add column",

@@ -477,6 +477,20 @@ export interface SecretView {
   updatedAt: number;
 }
 
+export interface BackupManifest {
+  files: Array<{ name: string; bytes: number }>;
+  vaultSecrets: number;
+  totalBytes: number;
+  skipped: string[];
+}
+
+export interface BackupImportResult {
+  filesRestored: number;
+  vaultRestored: number;
+  names: string[];
+  exportedAt?: number;
+}
+
 export type MemoryTier = "hot" | "warm" | "cold";
 
 export interface MemoryEntry {
@@ -846,6 +860,31 @@ export const api = {
   exportVault: (passphrase: string) => req<{ blob: string }>("POST", "/api/vault/export", { passphrase }),
   importVaultBackup: (blob: string, passphrase: string) =>
     req<{ imported: number }>("POST", "/api/vault/import-backup", { blob, passphrase }),
+
+  // --- full-state backup & restore ---
+  backupManifest: () => get<BackupManifest>("/api/backup"),
+  /** POST the passphrase, get the encrypted archive back as a Blob (binary). */
+  exportBackup: async (passphrase: string): Promise<Blob> => {
+    const res = await fetch("/api/backup/export", {
+      method: "POST",
+      headers: authHeaders(true),
+      body: JSON.stringify({ passphrase }),
+    });
+    if (res.status === 401) throw new AuthError("unauthorized");
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try {
+        const j = (await res.json()) as { error?: string };
+        if (j.error) msg = j.error;
+      } catch {
+        /* non-JSON body */
+      }
+      throw new ApiError(res.status, msg);
+    }
+    return res.blob();
+  },
+  importBackup: (archive: string, passphrase: string, includeVault: boolean) =>
+    req<BackupImportResult>("POST", "/api/backup/import", { archive, passphrase, includeVault }),
 
   memories: (q?: string, all?: boolean) =>
     get<{ memories: MemoryEntry[] }>(

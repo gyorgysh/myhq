@@ -26,6 +26,7 @@ export const hu: Translations = {
   nav_connectors: "Csatlakozók",
   nav_prompt: "Utasítás",
   nav_status: "Állapot",
+  nav_backup: "Mentés",
   nav_remote: "Távoli elérés",
   nav_updates: "Frissítések",
   nav_feedback: "Visszajelzés",
@@ -49,6 +50,7 @@ export const hu: Translations = {
   nav_connectors_hint: "Külső szolgáltatások, pl. Notion és Naptár",
   nav_prompt_hint: "Az ügynök állandó utasításai és kézikönyve",
   nav_status_hint: "Elérhető a Claude és minden modell-háttér?",
+  nav_backup_hint: "A teljes rendszerállapot exportálása vagy visszaállítása egy titkosított archívumként",
   nav_remote_hint: "Nyisd meg a panelt a telefonodon az interneten át",
   nav_updates_hint: "Új verziók keresése és telepítése",
   nav_feedback_hint: "Hibajelentés vagy javaslat küldése a projektnek",
@@ -542,6 +544,33 @@ export const hu: Translations = {
   vault_import_desc:
     "Illeszd be a mentési blokkot és a jelmondatát. A titkok hozzáadódnak (a meglévők érintetlenek), és ennek a gépnek a kulcsával lesznek újratitkosítva.",
   vault_import_btn: "Visszaállítás",
+
+  // Mentés és visszaállítás (teljes rendszer)
+  backup_title: "Mentés és visszaállítás",
+  backup_desc:
+    "A teljes rendszerállapot (munkamenetek, memória, feladatok, ütemezések, munkások, szolgáltatók, csatlakozók, tárolt titkok) exportálása egyetlen jelmondattal védett archívumként, vészhelyzeti helyreállításhoz vagy másik gépre költözéshez.",
+  backup_contents: "Mi van benne",
+  backup_vault_secrets: "{n} tárolt titok",
+  backup_total: "Teljes állapotméret: {size} (az archívumban tömörítve).",
+  backup_skipped: "Nincs benne: {names}",
+  backup_export_title: "Mentés készítése",
+  backup_export_desc:
+    "Válassz jelmondatot. Ez titkosítja az archívumot és a benne lévő titkokat is, így ugyanazzal a jelmondattal állítható vissza minden.",
+  backup_passphrase: "Jelmondat (min. 8 karakter)",
+  backup_passphrase_hint:
+    "Őrizd meg biztonságosan a jelmondatot. Nélküle az archívum nem fejthető vissza; nincs helyreállítás.",
+  backup_export_btn: "Mentés letöltése",
+  backup_exported: "Mentés letöltve.",
+  backup_import_title: "Visszaállítás mentésből",
+  backup_import_desc: "Válassz egy .mhq archívumot, és add meg a jelmondatát.",
+  backup_warn_title: "Ez felülírja a jelenlegi állapotot",
+  backup_warn_desc:
+    "A visszaállítás lecseréli a munkameneteket, memóriát, feladatokat, ütemezéseket, munkásokat és egyéb állapotfájlokat az archívuméra. Utána indítsd újra az ügynököt, hogy a visszaállított állapot életbe lépjen.",
+  backup_include_vault: "Tárolt titkok visszaállítása is (a meglévők mellé kerülnek)",
+  backup_import_btn: "Visszaállítás",
+  backup_import_confirm:
+    "Visszaállítod ezt a mentést? Felülírja a jelenlegi állapotfájlokat. Utána újraindítás szükséges.",
+  backup_imported: "{files} fájl és {secrets} titok visszaállítva. Indítsd újra az ügynököt az alkalmazáshoz.",
 
   // Feladatok
   tasks_add_column: "Oszlop hozzáadása",

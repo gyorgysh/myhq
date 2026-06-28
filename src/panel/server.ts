@@ -66,6 +66,7 @@ import { getStatus } from "../core/status.js";
 import { heartbeat } from "../core/heartbeat.js";
 import { listConnectors, setConnector } from "../core/connectors.js";
 import { vault, importProviderSecrets, resolveSecret, vaultUsages } from "../core/vault.js";
+import { backupManifest, exportBackup, importBackup } from "../core/backup.js";
 import {
   listProviders,
   listProviderViews,
@@ -117,7 +118,9 @@ export async function startPanel(): Promise<(() => Promise<void>) | undefined> {
     return undefined;
   }
 
-  const app = Fastify({ logger: false });
+  // 64MB body limit so a full-state backup import (base64 archive) fits; the
+  // default 1MB is far too small once memory.json is in the payload.
+  const app = Fastify({ logger: false, bodyLimit: 64 * 1024 * 1024 });
   await app.register(fastifyWebsocket);
   const hub = new PanelHub();
   // Wire worker run events to all panel clients (worker tick already running).
@@ -924,6 +927,39 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
     if (!blob || !passphrase) return reply.code(400).send({ error: "blob and passphrase required" });
     try {
       return vault.importBackup(blob, passphrase);
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : "import failed" });
+    }
+  });
+
+  // --- full-state backup & restore ---
+  app.get("/api/backup", async () => backupManifest());
+  app.post("/api/backup/export", async (req, reply) => {
+    const passphrase = (req.body as { passphrase?: string })?.passphrase ?? "";
+    try {
+      const buf = exportBackup(passphrase);
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      reply
+        .header("content-type", "application/octet-stream")
+        .header("content-disposition", `attachment; filename="myhq-backup-${stamp}.mhq"`);
+      return reply.send(buf);
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : "export failed" });
+    }
+  });
+  app.post("/api/backup/import", async (req, reply) => {
+    const { archive, passphrase, includeVault } =
+      (req.body as { archive?: string; passphrase?: string; includeVault?: boolean }) ?? {};
+    if (!archive || !passphrase)
+      return reply.code(400).send({ error: "archive and passphrase required" });
+    let buf: Buffer;
+    try {
+      buf = Buffer.from(archive, "base64");
+    } catch {
+      return reply.code(400).send({ error: "archive is not valid base64" });
+    }
+    try {
+      return importBackup(buf, passphrase, { includeVault: includeVault !== false });
     } catch (err) {
       return reply.code(400).send({ error: err instanceof Error ? err.message : "import failed" });
     }

@@ -231,6 +231,22 @@ curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/vault/impo
   -d '{ "blob": "vaultbak1.…", "passphrase": "at-least-8-chars" }'
 ```
 
+### Backup & restore (whole-fleet state)
+
+```bash
+# Preview what a backup would contain (curated state files + vault secret count)
+curl -H "$AUTH" $BASE/api/backup
+
+# Download an encrypted archive of all durable state (binary .mhq)
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/backup/export \
+  -d '{ "passphrase": "at-least-8-chars" }' -o myhq-backup.mhq
+
+# Restore an archive (base64-encoded body). Overwrites state files; restart after.
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/backup/import \
+  -d "{ \"archive\": \"$(base64 < myhq-backup.mhq)\", \"passphrase\": \"…\", \"includeVault\": true }"
+# Returns { filesRestored, vaultRestored, names, exportedAt }
+```
+
 ### Providers (local/proxy model endpoints)
 
 ```bash

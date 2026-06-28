@@ -16,6 +16,7 @@ export type Tab =
   | "prompt"
   | "memory"
   | "vault"
+  | "backup"
   | "connectors"
   | "updates"
   | "logs"
@@ -68,6 +69,7 @@ export const NAV: Group[] = [
     items: [
       { id: "status", labelKey: "nav_status", icon: "◉", hintKey: "nav_status_hint" },
       { id: "updates", labelKey: "nav_updates", icon: "⤓", hintKey: "nav_updates_hint" },
+      { id: "backup", labelKey: "nav_backup", icon: "⛁", hintKey: "nav_backup_hint" },
       { id: "remote", labelKey: "nav_remote", icon: "⇆", hintKey: "nav_remote_hint" },
       { id: "feedback", labelKey: "nav_feedback", icon: "✍", hintKey: "nav_feedback_hint" },
     ],
