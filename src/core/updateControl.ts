@@ -133,9 +133,10 @@ async function runScript(
     // Full path to powershell.exe — the service's PATH may not include
     // System32\WindowsPowerShell\v1.0, which would make a bare "powershell.exe"
     // fail to spawn. Fall back to the bare name if SystemRoot is unset.
-    const psExe = process.env.SystemRoot
-      ? join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
-      : "powershell.exe";
+    const psExe = join(
+      process.env.SystemRoot ?? "C:\\Windows",
+      "System32", "WindowsPowerShell", "v1.0", "powershell.exe",
+    );
     // On Unix: detached + unref so the build survives the systemd/launchd
     // SIGTERM that the restart step sends to this process near the end.
     // On Windows: omit detached — Node.js 24 on Windows silently breaks the
