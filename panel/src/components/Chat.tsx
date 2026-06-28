@@ -336,6 +336,8 @@ function AtlasChat({ onAuthError }: { onAuthError: () => void }) {
     <>
       {t("chat_empty")}
       <br />
+      <span className="text-fg-faint">{t("chat_empty_tip")}</span>
+      <br />
       {view?.auto ? t("chat_empty_auto") : t("chat_empty_safe")}
     </>
   );
