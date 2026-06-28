@@ -26,7 +26,7 @@ echo "• Building the project…"
 ( cd "$APP_DIR" && npm install && npm run build )
 
 mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
-echo "• Writing $PLIST…"
+echo "• Writing ${PLIST}…"
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

@@ -19,8 +19,8 @@ else
   echo "• ${SERVICE} is not installed — cleaning up any leftovers."
 fi
 
-[ -f "$UNIT" ] && { echo "• Removing $UNIT…"; sudo rm -f "$UNIT"; }
-[ -f "$SUDOERS" ] && { echo "• Removing $SUDOERS…"; sudo rm -f "$SUDOERS"; }
+[ -f "$UNIT" ] && { echo "• Removing ${UNIT}…"; sudo rm -f "$UNIT"; }
+[ -f "$SUDOERS" ] && { echo "• Removing ${SUDOERS}…"; sudo rm -f "$SUDOERS"; }
 
 sudo systemctl daemon-reload
 sudo systemctl reset-failed "$SERVICE" 2>/dev/null || true

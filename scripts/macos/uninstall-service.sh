@@ -14,7 +14,7 @@ LOG="$HOME/Library/Logs/${LABEL}.log"
 if [ -f "$PLIST" ]; then
   echo "• Unloading the LaunchAgent…"
   launchctl unload -w "$PLIST" 2>/dev/null || true
-  echo "• Removing $PLIST…"
+  echo "• Removing ${PLIST}…"
   rm -f "$PLIST"
   echo "✓ Removed the '${LABEL}' LaunchAgent. The checkout and your .env are untouched."
   echo "  (Log left in place: $LOG)"

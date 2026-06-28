@@ -39,7 +39,7 @@ if [ -f work.md ]; then
   cp work.md "$WORK_BACKUP"
 fi
 
-say "Fetching origin/$REF…"
+say "Fetching origin/${REF}…"
 git fetch --prune origin "$REF"
 BEFORE="$(git rev-parse HEAD)"
 say "Resetting to origin/$REF (local changes to tracked files are discarded)…"
