@@ -17,6 +17,14 @@ export function clearToken(): void {
 
 export class AuthError extends Error {}
 
+/** A non-OK HTTP response (other than 401, which throws AuthError). Carries the
+ *  status code so callers can special-case e.g. 429 rate limiting. */
+export class ApiError extends Error {
+  constructor(public status: number, message?: string) {
+    super(message ?? `HTTP ${status}`);
+  }
+}
+
 function authHeaders(json = false): Record<string, string> {
   const token = getToken();
   const h: Record<string, string> = {};
@@ -32,7 +40,7 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (res.status === 401) throw new AuthError("unauthorized");
-  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  if (!res.ok) throw new ApiError(res.status, `${path} → ${res.status}`);
   return (await res.json()) as T;
 }
 
@@ -653,8 +661,8 @@ export interface TunnelPassword {
 export const api = {
   me: () =>
     get<{ ok: boolean; chatEnabled: boolean; version: string; updateAvailable: boolean; updateCount: number; atlasName: string; brandName: string; defaultWorkdir: string; allowedUserCount: number; panelHost: string; panelPort: number; tunnelEnabled: boolean; terminalEnabled: boolean }>("/api/me"),
-  sendFeedback: (kind: "bug" | "suggestion" | "other", message: string) =>
-    req<{ ok: boolean }>("POST", "/api/feedback", { kind, message }),
+  sendFeedback: (kind: "bug" | "suggestion" | "other", message: string, email?: string) =>
+    req<{ ok: boolean }>("POST", "/api/feedback", { kind, message, email }),
   health: () => get<Health>("/api/health"),
   sessions: () => get<{ sessions: SessionView[] }>("/api/sessions"),
   logs: (params?: { date?: string; q?: string; level?: string; limit?: number }) => {

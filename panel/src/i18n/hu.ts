@@ -1186,10 +1186,18 @@ export const hu: Translations = {
   feedback_kind_other: "Egyéb",
   feedback_message: "Üzeneted",
   feedback_message_placeholder: "Írd le a hibát, vagy oszd meg a javaslatodat…",
-  feedback_privacy: "Csak az üzeneted, a verzió és a platform kerül elküldésre.",
+  feedback_email: "E-mail (opcionális)",
+  feedback_email_placeholder: "te@pelda.hu",
+  feedback_email_hint: "Csak akkor, ha szeretnéd, hogy fel tudjuk venni veled a kapcsolatot.",
+  feedback_email_invalid: "Ez nem tűnik érvényes e-mail címnek.",
+  feedback_bug_logs_hint:
+    "Tipp: másolj be egy részletet a Naplók nézetből (a legutóbbi releváns sorokat), hogy pontosan lássuk, mi romlott el.",
+  feedback_privacy:
+    "Csak az üzeneted, a verzió, a platform és a megadott e-mail cím kerül elküldésre.",
   feedback_send: "Visszajelzés küldése",
   feedback_sending: "Küldés…",
   feedback_sent: "Köszönjük, a visszajelzésed elküldtük.",
   feedback_thanks: "Elküldve ✓",
   feedback_failed: "Nem sikerült elküldeni a visszajelzést. Próbáld újra később.",
+  feedback_rate_limited: "Túl sok beküldés. Kérlek, próbáld újra később.",
 };

@@ -670,10 +670,15 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
   // short timeout so a slow collector can't hang the panel; failures surface as
   // a 502 so the UI can tell the user it didn't go through.
   app.post("/api/feedback", async (req, reply) => {
-    const { kind, message } = (req.body ?? {}) as { kind?: string; message?: string };
+    const { kind, message, email } = (req.body ?? {}) as { kind?: string; message?: string; email?: string };
     const text = typeof message === "string" ? message.trim() : "";
     if (!text) return reply.code(400).send({ error: "message required" });
     if (text.length > 5000) return reply.code(400).send({ error: "message too long (max 5000 chars)" });
+    // Email is optional; validate loosely only when provided, and cap the length.
+    const mail = typeof email === "string" ? email.trim() : "";
+    if (mail && (mail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail))) {
+      return reply.code(400).send({ error: "invalid email" });
+    }
     const category = kind === "bug" || kind === "suggestion" || kind === "other" ? kind : "other";
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 10_000);
@@ -684,6 +689,7 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
         body: JSON.stringify({
           kind: category,
           message: text,
+          ...(mail ? { email: mail } : {}),
           version: VERSION,
           brand: config.BRAND_NAME,
           platform: process.platform,
@@ -691,6 +697,12 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
         }),
         signal: ctrl.signal,
       });
+      // Pass a collector rate-limit (429) straight through so the panel can show
+      // the real "too many submissions" message instead of a generic failure.
+      if (res.status === 429) {
+        log.warn("Feedback relay rate-limited", { status: 429 });
+        return reply.code(429).send({ error: "Too many submissions. Please try again later." });
+      }
       if (!res.ok) {
         log.warn("Feedback relay returned non-2xx", { status: res.status });
         return reply.code(502).send({ error: "feedback endpoint unavailable" });

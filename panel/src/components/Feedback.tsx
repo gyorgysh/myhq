@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { api, AuthError } from "../api.ts";
-import { Button, Card, InfoCard, Label, TextArea } from "./ui.tsx";
+import { api, ApiError, AuthError } from "../api.ts";
+import { Button, Card, InfoCard, Input, Label, TextArea } from "./ui.tsx";
 import { toast } from "../lib/useToast.ts";
 import { useI18n } from "../lib/useI18n.ts";
 import type { TranslationKey } from "../i18n/en.ts";
@@ -13,24 +13,40 @@ const KINDS: Array<{ id: Kind; label: TranslationKey; icon: string }> = [
   { id: "other", label: "feedback_kind_other", icon: "💬" },
 ];
 
+// Light client-side check; the server validates too. Kept loose on purpose.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export function FeedbackView({ onAuthError }: { onAuthError: () => void }) {
   const { t } = useI18n();
   const [kind, setKind] = useState<Kind>("bug");
   const [message, setMessage] = useState("");
+  const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+
+  const emailInvalid = email.trim().length > 0 && !EMAIL_RE.test(email.trim());
 
   const send = async () => {
     const text = message.trim();
     if (!text) return;
+    const mail = email.trim();
+    if (mail && !EMAIL_RE.test(mail)) {
+      toast.error(t("feedback_email_invalid"));
+      return;
+    }
     setBusy(true);
     try {
-      await api.sendFeedback(kind, text);
+      await api.sendFeedback(kind, text, mail || undefined);
       setMessage("");
+      setEmail("");
       setSent(true);
       toast.success(t("feedback_sent"));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
+      if (e instanceof ApiError && e.status === 429) {
+        toast.error(t("feedback_rate_limited"));
+        return;
+      }
       toast.error(t("feedback_failed"));
     } finally {
       setBusy(false);
@@ -80,12 +96,34 @@ export function FeedbackView({ onAuthError }: { onAuthError: () => void }) {
           }}
         />
         <div className="mt-1 flex items-center justify-between">
-          <p className="text-xs text-fg-faint">{t("feedback_privacy")}</p>
           <span className="tabular text-xs text-fg-faint">{message.length}/5000</span>
         </div>
 
+        {kind === "bug" && (
+          <p className="mt-2 rounded-lg border border-line bg-surface-2 p-2.5 text-xs text-fg-dim">
+            {t("feedback_bug_logs_hint")}
+          </p>
+        )}
+
+        <div className="mt-4">
+          <Label>{t("feedback_email")}</Label>
+          <Input
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder={t("feedback_email_placeholder")}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <p className={`mt-1 text-xs ${emailInvalid ? "text-rose-400" : "text-fg-faint"}`}>
+            {emailInvalid ? t("feedback_email_invalid") : t("feedback_email_hint")}
+          </p>
+        </div>
+
+        <p className="mt-3 text-xs text-fg-faint">{t("feedback_privacy")}</p>
+
         <div className="mt-4 flex items-center gap-3">
-          <Button variant="primary" onClick={send} disabled={busy || !message.trim()}>
+          <Button variant="primary" onClick={send} disabled={busy || !message.trim() || emailInvalid}>
             {busy ? t("feedback_sending") : t("feedback_send")}
           </Button>
           {sent && !busy && (

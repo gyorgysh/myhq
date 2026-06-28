@@ -1181,12 +1181,19 @@ export const en = {
   feedback_kind_other: "Other",
   feedback_message: "Your message",
   feedback_message_placeholder: "Describe the bug, or share your suggestion…",
-  feedback_privacy: "Only your message, version, and platform are sent.",
+  feedback_email: "Email (optional)",
+  feedback_email_placeholder: "you@example.com",
+  feedback_email_hint: "Only if you'd like us to be able to follow up with you.",
+  feedback_email_invalid: "That doesn't look like a valid email.",
+  feedback_bug_logs_hint:
+    "Tip: include a snippet from the Logs view (latest relevant lines) so we can see exactly what went wrong.",
+  feedback_privacy: "Only your message, version, platform, and any email you add are sent.",
   feedback_send: "Send feedback",
   feedback_sending: "Sending…",
   feedback_sent: "Thanks, your feedback was sent.",
   feedback_thanks: "Sent ✓",
   feedback_failed: "Couldn't send feedback. Please try again later.",
+  feedback_rate_limited: "Too many submissions. Please try again later.",
 };
 
 export type TranslationKey = keyof typeof en;
