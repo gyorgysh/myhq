@@ -74,6 +74,7 @@ export const en = {
   conn_offline: "Backend offline",
   conn_offline_hint: "Can't reach the server. It may be restarting or down.",
   conn_reconnected: "Reconnected",
+  conn_reloading: "Backend is back — reloading…",
   conn_retry_in: "Retrying in {s}s",
   conn_retry_now: "Retry now",
   // Common labels

@@ -76,6 +76,7 @@ export const hu: Translations = {
   conn_offline: "A backend nem elérhető",
   conn_offline_hint: "A szerver nem érhető el. Lehet, hogy újraindul vagy leállt.",
   conn_reconnected: "Újracsatlakozva",
+  conn_reloading: "A backend újra elérhető — újratöltés…",
   conn_retry_in: "Újrapróbálkozás {s} mp múlva",
   conn_retry_now: "Újrapróbálás most",
   // Általános feliratok

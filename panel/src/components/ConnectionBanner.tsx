@@ -8,6 +8,12 @@ import { useEffect, useRef, useState } from "react";
 import { useConnection } from "../lib/useConnection.ts";
 import { useI18n } from "../lib/useI18n.ts";
 
+// After the backend has been fully offline (a restart/update/crash, not a brief
+// blip) and comes back, the page often has stale view state and never recovers
+// on its own, so do a hard reload once the connection is healthy again. This
+// short grace period lets the freshly restarted server finish booting first.
+const RELOAD_AFTER_RECOVERY_MS = 2000;
+
 export function ConnectionBanner() {
   const { status, retryIn, retryNow } = useConnection();
   const { t } = useI18n();
@@ -16,12 +22,27 @@ export function ConnectionBanner() {
   // "live" a genuine recovery worth flashing — not the initial connect on a
   // fresh page load (the hook starts in "reconnecting").
   const everLive = useRef(false);
+  // Did the connection go fully "offline" (a real outage) at any point? A hard
+  // reload only makes sense after a real restart/crash, not a momentary blip.
+  const sawOutage = useRef(false);
   const [flashOk, setFlashOk] = useState(false);
+  const [reloading, setReloading] = useState(false);
 
   useEffect(() => {
-    // Show a short "Reconnected" confirmation only when we recover from a real
-    // drop: we'd previously been live, then went non-live, and are now back.
+    if (status === "offline" && everLive.current) sawOutage.current = true;
+
+    // Recovered from a real drop: we'd previously been live, then went non-live,
+    // and are now back.
     if (status === "live" && prev.current !== "live" && everLive.current) {
+      if (sawOutage.current) {
+        // The backend actually went down (restart/update/crash). Reload so every
+        // view re-inits against the fresh server instead of hanging on stale state.
+        setReloading(true);
+        const id = setTimeout(() => location.reload(), RELOAD_AFTER_RECOVERY_MS);
+        prev.current = status;
+        return () => clearTimeout(id);
+      }
+      // Just a brief blip: confirm and carry on without a reload.
       setFlashOk(true);
       const id = setTimeout(() => setFlashOk(false), 2500);
       prev.current = status;
@@ -31,10 +52,10 @@ export function ConnectionBanner() {
     prev.current = status;
   }, [status]);
 
-  const visible = status !== "live" || flashOk;
+  const visible = status !== "live" || flashOk || reloading;
   if (!visible) return null;
 
-  const ok = status === "live"; // showing the reconnected flash
+  const ok = status === "live"; // showing the reconnected / reloading flash
   const offline = status === "offline";
 
   const tone = ok
@@ -45,11 +66,13 @@ export function ConnectionBanner() {
 
   const dot = ok ? "bg-emerald-500" : offline ? "bg-red-500" : "bg-amber-500";
 
-  const title = ok
-    ? t("conn_reconnected")
-    : offline
-      ? t("conn_offline")
-      : t("conn_reconnecting");
+  const title = reloading
+    ? t("conn_reloading")
+    : ok
+      ? t("conn_reconnected")
+      : offline
+        ? t("conn_offline")
+        : t("conn_reconnecting");
 
   return (
     // Opaque base layer so page content scrolling under this sticky bar can't
