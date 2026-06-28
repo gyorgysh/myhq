@@ -177,6 +177,13 @@ You can also ask Atlas to restart himself: "restart yourself" triggers `./script
 ./scripts/uninstall-service.sh      # remove the service (leaves checkout, .env and data/ intact)
 ```
 
+On Windows (elevated PowerShell):
+
+```powershell
+.\scripts\windows\update.ps1        # same as above, restarts the NSSM service / scheduled task
+.\scripts\windows\uninstall.ps1     # remove the service/task (optionally deletes the install dir)
+```
+
 ## Configuration
 
 | Variable | Required | Description |

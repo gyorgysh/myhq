@@ -135,6 +135,62 @@ function Invoke-Quiet {
     try { & $Cmd 2>&1 | Out-Null } finally { $ErrorActionPreference = $old }
 }
 
+# Verify a Windows account password before we hand it to a service registration.
+# Returns $true / $false when it can check, or $null when verification isn't
+# possible (e.g. a domain controller is unreachable) — the caller then relies on
+# the post-start status check as a backstop.
+function Test-WindowsPassword {
+    param([string]$User, [string]$Password)
+    try {
+        Add-Type -AssemblyName System.DirectoryServices.AccountManagement -ErrorAction Stop
+        $ctxType = if ($env:USERDOMAIN -ne $env:COMPUTERNAME) {
+            [System.DirectoryServices.AccountManagement.ContextType]::Domain
+        } else {
+            [System.DirectoryServices.AccountManagement.ContextType]::Machine
+        }
+        $ctx = New-Object System.DirectoryServices.AccountManagement.PrincipalContext($ctxType)
+        return $ctx.ValidateCredentials($User, $Password)
+    } catch {
+        return $null
+    }
+}
+
+# Obtain a *validated* Windows password for the service account. Non-interactive:
+# reads MYHQ_SVC_PASSWORD. Interactive: prompts up to 3 times, re-asking on a wrong
+# password. Returns the plaintext password, or $null if none could be obtained
+# (the caller then aborts — we never silently run the service as the wrong identity).
+function Get-ServicePassword {
+    param([string]$User)
+    $name = ($User -split "\\")[-1]   # SAM account name (strip DOMAIN\)
+
+    if ($env:MYHQ_SVC_PASSWORD) {
+        if ((Test-WindowsPassword $name $env:MYHQ_SVC_PASSWORD) -eq $false) {
+            Err "MYHQ_SVC_PASSWORD is incorrect for $User."
+            return $null
+        }
+        return $env:MYHQ_SVC_PASSWORD
+    }
+
+    if ($AutoYes) { return $null }   # unattended and no password supplied
+
+    for ($i = 1; $i -le 3; $i++) {
+        Write-Host "  The service runs as your account ($User) so it uses your Claude login." -ForegroundColor Cyan
+        $pw = Read-Host "  Windows password for $User" -AsSecureString
+        $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($pw)
+        $plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+        if (-not $plain) { Warn "Password can't be empty."; continue }
+        # $true = verified, $false = wrong, $null = couldn't verify (e.g. domain DC
+        # unreachable) — accept the latter and let the post-start check catch it.
+        if ((Test-WindowsPassword $name $plain) -eq $false) {
+            Warn "That password didn't validate — try again ($i/3)."
+            continue
+        }
+        return $plain
+    }
+    return $null
+}
+
 # ---------------------------------------------------------------------------
 # Prerequisite checks / installs
 # ---------------------------------------------------------------------------
@@ -501,39 +557,30 @@ function Install-Service {
         & nssm install $svcName $nodeBin $entryPoint
         & nssm set $svcName AppDirectory $InstallDir
 
-        # PATH so `node`/`claude` resolve in the service session (node in Program
-        # Files, the Claude CLI in the npm global bin).
+        # PATH for the service session. Start from the installer's own working PATH
+        # (which already has node, git and npm after the prerequisite steps) and
+        # append the known tool dirs defensively. This is what lets the bot spawn
+        # node/claude/git at runtime — without it you get "spawn git ENOENT", etc.
         $nodeDir = Split-Path $nodeBin -Parent
         $npmBin  = Join-Path $env:APPDATA "npm"
-        $svcPath = "$nodeDir;$npmBin;$env:SystemRoot\System32;$env:SystemRoot"
+        $gitDir  = if (Get-Command git -ErrorAction SilentlyContinue) { Split-Path (Get-Command git).Source -Parent } else { "" }
+        $svcPath = (@($env:Path, $nodeDir, $npmBin, $gitDir) | Where-Object { $_ }) -join ";"
 
-        # Run the service as the installing user (not LocalSystem) so it inherits
-        # their profile and Claude login — the OAuth token lives in their
-        # %USERPROFILE%\.claude. Windows needs the account password to register a
-        # service under a user account; with no password we fall back to
-        # LocalSystem and point it at the user's profile (LocalSystem can read the
-        # plaintext token file) so it still works.
+        # The service runs as the installing user so it inherits their profile and
+        # Claude login (the OAuth token lives in their %USERPROFILE%\.claude).
+        # Windows requires the account password to register a service under a user —
+        # we insist on a VALID one. No LocalSystem fallback: that would split the
+        # bot's login from the user's and cause silent auth failures.
         $svcUser = "$env:USERDOMAIN\$env:USERNAME"
-        $plainPw = ""
-        if ($env:MYHQ_SVC_PASSWORD) {
-            $plainPw = $env:MYHQ_SVC_PASSWORD
-        } elseif (-not $AutoYes) {
-            Write-Host "  The service can run as your account ($svcUser) so it uses your Claude login." -ForegroundColor Cyan
-            $pw = Read-Host "  Windows password for $svcUser (leave blank to run as LocalSystem)" -AsSecureString
-            $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($pw)
-            $plainPw = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
-            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+        $plainPw = Get-ServicePassword $svcUser
+        if (-not $plainPw) {
+            Die "A valid Windows password for $svcUser is required to run the service. Re-run and enter it (or set MYHQ_SVC_PASSWORD), or choose manual run mode."
         }
 
-        if ($plainPw) {
-            & nssm set $svcName ObjectName $svcUser $plainPw
-            & nssm set $svcName AppEnvironmentExtra "NODE_ENV=production" "PATH=$svcPath"
-            Ok "Service will run as $svcUser."
-        } else {
-            & nssm set $svcName AppEnvironmentExtra "NODE_ENV=production" "PATH=$svcPath" "USERPROFILE=$env:USERPROFILE"
-            Warn "No password given — running as LocalSystem, pointed at your profile for the Claude login."
-        }
+        & nssm set $svcName ObjectName $svcUser $plainPw
+        & nssm set $svcName AppEnvironmentExtra "NODE_ENV=production" "PATH=$svcPath"
         $plainPw = $null
+        Ok "Service will run as $svcUser."
 
         & nssm set $svcName AppStdout (Join-Path $InstallDir "logs\myhq.log")
         & nssm set $svcName AppStderr (Join-Path $InstallDir "logs\myhq-err.log")
@@ -541,6 +588,15 @@ function Install-Service {
         & nssm set $svcName AppRotateOnline 1
         New-Item -ItemType Directory -Path (Join-Path $InstallDir "logs") -Force | Out-Null
         & nssm start $svcName
+
+        # Confirm it actually started (a bad 'log on as a service' right or an
+        # unverifiable domain password would otherwise leave a stopped service).
+        Start-Sleep -Seconds 2
+        $status = "$(& nssm status $svcName 2>$null)"
+        if ($status -notmatch "RUNNING") {
+            Die "Service '$svcName' failed to start ($status). Check the password and the account's 'Log on as a service' right, then re-run. Logs: $InstallDir\logs\myhq-err.log"
+        }
+
         $Script:ServiceMode = "service"
         Ok "Service '$svcName' installed and started."
         Write-Host "  Control: nssm start|stop|restart $svcName" -ForegroundColor Cyan
@@ -653,5 +709,6 @@ if ($Script:PanelPortChosen) {
 }
 Write-Host "  Tutorial    : $Tutorial" -ForegroundColor Cyan
 Write-Host "  To update   : .\scripts\windows\update.ps1  (or use the panel's Updates view)" -ForegroundColor Cyan
+Write-Host "  To uninstall: .\scripts\windows\uninstall.ps1" -ForegroundColor Cyan
 Write-Host "  If not logged in / no API key: claude setup-token  (needs a Pro/Max plan)" -ForegroundColor Cyan
 Write-Host ""
