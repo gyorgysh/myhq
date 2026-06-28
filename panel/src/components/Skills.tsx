@@ -151,9 +151,9 @@ function PromptLibrary({ onAuthError }: { onAuthError: () => void }) {
                 <p className="mt-1 line-clamp-2 font-mono text-xs text-fg-faint">{s.prompt}</p>
               </div>
               <div className="flex shrink-0 gap-1.5">
-                <Button onClick={() => startEdit(s)}>Edit</Button>
+                <Button onClick={() => startEdit(s)}>{t("edit")}</Button>
                 <Button variant="danger" onClick={() => del(s.id)}>
-                  Delete
+                  {t("delete")}
                 </Button>
               </div>
             </div>

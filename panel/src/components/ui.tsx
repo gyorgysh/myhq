@@ -253,6 +253,7 @@ export function InfoCard({
       <button
         className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-fg transition-colors hover:bg-surface-2"
         onClick={toggle}
+        aria-expanded={open}
       >
         <span className="text-accent">ⓘ</span>
         <span className="flex-1">{open ? openTitle ?? title : title}</span>
