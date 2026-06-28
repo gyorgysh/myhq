@@ -1,9 +1,10 @@
 /**
  * Claude OAuth usage probe.
  *
- * Reads the OAuth access token that the Claude Code CLI stores in the macOS
- * Keychain (service "Claude Code-credentials", account = OS username) and
- * calls the official Anthropic OAuth API:
+ * Reads the OAuth access token that the Claude Code CLI stores — in the macOS
+ * Keychain (service "Claude Code-credentials", account = OS username) on darwin,
+ * or in ~/.claude/.credentials.json on Windows/Linux — and calls the official
+ * Anthropic OAuth API:
  *
  *   GET /api/oauth/usage   — session (5h) and weekly utilisation percentages
  *   GET /api/oauth/profile — plan info (Pro / Max), billing status
@@ -12,8 +13,8 @@
  *   Authorization: Bearer <accessToken>
  *   anthropic-beta: oauth-2025-04-20
  *
- * Falls back to stats-cache.json + `claude auth status` on non-macOS hosts or
- * when the keychain entry is absent (e.g. API-key-only installs).
+ * Falls back to stats-cache.json + `claude auth status` when no stored token is
+ * found (e.g. API-key-only installs).
  *
  * Runs on a configurable schedule (default 30 min). A "Check now" endpoint
  * triggers an immediate refresh and caches the result.
@@ -30,6 +31,9 @@ import { log } from "../logger.js";
 const execFileAsync = promisify(execFile);
 
 const STATS_FILE = join(homedir(), ".claude", "stats-cache.json");
+// Windows/Linux: the Claude CLI writes its OAuth token to this file instead of
+// the macOS Keychain. Same JSON shape as the Keychain blob ({ claudeAiOauth }).
+const CREDENTIALS_FILE = join(homedir(), ".claude", ".credentials.json");
 const PROBE_FILE = "usageProbe.json";
 const OAUTH_BETA = "oauth-2025-04-20";
 const OAUTH_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
@@ -163,7 +167,8 @@ interface StoredCredentials {
   };
 }
 
-async function readStoredCredentials(): Promise<StoredCredentials | null> {
+/** macOS: read the token out of the login Keychain via the `security` CLI. */
+async function readFromKeychain(): Promise<StoredCredentials | null> {
   try {
     const username = userInfo().username;
     const { stdout } = await execFileAsync(
@@ -175,6 +180,28 @@ async function readStoredCredentials(): Promise<StoredCredentials | null> {
   } catch {
     return null;
   }
+}
+
+/** Windows/Linux (and macOS fallback): read ~/.claude/.credentials.json. */
+function readFromFile(): StoredCredentials | null {
+  try {
+    if (!existsSync(CREDENTIALS_FILE)) return null;
+    return JSON.parse(readFileSync(CREDENTIALS_FILE, "utf8")) as StoredCredentials;
+  } catch {
+    return null;
+  }
+}
+
+async function readStoredCredentials(): Promise<StoredCredentials | null> {
+  // The Claude CLI keeps its OAuth token in the macOS Keychain on darwin and in
+  // ~/.claude/.credentials.json on Windows/Linux. Prefer the Keychain on macOS,
+  // then fall back to the file on every platform (covers macOS installs that
+  // wrote the file too, and all non-macOS hosts).
+  if (process.platform === "darwin") {
+    const fromKeychain = await readFromKeychain();
+    if (fromKeychain?.claudeAiOauth) return fromKeychain;
+  }
+  return readFromFile();
 }
 
 /** Get a valid access token, refreshing via `claude auth status` if expired. */
@@ -333,7 +360,7 @@ async function probeViaFallback(): Promise<ProbeResult> {
   return {
     probedAt: new Date().toISOString(),
     source: "fallback",
-    error: "OAuth token not found. Keychain access requires macOS with a Claude Code install.",
+    error: "OAuth token not found — log in with `claude setup-token` (or set an API key). Live usage limits need a Claude Pro/Max login.",
     account: accountInfo.loggedIn
       ? {
           email: accountInfo.email,

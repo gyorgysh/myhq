@@ -110,7 +110,16 @@ curl -fsSL https://gyorgy.sh/myhq-install.sh | bash
 
 ### Windows
 
-Open PowerShell as Administrator and run:
+**First, open PowerShell as Administrator:**
+
+1. Press the **Windows** key.
+2. Type `powershell`.
+3. Right-click **Windows PowerShell** in the results and choose **Run as administrator**.
+4. Click **Yes** on the User Account Control prompt.
+
+The title bar should read **Administrator: Windows PowerShell**.
+
+**Then paste these two lines and press Enter:**
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
@@ -118,6 +127,8 @@ irm https://gyorgy.sh/myhq-install.ps1 | iex
 ```
 
 The first line lets PowerShell run the `npm`/`claude` script shims for this session only (Windows blocks them by default); it isn't persisted and needs no admin. The Windows installer uses `winget` for Node.js and Git, creates a NSSM service (with Task Scheduler as a fallback), and writes a sibling `myhq-update.ps1` for future updates.
+
+If you run it **without** administrator rights, the installer prints these same steps and waits for a keypress before closing, so the window won't vanish on you.
 
 ---
 

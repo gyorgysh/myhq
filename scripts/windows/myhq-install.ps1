@@ -26,6 +26,7 @@
       MYHQ_TOKEN        Telegram bot token
       MYHQ_USER_IDS     Comma-separated allowed Telegram user IDs
       MYHQ_API_KEY      Anthropic API key
+      MYHQ_MODEL        Default Claude model id (skips the model menu)
       MYHQ_MODE         service | manual (default: prompt)
       MYHQ_PANEL        y | n  (enable the web dashboard)
       MYHQ_PANEL_PORT   Panel port number (default: 8787)
@@ -111,6 +112,9 @@ function Ensure-Admin {
     Write-Host "    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force"
     Write-Host "    irm https://gyorgy.sh/myhq-install.ps1 | iex"
     Write-Host ""
+    # Pause so the window doesn't vanish before this can be read (a freshly
+    # launched window closes the moment the script exits). Skipped in automation.
+    if (-not $AutoYes) { Read-Host "Press Enter to close" | Out-Null }
     exit 1
 }
 
@@ -299,7 +303,23 @@ function Configure-Env {
     $userIds = if ($env:MYHQ_USER_IDS) { $env:MYHQ_USER_IDS } else { Ask "Your Telegram user ID(s), comma-separated" }
     $apiKey  = if ($env:MYHQ_API_KEY)  { $env:MYHQ_API_KEY }  else { Ask "Anthropic API key (blank = log in with a Pro/Max plan instead)" "" }
 
-    $model   = Ask "Default Claude model" "claude-opus-4-8"
+    if ($env:MYHQ_MODEL) {
+        $model = $env:MYHQ_MODEL
+    } else {
+        Write-Host ""
+        Write-Host "  Which Claude model should the bot use by default?" -ForegroundColor Cyan
+        Write-Host "  Don't overthink it — you can change this anytime later in the panel or with /model in Telegram." -ForegroundColor DarkGray
+        Write-Host "    1) Opus   - most capable           (claude-opus-4-8)   [recommended]"
+        Write-Host "    2) Sonnet - faster, well-balanced  (claude-sonnet-4-6)"
+        Write-Host "    3) Haiku  - fastest and cheapest   (claude-haiku-4-5-20251001)"
+        Write-Host "    4) Enter a custom model name"
+        switch (Ask "Choose 1-4" "1") {
+            "2"     { $model = "claude-sonnet-4-6" }
+            "3"     { $model = "claude-haiku-4-5-20251001" }
+            "4"     { $model = Ask "Custom model name" "claude-opus-4-8" }
+            default { $model = "claude-opus-4-8" }
+        }
+    }
     $workdir = Ask "Agent working directory (where files go)" (Join-Path $InstallDir "data")
     $lang    = Ask "Default agent language (en, hu, fr, …)" "en"
 

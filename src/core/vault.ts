@@ -58,13 +58,24 @@ function loadMasterKey(): Buffer {
   const p = dataPath(KEY_FILE);
   if (existsSync(p)) return (cachedKey = Buffer.from(readFileSync(p, "utf8").trim(), "base64"));
   const key = randomBytes(32);
+  writeKeyFile(p, key);
+  return (cachedKey = key);
+}
+
+/**
+ * Write the master key file with owner-only permissions. On POSIX we enforce and
+ * verify mode 0600 (a world-readable master key defeats the vault). On Windows
+ * the file lives in the user profile under NTFS ACLs where POSIX mode bits don't
+ * apply, so we skip the chmod/verify to avoid a misleading "world-readable" error.
+ */
+function writeKeyFile(p: string, key: Buffer): void {
   writeFileSync(p, key.toString("base64"), { mode: 0o600 });
+  if (process.platform === "win32") return;
   try {
     chmodSync(p, 0o600);
   } catch (err) {
     log.error(`vault: failed to chmod key file ${p} to 0600 — master key may be world-readable`, { err: String(err) });
   }
-  // A world-readable master key defeats the vault entirely; verify the mode landed.
   try {
     const mode = statSync(p).mode & 0o777;
     if (mode !== 0o600) {
@@ -75,7 +86,6 @@ function loadMasterKey(): Buffer {
   } catch (err) {
     log.error(`vault: could not stat key file ${p} to verify permissions`, { err: String(err) });
   }
-  return (cachedKey = key);
 }
 
 function keychainGet(): Buffer | null {
@@ -102,8 +112,7 @@ function keychainSet(key: Buffer): void {
     log.warn("Keychain write failed; falling back to key file", {
       error: err instanceof Error ? err.message : String(err),
     });
-    const p = dataPath(KEY_FILE);
-    writeFileSync(p, key.toString("base64"), { mode: 0o600 });
+    writeKeyFile(dataPath(KEY_FILE), key);
   }
 }
 
@@ -112,13 +121,7 @@ function storeMasterKey(key: Buffer): void {
   if (platform() === "darwin") {
     keychainSet(key);
   } else {
-    const p = dataPath(KEY_FILE);
-    writeFileSync(p, key.toString("base64"), { mode: 0o600 });
-    try {
-      chmodSync(p, 0o600);
-    } catch {
-      /* best effort */
-    }
+    writeKeyFile(dataPath(KEY_FILE), key);
   }
   cachedKey = key;
 }
