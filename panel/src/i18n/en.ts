@@ -757,6 +757,7 @@ export const en = {
   wizard_confirm_one: "Create agent",
   wizard_confirm_all: "Create all ({n})",
   wizard_created: "Created!",
+  wizard_done: "Done",
   wizard_back: "Start over",
   wizard_cancel: "Cancel",
   wizard_next: "Generate",

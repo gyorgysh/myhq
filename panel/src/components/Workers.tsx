@@ -651,7 +651,7 @@ function WorkerWizard({
           )}
           {allCreated && (
             <Button variant="primary" onClick={onDone}>
-              Done
+              {t("wizard_done")}
             </Button>
           )}
         </div>

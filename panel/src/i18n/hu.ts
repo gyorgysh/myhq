@@ -761,6 +761,7 @@ export const hu: Translations = {
   wizard_confirm_one: "Ügynök létrehozása",
   wizard_confirm_all: "Összes létrehozása ({n})",
   wizard_created: "Létrehozva!",
+  wizard_done: "Kész",
   wizard_back: "Újrakezdés",
   wizard_cancel: "Mégse",
   wizard_next: "Generálás",
