@@ -2,11 +2,20 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
 import { platform } from "node:os";
-import { randomBytes as id4 } from "node:crypto";
 import { loadJson, saveJson, dataPath } from "./jsonStore.js";
 import { listProviders, updateProvider } from "./providers.js";
 import { audit } from "./audit.js";
 import { log } from "../logger.js";
+
+/**
+ * Mint an opaque vault entry id: 8 random bytes → 16 hex chars (64 bits of
+ * entropy). IDs are stored in plaintext config files (vault.json, workers.json),
+ * so the wider space closes any theoretical brute-force/guessing path. They are
+ * opaque references, never derived keys, so widening is compatibility-free.
+ */
+function newVaultId(): string {
+  return randomBytes(8).toString("hex");
+}
 
 const FILE = "vault.json";
 const KEY_FILE = "vault.key";
@@ -200,7 +209,7 @@ export class VaultStore {
   create(input: SecretInput): SecretView {
     const now = Date.now();
     const entry: VaultEntry = {
-      id: id4(4).toString("hex"),
+      id: newVaultId(),
       name: input.name.trim() || "secret",
       description: input.description?.trim() ?? "",
       ciphertext: encrypt(input.value),
@@ -333,7 +342,7 @@ export class VaultStore {
     for (const s of secrets) {
       if (typeof s.value !== "string") continue;
       this.entries.push({
-        id: id4(4).toString("hex"),
+        id: newVaultId(),
         name: (s.name ?? "secret").trim() || "secret",
         description: (s.description ?? "").trim(),
         ciphertext: encrypt(s.value),
