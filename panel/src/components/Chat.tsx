@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, AuthError, type ChatMessage, type Worker } from "../api.ts";
+import { api, AuthError, type Autonomy, type ChatMessage, type Worker } from "../api.ts";
 import { useChatEvents } from "../lib/useChatEvents.ts";
 import { useAgentChatEvents } from "../lib/useAgentChatEvents.ts";
 import { useI18n } from "../lib/useI18n.ts";
@@ -356,6 +356,24 @@ function AtlasChat({ onAuthError }: { onAuthError: () => void }) {
   // how the next message is framed to Atlas, not server state.
   const [planning, setPlanning] = usePlanningMode(ATLAS);
 
+  // Autonomy level: fetched from the server on mount, updated via PUT /api/agent.
+  const [autonomy, setAutonomyState] = useState<Autonomy>("standard");
+  useEffect(() => {
+    api.agent().then((a) => {
+      // Only track the three UI-exposed levels; map auto_until_error → standard.
+      const level = a.autonomy === "supervised" || a.autonomy === "full" ? a.autonomy : "standard";
+      setAutonomyState(level);
+    }).catch(() => {});
+  }, []);
+  const setAutonomy = async (a: Autonomy) => {
+    setAutonomyState(a);
+    try {
+      await api.saveAgent({ autonomy: a });
+    } catch {
+      // Best-effort; UI already reflects the change.
+    }
+  };
+
   const toggleAuto = async () => {
     if (!view?.bypassAllowed) return;
     setView(await api.chatSettings({ auto: !view.auto }));
@@ -428,6 +446,8 @@ function AtlasChat({ onAuthError }: { onAuthError: () => void }) {
       empty={empty}
       planning={planning}
       onPlanningChange={setPlanning}
+      autonomy={autonomy}
+      onAutonomyChange={(a) => void setAutonomy(a)}
       onSend={(txt) => api.sendChat(txt, planning).then(() => {})}
       onStop={() => void api.stopChat()}
     />
@@ -531,6 +551,8 @@ function ChatPane({
   agentRole,
   planning,
   onPlanningChange,
+  autonomy,
+  onAutonomyChange,
   onSend,
   onStop,
 }: {
@@ -544,6 +566,9 @@ function ChatPane({
   /** When defined, renders a Planning/Execution mode pill in the composer. */
   planning?: boolean;
   onPlanningChange?: (planning: boolean) => void;
+  /** When defined, renders an Autonomy selector in the composer toolbar. */
+  autonomy?: Autonomy;
+  onAutonomyChange?: (a: Autonomy) => void;
   onSend: (text: string) => Promise<void>;
   onStop: () => void;
 }) {
@@ -655,9 +680,20 @@ function ChatPane({
       </div>
 
       <div className="flex flex-col gap-2 border-t border-line pt-3">
-        {planning !== undefined && onPlanningChange && (
-          <ModePill planning={planning} onChange={onPlanningChange} />
-        )}
+        {(planning !== undefined && onPlanningChange) || (autonomy !== undefined && onAutonomyChange) ? (
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div>
+              {planning !== undefined && onPlanningChange && (
+                <ModePill planning={planning} onChange={onPlanningChange} />
+              )}
+            </div>
+            <div>
+              {autonomy !== undefined && onAutonomyChange && (
+                <AutonomyPill autonomy={autonomy} onChange={onAutonomyChange} />
+              )}
+            </div>
+          </div>
+        ) : null}
         <div className="flex items-end gap-2">
           <textarea
             value={text}
@@ -724,6 +760,43 @@ function ModePill({
       <span className="text-xs text-fg-faint">
         {planning ? t("chat_mode_planning_hint") : t("chat_mode_execution_hint")}
       </span>
+    </div>
+  );
+}
+
+/**
+ * Compact 3-segment autonomy selector shown in the Atlas composer toolbar.
+ * Supervised / Standard / Full. Calls PUT /api/agent on change.
+ */
+function AutonomyPill({
+  autonomy,
+  onChange,
+}: {
+  autonomy: Autonomy;
+  onChange: (a: Autonomy) => void;
+}) {
+  const { t } = useI18n();
+  const options: { value: Autonomy; label: string }[] = [
+    { value: "supervised", label: t("chat_autonomy_supervised") },
+    { value: "standard",   label: t("chat_autonomy_standard") },
+    { value: "full",       label: t("chat_autonomy_full") },
+  ];
+  return (
+    <div className="inline-flex rounded-full border border-line bg-surface-2 p-0.5 text-xs font-medium">
+      {options.map(({ value, label }) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => onChange(value)}
+          className={`rounded-full px-2.5 py-1 transition-colors ${
+            autonomy === value
+              ? "bg-accent text-accent-fg"
+              : "text-fg-dim hover:text-fg-muted"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
