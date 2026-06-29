@@ -1768,13 +1768,21 @@ function githubMcp(token: string, scope: ConnectorScope) {
 
 type McpServer = ReturnType<typeof createSdkMcpServer>;
 
+/** Raw SSE/HTTP external MCP server config (for connectors that proxy to a local process). */
+type ExternalMcpServer = { type: "sse" | "http"; url: string; headers?: Record<string, string> };
+
+/** Returns true when the connector is toggled on, regardless of whether it has a credential. */
+function connectorIsEnabled(id: string): boolean {
+  return listConnectors().find((x) => x.id === id)?.enabled ?? false;
+}
+
 /**
  * Build the live connector MCP servers that are currently enabled + credentialed.
  * Returns a map keyed by MCP server name, ready to spread into a `runTurn`
  * `mcpServers` object. Empty when nothing is configured.
  */
-export function buildConnectorMcps(): Record<string, McpServer> {
-  const out: Record<string, McpServer> = {};
+export function buildConnectorMcps(): Record<string, McpServer | ExternalMcpServer> {
+  const out: Record<string, McpServer | ExternalMcpServer> = {};
   const notionToken = credentialFor("notion");
   if (notionToken) out.notion = notionMcp(notionToken, connectorScope("notion"));
   const gcalToken = credentialFor("gcal");
@@ -1791,6 +1799,12 @@ export function buildConnectorMcps(): Record<string, McpServer> {
   if (slackToken) out.slack = slackMcp(slackToken, connectorScope("slack"));
   const githubToken = credentialFor("github");
   if (githubToken) out.github = githubMcp(githubToken, connectorScope("github"));
+  if (connectorIsEnabled("unreal-engine")) {
+    // Credential is optional — if set it overrides the default editor URL.
+    const urlOverride = credentialFor("unreal-engine");
+    const ueUrl = urlOverride ?? "http://127.0.0.1:8000/mcp";
+    out["unreal-engine"] = { type: "sse", url: ueUrl };
+  }
   if (Object.keys(out).length) {
     log.debug("Connector MCPs enabled", {
       connectors: Object.keys(out).map((id) => `${id}:${connectorScope(id)}`),
@@ -1800,4 +1814,4 @@ export function buildConnectorMcps(): Record<string, McpServer> {
 }
 
 /** Names of the live connectors that have wired MCP servers (for the panel). */
-export const LIVE_CONNECTORS = ["notion", "gcal", "gmail", "gdrive", "apple-calendar", "apple-mail", "slack", "github"] as const;
+export const LIVE_CONNECTORS = ["notion", "gcal", "gmail", "gdrive", "apple-calendar", "apple-mail", "slack", "github", "unreal-engine"] as const;
