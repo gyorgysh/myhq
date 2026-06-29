@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#f5f0e8"/>
+  <!-- Body -->
+  <ellipse cx="256" cy="340" rx="108" ry="125" fill="#b8864e"/>
+  <!-- Wing texture stripes -->
+  <ellipse cx="174" cy="345" rx="40" ry="80" fill="#9a6e3a" opacity="0.6"/>
+  <ellipse cx="338" cy="345" rx="40" ry="80" fill="#9a6e3a" opacity="0.6"/>
+  <!-- Chest feathers (light) -->
+  <ellipse cx="256" cy="345" rx="62" ry="78" fill="#f0d8a8"/>
+  <!-- Chest feather pattern -->
+  <ellipse cx="240" cy="310" rx="18" ry="12" fill="#e8c888" opacity="0.7"/>
+  <ellipse cx="270" cy="315" rx="18" ry="12" fill="#e8c888" opacity="0.7"/>
+  <ellipse cx="245" cy="338" rx="18" ry="12" fill="#e8c888" opacity="0.7"/>
+  <ellipse cx="268" cy="342" rx="18" ry="12" fill="#e8c888" opacity="0.7"/>
+  <ellipse cx="252" cy="366" rx="18" ry="12" fill="#e8c888" opacity="0.7"/>
+  <!-- Head -->
+  <ellipse cx="256" cy="195" rx="105" ry="102" fill="#b8864e"/>
+  <!-- Ear tufts -->
+  <polygon points="205,118 190,62 228,102" fill="#9a6e3a"/>
+  <polygon points="307,118 322,62 284,102" fill="#9a6e3a"/>
+  <!-- Facial disc -->
+  <ellipse cx="256" cy="208" rx="82" ry="78" fill="#d4a868"/>
+  <!-- Eye rings (large) -->
+  <circle cx="220" cy="200" r="35" fill="#5a3820"/>
+  <circle cx="292" cy="200" r="35" fill="#5a3820"/>
+  <!-- Eyes -->
+  <circle cx="220" cy="200" r="28" fill="#f5c842"/>
+  <circle cx="292" cy="200" r="28" fill="#f5c842"/>
+  <!-- Pupils -->
+  <circle cx="222" cy="202" r="14" fill="#1a1208"/>
+  <circle cx="294" cy="202" r="14" fill="#1a1208"/>
+  <!-- Eye shine -->
+  <circle cx="226" cy="197" r="5" fill="#fff"/>
+  <circle cx="298" cy="197" r="5" fill="#fff"/>
+  <!-- Beak -->
+  <polygon points="256,222 242,248 270,248" fill="#e8a830"/>
+  <line x1="242" y1="235" x2="270" y2="235" stroke="#c88820" stroke-width="2"/>
+  <!-- Feet -->
+  <ellipse cx="218" cy="450" rx="32" ry="16" fill="#d4a030" transform="rotate(-10,218,450)"/>
+  <ellipse cx="294" cy="450" rx="32" ry="16" fill="#d4a030" transform="rotate(10,294,450)"/>
+  <line x1="200" y1="453" x2="192" y2="468" stroke="#c88820" stroke-width="5" stroke-linecap="round"/>
+  <line x1="215" y1="458" x2="212" y2="474" stroke="#c88820" stroke-width="5" stroke-linecap="round"/>
+  <line x1="232" y1="455" x2="234" y2="471" stroke="#c88820" stroke-width="5" stroke-linecap="round"/>
+  <line x1="276" y1="453" x2="268" y2="468" stroke="#c88820" stroke-width="5" stroke-linecap="round"/>
+  <line x1="291" y1="458" x2="288" y2="474" stroke="#c88820" stroke-width="5" stroke-linecap="round"/>
+  <line x1="308" y1="455" x2="310" y2="471" stroke="#c88820" stroke-width="5" stroke-linecap="round"/>
+</svg>

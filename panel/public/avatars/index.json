@@ -1,0 +1,17 @@
+{
+  "avatars": [
+    { "slug": "panda", "label": "Panda" },
+    { "slug": "koala", "label": "Koala" },
+    { "slug": "trex", "label": "T-Rex" },
+    { "slug": "robot", "label": "Robot" },
+    { "slug": "fox", "label": "Fox" },
+    { "slug": "octopus", "label": "Octopus" },
+    { "slug": "owl", "label": "Owl" },
+    { "slug": "axolotl", "label": "Axolotl" },
+    { "slug": "capybara", "label": "Capybara" },
+    { "slug": "raccoon", "label": "Raccoon" },
+    { "slug": "chameleon", "label": "Chameleon" },
+    { "slug": "narwhal", "label": "Narwhal" },
+    { "slug": "red_panda", "label": "Red Panda" }
+  ]
+}

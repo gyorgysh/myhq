@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#fff0f5"/>
+  <!-- Body -->
+  <ellipse cx="256" cy="340" rx="115" ry="110" fill="#f5a8c8"/>
+  <!-- Tail -->
+  <path d="M256 440 Q290 470 300 490 Q256 498 212 490 Q222 470 256 440" fill="#f5a8c8"/>
+  <path d="M256 440 Q240 465 235 488" stroke="#e880b0" stroke-width="3" fill="none" opacity="0.5"/>
+  <path d="M256 440 Q272 465 277 488" stroke="#e880b0" stroke-width="3" fill="none" opacity="0.5"/>
+  <!-- Leg fins -->
+  <ellipse cx="168" cy="380" rx="35" ry="18" fill="#f5a8c8" transform="rotate(-35,168,380)"/>
+  <ellipse cx="344" cy="380" rx="35" ry="18" fill="#f5a8c8" transform="rotate(35,344,380)"/>
+  <ellipse cx="185" cy="415" rx="32" ry="16" fill="#f5a8c8" transform="rotate(-20,185,415)"/>
+  <ellipse cx="327" cy="415" rx="32" ry="16" fill="#f5a8c8" transform="rotate(20,327,415)"/>
+  <!-- Neck -->
+  <ellipse cx="256" cy="248" rx="62" ry="45" fill="#f5a8c8"/>
+  <!-- Head -->
+  <ellipse cx="256" cy="193" rx="105" ry="88" fill="#ffb8d5"/>
+  <!-- External gills (left) -->
+  <path d="M165 175 Q138 140 142 110 Q158 115 160 148 Q172 130 168 100 Q185 110 180 142 Q196 122 196 92 Q212 108 202 140" fill="#f870a8" opacity="0.8"/>
+  <!-- External gills (right) -->
+  <path d="M347 175 Q374 140 370 110 Q354 115 352 148 Q340 130 344 100 Q327 110 332 142 Q316 122 316 92 Q300 108 310 140" fill="#f870a8" opacity="0.8"/>
+  <!-- Gill tips -->
+  <circle cx="145" cy="112" r="7" fill="#f870a8"/>
+  <circle cx="170" cy="102" r="7" fill="#f870a8"/>
+  <circle cx="198" cy="94" r="7" fill="#f870a8"/>
+  <circle cx="367" cy="112" r="7" fill="#f870a8"/>
+  <circle cx="342" cy="102" r="7" fill="#f870a8"/>
+  <circle cx="314" cy="94" r="7" fill="#f870a8"/>
+  <!-- Eyes -->
+  <circle cx="218" cy="192" r="22" fill="#fff"/>
+  <circle cx="294" cy="192" r="22" fill="#fff"/>
+  <circle cx="221" cy="194" r="11" fill="#3d2040"/>
+  <circle cx="297" cy="194" r="11" fill="#3d2040"/>
+  <circle cx="224" cy="191" r="4" fill="#fff"/>
+  <circle cx="300" cy="191" r="4" fill="#fff"/>
+  <!-- Blush circles -->
+  <circle cx="193" cy="215" r="16" fill="#f870a8" opacity="0.3"/>
+  <circle cx="319" cy="215" r="16" fill="#f870a8" opacity="0.3"/>
+  <!-- Smile -->
+  <path d="M238 225 Q256 238 274 225" stroke="#d4608a" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- Spots on body -->
+  <circle cx="230" cy="320" r="8" fill="#f0a0c0" opacity="0.5"/>
+  <circle cx="280" cy="310" r="7" fill="#f0a0c0" opacity="0.5"/>
+  <circle cx="255" cy="355" r="9" fill="#f0a0c0" opacity="0.5"/>
+</svg>

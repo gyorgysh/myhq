@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#eef0fa"/>
+  <!-- Tentacles (back layer) -->
+  <path d="M190 340 Q150 390 140 440 Q155 460 168 440 Q175 400 210 365" fill="#7b5ea7" opacity="0.7"/>
+  <path d="M230 355 Q210 415 205 465 Q222 475 232 455 Q235 415 252 368" fill="#7b5ea7" opacity="0.7"/>
+  <path d="M322 340 Q362 390 372 440 Q357 460 344 440 Q337 400 302 365" fill="#7b5ea7" opacity="0.7"/>
+  <path d="M282 355 Q302 415 307 465 Q290 475 280 455 Q277 415 260 368" fill="#7b5ea7" opacity="0.7"/>
+  <!-- Body / mantle -->
+  <ellipse cx="256" cy="248" rx="118" ry="125" fill="#9b7ec8"/>
+  <!-- Head dome -->
+  <ellipse cx="256" cy="195" rx="110" ry="100" fill="#b090d8"/>
+  <!-- Sucker spots on body -->
+  <circle cx="185" cy="310" r="8" fill="#7b5ea7" opacity="0.4"/>
+  <circle cx="175" cy="285" r="6" fill="#7b5ea7" opacity="0.4"/>
+  <circle cx="330" cy="310" r="8" fill="#7b5ea7" opacity="0.4"/>
+  <circle cx="340" cy="285" r="6" fill="#7b5ea7" opacity="0.4"/>
+  <!-- Eyes -->
+  <circle cx="220" cy="205" r="28" fill="#fff"/>
+  <circle cx="292" cy="205" r="28" fill="#fff"/>
+  <circle cx="224" cy="208" r="14" fill="#3a2060"/>
+  <circle cx="296" cy="208" r="14" fill="#3a2060"/>
+  <circle cx="228" cy="204" r="5" fill="#fff"/>
+  <circle cx="300" cy="204" r="5" fill="#fff"/>
+  <!-- Cheek blush -->
+  <circle cx="196" cy="230" r="14" fill="#e89acd" opacity="0.4"/>
+  <circle cx="316" cy="230" r="14" fill="#e89acd" opacity="0.4"/>
+  <!-- Mouth -->
+  <path d="M240 240 Q256 252 272 240" stroke="#5a3e80" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+  <!-- Front tentacles -->
+  <path d="M170 330 Q120 380 115 435 Q132 450 145 428 Q148 392 185 355" fill="#9b7ec8"/>
+  <path d="M342 330 Q392 380 397 435 Q380 450 367 428 Q364 392 327 355" fill="#9b7ec8"/>
+</svg>

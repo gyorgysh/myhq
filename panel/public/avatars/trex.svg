@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#f0f5ee"/>
+  <!-- Body -->
+  <ellipse cx="256" cy="340" rx="100" ry="110" fill="#5b8a5e"/>
+  <!-- Tail -->
+  <path d="M352 380 Q420 360 440 420 Q420 440 370 420 Z" fill="#5b8a5e"/>
+  <!-- Neck -->
+  <ellipse cx="256" cy="230" rx="55" ry="60" fill="#5b8a5e"/>
+  <!-- Head (big, slightly tilted) -->
+  <ellipse cx="268" cy="175" rx="90" ry="68" fill="#6aaa6e"/>
+  <!-- Snout -->
+  <ellipse cx="330" cy="185" rx="55" ry="35" fill="#6aaa6e"/>
+  <!-- Jaw -->
+  <ellipse cx="325" cy="200" rx="52" ry="22" fill="#5b8a5e"/>
+  <!-- Teeth top -->
+  <rect x="305" y="186" width="8" height="14" rx="3" fill="#fff"/>
+  <rect x="320" y="186" width="8" height="14" rx="3" fill="#fff"/>
+  <rect x="335" y="185" width="8" height="12" rx="3" fill="#fff"/>
+  <rect x="350" y="186" width="6" height="10" rx="3" fill="#fff"/>
+  <!-- Teeth bottom -->
+  <rect x="310" y="200" width="7" height="12" rx="3" fill="#fff"/>
+  <rect x="325" y="201" width="7" height="11" rx="3" fill="#fff"/>
+  <rect x="340" y="201" width="6" height="9" rx="3" fill="#fff"/>
+  <!-- Nostril -->
+  <circle cx="355" cy="175" r="5" fill="#4a6e4c"/>
+  <!-- Eye -->
+  <circle cx="290" cy="163" r="22" fill="#fff"/>
+  <circle cx="293" cy="166" r="11" fill="#2d4a2e"/>
+  <circle cx="297" cy="163" r="4" fill="#fff"/>
+  <!-- Brow ridge -->
+  <path d="M272 148 Q293 142 310 150" stroke="#4a6e4c" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <!-- Tiny arms -->
+  <ellipse cx="195" cy="290" rx="22" ry="14" fill="#5b8a5e" transform="rotate(-40,195,290)"/>
+  <ellipse cx="185" cy="302" rx="14" ry="9" fill="#4a6e4c" transform="rotate(-20,185,302)"/>
+  <!-- Scales pattern -->
+  <circle cx="256" cy="310" r="5" fill="#4a6e4c" opacity="0.4"/>
+  <circle cx="275" cy="325" r="5" fill="#4a6e4c" opacity="0.4"/>
+  <circle cx="237" cy="330" r="5" fill="#4a6e4c" opacity="0.4"/>
+  <circle cx="260" cy="345" r="5" fill="#4a6e4c" opacity="0.4"/>
+  <!-- Legs -->
+  <ellipse cx="215" cy="425" rx="38" ry="28" fill="#5b8a5e" transform="rotate(15,215,425)"/>
+  <ellipse cx="295" cy="430" rx="38" ry="28" fill="#5b8a5e" transform="rotate(-10,295,430)"/>
+</svg>

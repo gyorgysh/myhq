@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#eef0f8"/>
+  <!-- Body -->
+  <rect x="168" y="285" width="176" height="160" rx="20" fill="#5b7ad4"/>
+  <!-- Body panel lines -->
+  <rect x="200" y="310" width="112" height="50" rx="10" fill="#4a65b8"/>
+  <!-- Chest lights -->
+  <circle cx="222" cy="336" r="10" fill="#a3e6ff"/>
+  <circle cx="256" cy="336" r="10" fill="#ff9eb5"/>
+  <circle cx="290" cy="336" r="10" fill="#b3f0a0"/>
+  <!-- Waist -->
+  <rect x="200" y="278" width="112" height="20" rx="8" fill="#4a65b8"/>
+  <!-- Neck -->
+  <rect x="238" y="258" width="36" height="28" rx="6" fill="#4a65b8"/>
+  <!-- Head -->
+  <rect x="172" y="168" width="168" height="104" rx="24" fill="#6b8de0"/>
+  <!-- Antenna -->
+  <rect x="250" y="144" width="12" height="32" rx="5" fill="#4a65b8"/>
+  <circle cx="256" cy="138" r="14" fill="#a3e6ff"/>
+  <circle cx="256" cy="138" r="7" fill="#fff" opacity="0.7"/>
+  <!-- Eyes (screens) -->
+  <rect x="196" y="192" width="48" height="38" rx="10" fill="#1a1a2e"/>
+  <rect x="268" y="192" width="48" height="38" rx="10" fill="#1a1a2e"/>
+  <!-- Eye glows -->
+  <rect x="202" y="198" width="36" height="26" rx="7" fill="#38bdf8" opacity="0.85"/>
+  <rect x="274" y="198" width="36" height="26" rx="7" fill="#38bdf8" opacity="0.85"/>
+  <!-- Eye pupils -->
+  <circle cx="220" cy="211" r="8" fill="#0ea5e9"/>
+  <circle cx="292" cy="211" r="8" fill="#0ea5e9"/>
+  <circle cx="222" cy="209" r="3" fill="#fff" opacity="0.8"/>
+  <circle cx="294" cy="209" r="3" fill="#fff" opacity="0.8"/>
+  <!-- Mouth panel -->
+  <rect x="218" y="248" width="76" height="14" rx="6" fill="#1a1a2e"/>
+  <rect x="222" y="251" width="12" height="8" rx="3" fill="#38bdf8"/>
+  <rect x="238" y="251" width="12" height="8" rx="3" fill="#38bdf8"/>
+  <rect x="254" y="251" width="12" height="8" rx="3" fill="#38bdf8"/>
+  <rect x="270" y="251" width="12" height="8" rx="3" fill="#38bdf8"/>
+  <!-- Arms -->
+  <rect x="118" y="290" width="55" height="130" rx="20" fill="#5b7ad4"/>
+  <rect x="339" y="290" width="55" height="130" rx="20" fill="#5b7ad4"/>
+  <!-- Hand grips -->
+  <rect x="120" y="400" width="51" height="30" rx="14" fill="#4a65b8"/>
+  <rect x="341" y="400" width="51" height="30" rx="14" fill="#4a65b8"/>
+  <!-- Legs -->
+  <rect x="188" y="440" width="56" height="52" rx="16" fill="#4a65b8"/>
+  <rect x="268" y="440" width="56" height="52" rx="16" fill="#4a65b8"/>
+</svg>

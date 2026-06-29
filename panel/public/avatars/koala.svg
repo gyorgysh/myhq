@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#eef0f5"/>
+  <!-- Body -->
+  <ellipse cx="256" cy="325" rx="105" ry="115" fill="#b0b8c8"/>
+  <!-- Head -->
+  <circle cx="256" cy="210" r="102" fill="#b0b8c8"/>
+  <!-- Ears (large fluffy) -->
+  <circle cx="165" cy="128" r="52" fill="#9aa3b5"/>
+  <circle cx="347" cy="128" r="52" fill="#9aa3b5"/>
+  <circle cx="165" cy="128" r="32" fill="#c8cdd8"/>
+  <circle cx="347" cy="128" r="32" fill="#c8cdd8"/>
+  <!-- Eyes -->
+  <circle cx="224" cy="202" r="18" fill="#fff"/>
+  <circle cx="288" cy="202" r="18" fill="#fff"/>
+  <circle cx="226" cy="204" r="9" fill="#3a2e28"/>
+  <circle cx="290" cy="204" r="9" fill="#3a2e28"/>
+  <circle cx="229" cy="201" r="3.5" fill="#fff"/>
+  <circle cx="293" cy="201" r="3.5" fill="#fff"/>
+  <!-- Nose (big round) -->
+  <ellipse cx="256" cy="228" rx="22" ry="18" fill="#6b7280"/>
+  <ellipse cx="250" cy="224" rx="6" ry="4" fill="#8a9aac" opacity="0.5"/>
+  <!-- Mouth -->
+  <path d="M242 244 Q256 256 270 244" stroke="#4a4a55" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- Tummy -->
+  <ellipse cx="256" cy="340" rx="60" ry="65" fill="#cdd2de"/>
+  <!-- Arms -->
+  <ellipse cx="162" cy="335" rx="38" ry="22" fill="#9aa3b5" transform="rotate(-25,162,335)"/>
+  <ellipse cx="350" cy="335" rx="38" ry="22" fill="#9aa3b5" transform="rotate(25,350,335)"/>
+</svg>

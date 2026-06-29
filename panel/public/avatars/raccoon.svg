@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#f0eeea"/>
+  <!-- Body -->
+  <ellipse cx="256" cy="340" rx="108" ry="118" fill="#8a8888"/>
+  <!-- Tail (striped) -->
+  <path d="M358 375 Q420 340 438 405 Q418 445 362 418 Z" fill="#8a8888"/>
+  <path d="M390 360 Q415 378 420 408" stroke="#3a3838" stroke-width="10" fill="none" stroke-linecap="round" opacity="0.5"/>
+  <path d="M400 378 Q420 396 420 420" stroke="#8a8888" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.5"/>
+  <!-- Chest -->
+  <ellipse cx="256" cy="355" rx="58" ry="68" fill="#c8c0b8"/>
+  <!-- Head -->
+  <circle cx="256" cy="204" r="106" fill="#8a8888"/>
+  <!-- Ears -->
+  <circle cx="183" cy="128" r="34" fill="#7a7878"/>
+  <circle cx="329" cy="128" r="34" fill="#7a7878"/>
+  <circle cx="183" cy="128" r="18" fill="#c0b0a8"/>
+  <circle cx="329" cy="128" r="18" fill="#c0b0a8"/>
+  <!-- Face mask (dark) -->
+  <path d="M178 188 Q220 172 256 176 Q292 172 334 188 Q330 230 310 240 Q280 255 256 252 Q232 255 202 240 Q182 230 178 188 Z" fill="#2a2828"/>
+  <!-- White face surround -->
+  <ellipse cx="256" cy="216" rx="85" ry="78" fill="#c8c0b8"/>
+  <!-- Eye mask patches (dark) -->
+  <ellipse cx="220" cy="207" rx="30" ry="24" fill="#2a2828"/>
+  <ellipse cx="292" cy="207" rx="30" ry="24" fill="#2a2828"/>
+  <!-- Eyes -->
+  <circle cx="220" cy="207" r="17" fill="#fff"/>
+  <circle cx="292" cy="207" r="17" fill="#fff"/>
+  <circle cx="222" cy="209" r="8" fill="#2a1a0e"/>
+  <circle cx="294" cy="209" r="8" fill="#2a1a0e"/>
+  <circle cx="225" cy="206" r="3" fill="#fff"/>
+  <circle cx="297" cy="206" r="3" fill="#fff"/>
+  <!-- Nose -->
+  <ellipse cx="256" cy="235" rx="11" ry="8" fill="#2a2828"/>
+  <!-- Mouth -->
+  <path d="M246 244 Q256 252 266 244" stroke="#2a2828" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- Whisker dots -->
+  <circle cx="228" cy="240" r="3" fill="#7a7878"/>
+  <circle cx="215" cy="237" r="3" fill="#7a7878"/>
+  <circle cx="284" cy="240" r="3" fill="#7a7878"/>
+  <circle cx="297" cy="237" r="3" fill="#7a7878"/>
+  <!-- Ringed tail stripes -->
+  <!-- Arms -->
+  <ellipse cx="162" cy="345" rx="40" ry="24" fill="#7a7878" transform="rotate(-20,162,345)"/>
+  <ellipse cx="350" cy="345" rx="40" ry="24" fill="#7a7878" transform="rotate(20,350,345)"/>
+</svg>

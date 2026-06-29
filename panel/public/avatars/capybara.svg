@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#f5f0e5"/>
+  <!-- Body (big round) -->
+  <ellipse cx="256" cy="355" rx="140" ry="115" fill="#c8a878"/>
+  <!-- Neck -->
+  <ellipse cx="256" cy="258" rx="60" ry="52" fill="#c8a878"/>
+  <!-- Head (rectangular, capybara-style) -->
+  <rect x="162" y="155" width="188" height="130" rx="45" fill="#d4b888"/>
+  <!-- Ears (small, round) -->
+  <circle cx="194" cy="164" r="24" fill="#c8a878"/>
+  <circle cx="318" cy="164" r="24" fill="#c8a878"/>
+  <circle cx="194" cy="164" r="14" fill="#b89060"/>
+  <circle cx="318" cy="164" r="14" fill="#b89060"/>
+  <!-- Eyes -->
+  <circle cx="218" cy="196" r="18" fill="#fff"/>
+  <circle cx="294" cy="196" r="18" fill="#fff"/>
+  <circle cx="220" cy="198" r="9" fill="#3a2810"/>
+  <circle cx="296" cy="198" r="9" fill="#3a2810"/>
+  <circle cx="223" cy="195" r="3.5" fill="#fff"/>
+  <circle cx="299" cy="195" r="3.5" fill="#fff"/>
+  <!-- Nostrils (big flat snout) -->
+  <ellipse cx="244" cy="252" rx="12" ry="8" fill="#a07850"/>
+  <ellipse cx="268" cy="252" rx="12" ry="8" fill="#a07850"/>
+  <!-- Mouth line -->
+  <path d="M238 262 Q256 270 274 262" stroke="#7a5030" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- Top of snout ridge -->
+  <path d="M200 222 Q256 212 312 222" stroke="#c0a070" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.5"/>
+  <!-- Legs -->
+  <ellipse cx="188" cy="440" rx="40" ry="30" fill="#b89060"/>
+  <ellipse cx="255" cy="448" rx="40" ry="28" fill="#b89060"/>
+  <ellipse cx="322" cy="440" rx="40" ry="30" fill="#b89060"/>
+  <!-- Tummy lighter patch -->
+  <ellipse cx="256" cy="375" rx="80" ry="70" fill="#d8bc90" opacity="0.5"/>
+</svg>

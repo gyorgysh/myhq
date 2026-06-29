@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#fff5ee"/>
+  <!-- Body -->
+  <ellipse cx="256" cy="340" rx="105" ry="115" fill="#e87d3e"/>
+  <!-- Tail -->
+  <path d="M355 370 Q430 320 445 390 Q430 450 360 420 Z" fill="#e87d3e"/>
+  <path d="M425 395 Q432 418 410 428" stroke="#fff" stroke-width="18" fill="none" stroke-linecap="round" opacity="0.6"/>
+  <!-- Chest white -->
+  <ellipse cx="256" cy="350" rx="58" ry="70" fill="#f5e8d8"/>
+  <!-- Head -->
+  <ellipse cx="256" cy="205" rx="95" ry="90" fill="#e87d3e"/>
+  <!-- Ears (pointy) -->
+  <polygon points="190,148 165,68 218,128" fill="#e87d3e"/>
+  <polygon points="322,148 347,68 294,128" fill="#e87d3e"/>
+  <!-- Ear inner -->
+  <polygon points="192,142 175,90 215,128" fill="#d4553a"/>
+  <polygon points="320,142 337,90 297,128" fill="#d4553a"/>
+  <!-- Face white patch -->
+  <ellipse cx="256" cy="218" rx="58" ry="52" fill="#f5e8d8"/>
+  <!-- Eyes -->
+  <ellipse cx="224" cy="200" rx="16" ry="17" fill="#fff"/>
+  <ellipse cx="288" cy="200" rx="16" ry="17" fill="#fff"/>
+  <circle cx="226" cy="202" r="9" fill="#2d1a0e"/>
+  <circle cx="290" cy="202" r="9" fill="#2d1a0e"/>
+  <circle cx="229" cy="199" r="3.5" fill="#fff"/>
+  <circle cx="293" cy="199" r="3.5" fill="#fff"/>
+  <!-- Snout -->
+  <ellipse cx="256" cy="228" rx="28" ry="22" fill="#f5e8d8"/>
+  <!-- Nose -->
+  <ellipse cx="256" cy="220" rx="10" ry="8" fill="#2d1a0e"/>
+  <!-- Mouth -->
+  <path d="M248 230 Q256 238 264 230" stroke="#2d1a0e" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- Whisker dots -->
+  <circle cx="228" cy="228" r="3" fill="#d4553a" opacity="0.5"/>
+  <circle cx="215" cy="224" r="3" fill="#d4553a" opacity="0.5"/>
+  <circle cx="284" cy="228" r="3" fill="#d4553a" opacity="0.5"/>
+  <circle cx="297" cy="224" r="3" fill="#d4553a" opacity="0.5"/>
+  <!-- Arms -->
+  <ellipse cx="162" cy="340" rx="38" ry="22" fill="#e87d3e" transform="rotate(-20,162,340)"/>
+  <ellipse cx="350" cy="340" rx="38" ry="22" fill="#e87d3e" transform="rotate(20,350,340)"/>
+</svg>

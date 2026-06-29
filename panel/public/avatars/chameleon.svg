@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#eef8f0"/>
+  <!-- Body -->
+  <ellipse cx="256" cy="320" rx="110" ry="100" fill="#5aaa6a"/>
+  <!-- Scale pattern on body -->
+  <circle cx="220" cy="295" r="10" fill="#4a9a5a" opacity="0.5"/>
+  <circle cx="245" cy="285" r="10" fill="#4a9a5a" opacity="0.5"/>
+  <circle cx="270" cy="290" r="10" fill="#4a9a5a" opacity="0.5"/>
+  <circle cx="295" cy="300" r="10" fill="#4a9a5a" opacity="0.5"/>
+  <circle cx="230" cy="320" r="10" fill="#4a9a5a" opacity="0.5"/>
+  <circle cx="255" cy="315" r="10" fill="#4a9a5a" opacity="0.5"/>
+  <circle cx="280" cy="325" r="10" fill="#4a9a5a" opacity="0.5"/>
+  <!-- Tail (curled) -->
+  <path d="M355 360 Q400 340 415 380 Q420 420 390 440 Q370 455 355 440 Q340 425 355 410 Q370 398 375 385 Q378 370 360 368" fill="none" stroke="#5aaa6a" stroke-width="30" stroke-linecap="round"/>
+  <!-- Legs -->
+  <path d="M186 360 Q155 385 148 420 Q162 430 175 415 Q178 392 200 375" fill="#5aaa6a"/>
+  <path d="M195 380 Q168 405 162 440" stroke="#4a9a5a" stroke-width="4" fill="none"/>
+  <path d="M322 355 Q352 378 360 415 Q346 428 334 412 Q330 388 310 372" fill="#5aaa6a"/>
+  <!-- Head with casque -->
+  <ellipse cx="230" cy="215" rx="92" ry="72" fill="#6abe7a"/>
+  <!-- Casque (helmet ridge) -->
+  <path d="M150 200 Q175 140 230 135 Q285 132 310 155 Q320 175 315 200" fill="#5aaa6a"/>
+  <path d="M150 200 Q175 145 230 140 Q285 137 312 158" fill="none" stroke="#4a9a5a" stroke-width="4"/>
+  <!-- Eye (turret, chameleon style) -->
+  <circle cx="200" cy="210" r="28" fill="#2a5a32"/>
+  <circle cx="200" cy="210" r="20" fill="#1a4a22"/>
+  <circle cx="200" cy="210" r="12" fill="#f5f5a0"/>
+  <circle cx="202" cy="208" r="6" fill="#1a1a10"/>
+  <circle cx="204" cy="206" r="2.5" fill="#fff"/>
+  <!-- Tongue hint -->
+  <path d="M295 230 Q330 215 355 220 Q365 230 358 238 Q350 242 335 236 Q318 228 295 238" fill="#e84040" opacity="0.85"/>
+  <circle cx="358" cy="229" r="7" fill="#c82020"/>
+  <!-- Snout -->
+  <ellipse cx="295" cy="232" rx="30" ry="20" fill="#6abe7a"/>
+  <!-- Nostril -->
+  <circle cx="308" cy="228" r="4" fill="#4a9a5a"/>
+  <!-- Mouth line -->
+  <path d="M268 240 Q295 250 322 240" stroke="#3a8a4a" stroke-width="3" fill="none" stroke-linecap="round"/>
+</svg>

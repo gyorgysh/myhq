@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#eef4ff"/>
+  <!-- Tail flukes -->
+  <path d="M390 360 Q440 320 458 290 Q445 285 425 305 Q420 280 412 265 Q398 278 395 305 Q375 285 370 268 Q358 282 365 308 Q350 298 342 288" fill="#6aabdc"/>
+  <!-- Body -->
+  <ellipse cx="235" cy="275" rx="155" ry="100" fill="#7bbde8"/>
+  <!-- Belly lighter patch -->
+  <ellipse cx="220" cy="290" rx="115" ry="65" fill="#a8d4f5"/>
+  <!-- Spots/pattern -->
+  <circle cx="175" cy="258" r="14" fill="#6aabdc" opacity="0.5"/>
+  <circle cx="210" cy="242" r="11" fill="#6aabdc" opacity="0.5"/>
+  <circle cx="240" cy="255" r="13" fill="#6aabdc" opacity="0.5"/>
+  <circle cx="270" cy="250" r="10" fill="#6aabdc" opacity="0.5"/>
+  <!-- Head -->
+  <ellipse cx="130" cy="255" rx="90" ry="80" fill="#8bc5f0"/>
+  <!-- Tusk (spiral horn) -->
+  <path d="M82 235 Q50 218 22 202" stroke="#e8e0d0" stroke-width="16" fill="none" stroke-linecap="round"/>
+  <path d="M82 235 Q50 218 22 202" stroke="#c8c0b0" stroke-width="8" fill="none" stroke-linecap="round" stroke-dasharray="12,8"/>
+  <!-- Flipper top -->
+  <ellipse cx="160" cy="188" rx="50" ry="22" fill="#6aabdc" transform="rotate(-25,160,188)"/>
+  <!-- Flipper bottom -->
+  <ellipse cx="160" cy="322" rx="50" ry="22" fill="#6aabdc" transform="rotate(20,160,322)"/>
+  <!-- Eye -->
+  <circle cx="118" cy="242" r="20" fill="#fff"/>
+  <circle cx="120" cy="244" r="10" fill="#2a3a5a"/>
+  <circle cx="123" cy="241" r="4" fill="#fff"/>
+  <!-- Blowhole -->
+  <ellipse cx="143" cy="193" rx="14" ry="8" fill="#6aabdc"/>
+  <path d="M140 192 Q143 180 146 192" stroke="#7bbde8" stroke-width="2" fill="none"/>
+  <!-- Smile -->
+  <path d="M92 265 Q108 274 124 268" stroke="#4a8ab8" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- Water splash effect at tail -->
+  <path d="M400 330 Q415 315 408 302" stroke="#a8d4f5" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.6"/>
+  <path d="M388 315 Q405 305 398 290" stroke="#a8d4f5" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.6"/>
+</svg>

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#fff5ee"/>
+  <!-- Body -->
+  <ellipse cx="256" cy="345" rx="108" ry="115" fill="#c84820"/>
+  <!-- Tail (fluffy, striped) -->
+  <path d="M358 370 Q415 335 432 395 Q415 450 360 420 Z" fill="#c84820"/>
+  <!-- Tail stripes -->
+  <path d="M390 350 Q408 370 410 395" stroke="#7a2810" stroke-width="12" fill="none" stroke-linecap="round" opacity="0.6"/>
+  <path d="M403 368 Q416 385 415 405" stroke="#c84820" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.6"/>
+  <!-- Chest/belly lighter -->
+  <ellipse cx="256" cy="360" rx="60" ry="72" fill="#3a2010"/>
+  <!-- Head -->
+  <ellipse cx="256" cy="200" rx="100" ry="95" fill="#c84820"/>
+  <!-- Ears (pointy) -->
+  <ellipse cx="188" cy="135" rx="28" ry="34" fill="#c84820"/>
+  <ellipse cx="324" cy="135" rx="28" ry="34" fill="#c84820"/>
+  <ellipse cx="188" cy="135" rx="15" ry="20" fill="#d86840"/>
+  <ellipse cx="324" cy="135" rx="15" ry="20" fill="#d86840"/>
+  <!-- Face white patches (cheek patches) -->
+  <circle cx="210" cy="215" r="30" fill="#f0d8c0" opacity="0.8"/>
+  <circle cx="302" cy="215" r="30" fill="#f0d8c0" opacity="0.8"/>
+  <!-- Eye mask dark streaks (tear marks) -->
+  <path d="M218 238 Q210 250 212 262" stroke="#3a1808" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M294 238 Q302 250 300 262" stroke="#3a1808" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <!-- Eyes -->
+  <circle cx="220" cy="200" r="20" fill="#fff"/>
+  <circle cx="292" cy="200" r="20" fill="#fff"/>
+  <circle cx="222" cy="202" r="10" fill="#2a1005"/>
+  <circle cx="294" cy="202" r="10" fill="#2a1005"/>
+  <circle cx="225" cy="199" r="4" fill="#fff"/>
+  <circle cx="297" cy="199" r="4" fill="#fff"/>
+  <!-- Face center dark stripe -->
+  <path d="M256 168 Q256 250 256 280" stroke="#3a1808" stroke-width="6" fill="none" opacity="0.2"/>
+  <!-- Snout -->
+  <ellipse cx="256" cy="228" rx="26" ry="20" fill="#f0d8c0"/>
+  <!-- Nose -->
+  <ellipse cx="256" cy="220" rx="9" ry="7" fill="#2a1005"/>
+  <!-- Mouth -->
+  <path d="M248 230 Q256 238 264 230" stroke="#2a1005" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- Arms -->
+  <ellipse cx="160" cy="348" rx="38" ry="22" fill="#a83818" transform="rotate(-20,160,348)"/>
+  <ellipse cx="352" cy="348" rx="38" ry="22" fill="#a83818" transform="rotate(20,352,348)"/>
+</svg>
