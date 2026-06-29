@@ -1,6 +1,7 @@
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { listSkills, createSkill, updateSkill } from "../core/skills.js";
+import { semanticSearch } from "../core/semanticSearch.js";
 
 function findByName(name: string) {
   const want = name.trim().toLowerCase();
@@ -64,6 +65,31 @@ export const skillsMcp = createSdkMcpServer({
         const text = skills.length
           ? skills.map((s) => `- ${s.name}${s.description ? `: ${s.description}` : ""}`).join("\n")
           : "No skills saved yet.";
+        return { content: [{ type: "text", text }] };
+      },
+    ),
+    tool(
+      "skill_search",
+      "Find saved skills by meaning, not just exact words — ranks skills by " +
+        "semantic similarity over their name, description, and instruction body " +
+        "(with keyword fallback). Use this to check for an existing skill before " +
+        "saving a new one, or to recall a relevant procedure.",
+      {
+        query: z.string().describe("What to search for — a phrase or keywords."),
+        limit: z.number().int().min(1).max(25).optional().describe("Max results (default 10)."),
+      },
+      async (a) => {
+        const skills = listSkills();
+        const hits = await semanticSearch(
+          skills.map((s) => ({ id: s.id, text: `${s.name}\n${s.description}\n${s.prompt}`, skill: s })),
+          a.query,
+          a.limit ?? 10,
+        );
+        const text = hits.length
+          ? hits
+              .map((h) => `- ${h.item.skill.name}${h.item.skill.description ? `: ${h.item.skill.description}` : ""}`)
+              .join("\n")
+          : "No matching skills.";
         return { content: [{ type: "text", text }] };
       },
     ),

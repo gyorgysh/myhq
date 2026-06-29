@@ -1,6 +1,7 @@
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { createTask, listTasks, updateTask } from "../core/tasks.js";
+import { semanticSearch } from "../core/semanticSearch.js";
 
 export interface TasksMcpOptions {
   /**
@@ -13,9 +14,9 @@ export interface TasksMcpOptions {
 
 /**
  * In-process MCP server letting the agent manage the kanban board: create cards
- * (including subtasks of a parent, for auto-breakdown), list them, and move/edit
- * them. Tools `mcp__tasks__task_{create,list,update}`; board edits are safe, so
- * they're in AUTO_ALLOWED_TOOLS.
+ * (including subtasks of a parent, for auto-breakdown), list them, search them
+ * by meaning, and move/edit them. Tools `mcp__tasks__task_{create,list,search,
+ * update}`; board edits are safe, so they're in AUTO_ALLOWED_TOOLS.
  *
  * Built per run-context (factory) so created cards can be attributed to the
  * calling agent via {@link TasksMcpOptions.createdBy}.
@@ -60,6 +61,34 @@ export function createTasksMcp(opts: TasksMcpOptions = {}) {
                 )
                 .join("\n")
             : "No cards.";
+          return { content: [{ type: "text", text }] };
+        },
+      ),
+      tool(
+        "task_search",
+        "Find kanban cards by meaning, not just exact words — searches card titles " +
+          "and notes by semantic similarity (with keyword fallback). Use this to " +
+          "check whether a task already exists before creating a duplicate, or to " +
+          "find related work.",
+        {
+          query: z.string().describe("What to search for — a phrase or keywords."),
+          limit: z.number().int().min(1).max(25).optional().describe("Max results (default 10)."),
+        },
+        async (a) => {
+          const cards = listTasks().filter((t) => t.column !== "archive");
+          const hits = await semanticSearch(
+            cards.map((t) => ({ id: t.id, text: `${t.title}\n${t.notes}`, card: t })),
+            a.query,
+            a.limit ?? 10,
+          );
+          const text = hits.length
+            ? hits
+                .map(
+                  (h) =>
+                    `[${h.item.card.column}] ${h.item.card.id} ${h.item.card.title} (${h.item.card.priority})`,
+                )
+                .join("\n")
+            : "No matching cards.";
           return { content: [{ type: "text", text }] };
         },
       ),

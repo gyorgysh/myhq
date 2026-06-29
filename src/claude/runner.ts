@@ -33,11 +33,13 @@ export const AUTO_ALLOWED_TOOLS = new Set([
   // Kanban board edits are safe, user-facing actions.
   "mcp__tasks__task_create",
   "mcp__tasks__task_list",
+  "mcp__tasks__task_search",
   "mcp__tasks__task_update",
   // Saving/refining reusable skills is a safe, user-facing action.
   "mcp__skills__skill_save",
   "mcp__skills__skill_patch",
   "mcp__skills__skill_list",
+  "mcp__skills__skill_search",
   // Filing a suggestion just queues it in the president's inbox for triage
   // (no DM, no sub-run), so it's safe and frictionless like a Kanban edit.
   "mcp__crew__crew_suggest",
