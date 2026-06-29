@@ -6,6 +6,9 @@ import type { Tab } from "./Sidebar.tsx";
 
 type Me = Awaited<ReturnType<typeof api.me>>;
 
+/** Upstream repo, matching the footer link in App.tsx — used for the changelog. */
+const REPO_URL = "https://github.com/gyorgysh/myhq";
+
 /**
  * A single top-level "Setup" view that walks a new operator through initial
  * configuration in a logical order — bot identity → access control → model →
@@ -63,6 +66,26 @@ export function SetupView({
               </a>
             ) : (
               <span className="text-fg-faint">{t("setup_unknown")}</span>
+            )
+          }
+        />
+        <Fact
+          label={t("setup_version")}
+          value={
+            me ? (
+              <span className="flex items-center gap-2">
+                <Badge tone={me.updateAvailable ? "amber" : "green"}>v{me.version}</Badge>
+                <a
+                  href={`${REPO_URL}/blob/main/CHANGELOG.md`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-accent hover:underline"
+                >
+                  {t("setup_changelog")} ↗
+                </a>
+              </span>
+            ) : (
+              "…"
             )
           }
         />

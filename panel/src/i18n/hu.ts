@@ -396,6 +396,8 @@ export const hu: Translations = {
   setup_agent_name: "Ügynök neve",
   setup_brand_name: "Márkanév",
   setup_bot_username: "Telegram bot",
+  setup_version: "Verzió",
+  setup_changelog: "Változásnapló",
   setup_unknown: "ismeretlen",
   setup_identity_env:
     "Az ügynök és márkanév az ATLAS_NAME / BRAND_NAME, a bot token pedig a TELEGRAM_BOT_TOKEN értékből jön, mind a .env fájlból.",

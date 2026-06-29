@@ -393,6 +393,8 @@ export const en = {
   setup_agent_name: "Agent name",
   setup_brand_name: "Brand name",
   setup_bot_username: "Telegram bot",
+  setup_version: "Version",
+  setup_changelog: "Changelog",
   setup_unknown: "unknown",
   setup_identity_env:
     "Agent and brand names come from ATLAS_NAME / BRAND_NAME, and the bot token from TELEGRAM_BOT_TOKEN, all set in .env.",
