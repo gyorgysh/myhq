@@ -24,14 +24,43 @@ const TIER_ICON: Record<MemoryTier, LucideIcon> = {
   cold: Snowflake,
 };
 
+// 3px left-border accent so a tier is scannable without reading the badge.
+const TIER_BORDER: Record<MemoryTier, string> = {
+  hot: "border-l-warn",
+  warm: "border-l-blue-500",
+  cold: "border-l-zinc-500",
+};
+
+// Icon colour matching each tier's accent, for the bar-chart legend glyphs.
+const TIER_ICON_COLOR: Record<MemoryTier, string> = {
+  hot: "text-warn-fg",
+  warm: "text-blue-500",
+  cold: "text-zinc-500",
+};
+
 /** A tier badge with its Lucide glyph, used wherever a tier is shown as a chip. */
 function TierBadge({ tier, label }: { tier: MemoryTier; label: string }) {
   const Icon = TIER_ICON[tier];
   return (
     <Badge tone={TIER_TONE[tier]}>
-      <Icon size={11} className="mr-1" />
+      <Icon size={13} className="mr-1" />
       {label}
     </Badge>
+  );
+}
+
+/** A 5-step dot row visualising a 0..1 salience, replacing the raw number. */
+function SalienceDots({ value }: { value: number }) {
+  const filled = Math.max(0, Math.min(5, Math.round(value * 5)));
+  return (
+    <span className="inline-flex items-center gap-0.5" title={value.toFixed(2)}>
+      {Array.from({ length: 5 }, (_, i) => (
+        <span
+          key={i}
+          className={`h-1.5 w-1.5 rounded-full ${i < filled ? "bg-accent" : "bg-surface-2"}`}
+        />
+      ))}
+    </span>
   );
 }
 
@@ -392,7 +421,7 @@ export function MemoryView({ onAuthError }: { onAuthError: () => void }) {
           {entries.map((m) => (
             <div
               key={m.id}
-              className="flex items-start justify-between gap-3 rounded-lg border border-line p-3"
+              className={`flex items-start justify-between gap-3 rounded-lg border border-l-[3px] border-line p-3 ${TIER_BORDER[m.tier]}`}
             >
               <div className="min-w-0">
                 <p className="text-sm text-fg">{m.text}</p>
@@ -403,7 +432,10 @@ export function MemoryView({ onAuthError }: { onAuthError: () => void }) {
                       {tag}
                     </Badge>
                   ))}
-                  <span className="tabular">{t("memory_salience").toLowerCase()} {m.salience.toFixed(2)}</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    {t("memory_salience").toLowerCase()}
+                    <SalienceDots value={m.salience} />
+                  </span>
                   {m.useCount > 0 && <span className="tabular">· {t("memory_recalled")} {m.useCount}×</span>}
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -473,13 +505,16 @@ function TierBar({ stats }: { stats: MemoryStats }) {
         )}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-fg-faint">
-        {segs.map((s) => (
-          <span key={s.tier} className="flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${s.cls}`} />
-            {t(TIER_KEY[s.tier])}
-            <span className="tabular text-fg-dim">{s.count}</span>
-          </span>
-        ))}
+        {segs.map((s) => {
+          const Icon = TIER_ICON[s.tier];
+          return (
+            <span key={s.tier} className="flex items-center gap-1.5">
+              <Icon size={12} className={TIER_ICON_COLOR[s.tier]} />
+              {t(TIER_KEY[s.tier])}
+              <span className="tabular text-fg-dim">{s.count}</span>
+            </span>
+          );
+        })}
       </div>
     </div>
   );

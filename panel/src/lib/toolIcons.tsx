@@ -79,6 +79,49 @@ export function toolIcon(tool: string): LucideIcon {
   }
 }
 
+/**
+ * Semantic colour class for a tool's activity-feed icon, by category. Gives the
+ * feed visual hierarchy instead of a flat `text-fg-dim` for every row. All
+ * classes are existing theme tokens so they flip across light/dark/matrix.
+ */
+export function toolIconColor(tool: string): string {
+  const leaf = tool.replace(/^mcp__[^_]+__/, "");
+  switch (leaf) {
+    case "Read":
+    case "Write":
+    case "Edit":
+    case "NotebookEdit":
+      return "text-accent"; // file ops — indigo
+    case "Bash":
+      return "text-warn-fg"; // exec — amber
+    case "WebFetch":
+    case "WebSearch":
+      return "text-ok-fg"; // web — green
+    case "Task":
+    case "crew_delegate":
+    case "crew_ask_president":
+    case "crew_report":
+    case "crew_suggest":
+      return "text-accent"; // crew tools — indigo
+    default:
+      if (leaf.startsWith("memory_")) return "text-accent"; // memory/brain — indigo
+      return "text-fg-dim"; // search/glob/todo/skill/task/etc — neutral
+  }
+}
+
+/** Semantic colour class for a lifecycle event's icon. Success-y lifecycle
+ *  milestones go green; failures are handled by the error tone upstream. */
+export function lifecycleIconColor(msg: string): string {
+  switch (msg) {
+    case "Turn complete":
+    case "Bot is listening for updates":
+    case "Management panel listening":
+      return "text-ok-fg"; // CheckCircle2 / Rocket / MonitorCheck — green
+    default:
+      return "text-fg-dim";
+  }
+}
+
 /** Map a known lifecycle log message to its Lucide icon, or null if not tracked. */
 export function lifecycleIcon(msg: string): LucideIcon | null {
   switch (msg) {

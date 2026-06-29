@@ -3,7 +3,7 @@ import { api, AuthError, openHealthSocket, type LogEntry, type LogUsageSummary }
 import { Button, Empty, Select } from "./ui.tsx";
 import { LogsArt } from "./onboarding.tsx";
 import { useI18n } from "../lib/useI18n.ts";
-import { toolIcon, lifecycleIcon } from "../lib/toolIcons.tsx";
+import { toolIcon, toolIconColor, lifecycleIcon, lifecycleIconColor } from "../lib/toolIcons.tsx";
 import type { LucideIcon } from "lucide-react";
 
 type Level = LogEntry["level"];
@@ -13,6 +13,14 @@ const LEVEL_COLOR: Record<Level, string> = {
   warn: "text-warn-fg",
   info: "text-fg-muted",
   debug: "text-fg-faint",
+};
+// Small coloured pill chip per level for the raw logs view — replaces the
+// padded uppercase text with a scannable badge. All existing theme tokens.
+const LEVEL_PILL: Record<Level, string> = {
+  error: "bg-critical-subtle text-critical-fg border-critical/30",
+  warn: "bg-warn-subtle text-warn-fg border-warn/30",
+  info: "bg-surface-2 text-fg-muted border-line",
+  debug: "bg-surface-2 text-fg-faint border-line",
 };
 
 const MAX = 2000;
@@ -249,6 +257,8 @@ interface Activity {
   key: string;
   ts: number;
   icon: LucideIcon;
+  /** Theme-token colour class for the icon, by tool/lifecycle category. */
+  iconColor: string;
   verb: string;
   target: string;
   tone: "normal" | "error";
@@ -397,6 +407,7 @@ function toActivities(source: LogEntry[], t: TFn): Activity[] {
         key: `${l.seq}-${l.ts}`,
         ts: l.ts,
         icon,
+        iconColor: toolIconColor(tool),
         verb,
         target: arg,
         tone: l.level === "error" ? "error" : "normal",
@@ -415,6 +426,7 @@ function toActivities(source: LogEntry[], t: TFn): Activity[] {
         key: `${l.seq}-${l.ts}`,
         ts: l.ts,
         icon: life.icon,
+        iconColor: lifecycleIconColor(l.msg),
         verb: life.verb,
         target: life.target,
         tone: l.level === "error" ? "error" : "normal",
@@ -649,8 +661,8 @@ function ActivityFeed({
             {activities.map((a) => (
               <div key={a.key} className="group px-2 py-2 hover:bg-surface-2/60 transition-colors">
                 <div className="flex items-center gap-3">
-                  <span className={`flex w-5 shrink-0 justify-center ${a.tone === "error" ? "text-critical-fg" : "text-fg-dim"}`}>
-                    <a.icon size={15} />
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-2/70 ${a.tone === "error" ? "text-critical-fg" : a.iconColor}`}>
+                    <a.icon size={16} />
                   </span>
                   <div className="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
                     {a.agentLabel && (
@@ -702,7 +714,7 @@ function ActivityFeed({
                   </span>
                 </div>
                 {a.diffSnippet && isDiffOpen(a.key) && (
-                  <pre className="mt-1 ml-8 overflow-x-auto rounded border border-line bg-surface px-2 py-1 text-xs leading-snug">
+                  <pre className="mt-1 ml-9 overflow-x-auto rounded border border-line bg-surface px-2 py-1 text-xs leading-snug">
                     {a.diffSnippet.split("\n").map((line, i) => (
                       <div
                         key={i}
@@ -869,8 +881,10 @@ function RawLogs({
             {visible.map((l) => (
               <div key={`${l.seq}-${l.ts}`} className="py-0.5 whitespace-pre-wrap break-words hover:bg-surface-2/40">
                 <span className="text-fg-faint">{new Date(l.ts).toLocaleTimeString()} </span>
-                <span className={`${LEVEL_COLOR[l.level]} font-semibold`}>
-                  {l.level.toUpperCase().padEnd(5)}{" "}
+                <span
+                  className={`mr-1.5 inline-block rounded border px-1.5 text-[0.625rem] font-semibold uppercase tracking-wide ${LEVEL_PILL[l.level]}`}
+                >
+                  {l.level}
                 </span>
                 <span className="text-fg">{l.msg}</span>
                 {l.meta && Object.keys(l.meta).length > 0 && (
