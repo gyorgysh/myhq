@@ -76,6 +76,9 @@ export function MemoryView({ onAuthError }: { onAuthError: () => void }) {
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [form, setForm] = useState<typeof blank>(blank);
   const [error, setError] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [listRef] = useListAnimate();
 
   // The unfiltered list endpoint already returns every tier (incl. cold); the
@@ -223,14 +226,82 @@ export function MemoryView({ onAuthError }: { onAuthError: () => void }) {
     });
   };
 
+  // Tag filter applies on top of the server-side tier/query filter. The full
+  // set of tags for the chip row comes from whatever's currently in `entries`.
+  const visible = tagFilter ? entries.filter((m) => m.tags.includes(tagFilter)) : entries;
+  const allTags = Array.from(new Set(entries.flatMap((m) => m.tags))).sort();
+
+  const toggleSelect = (id: string) => {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const exitBulk = () => {
+    setBulkMode(false);
+    setSelected(new Set());
+  };
+
+  const bulkDelete = () => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    const prev = entries;
+    const prevStats = stats;
+    const removed = entries.filter((m) => ids.includes(m.id));
+    setEntries((cur) => cur.filter((m) => !ids.includes(m.id)));
+    setStats((s) => {
+      if (!s) return s;
+      const byTier = { ...s.byTier };
+      for (const m of removed) byTier[m.tier] -= 1;
+      return { ...s, total: s.total - removed.length, byTier };
+    });
+    exitBulk();
+    toast.undo(t("memory_bulk_deleted").replace("{n}", String(ids.length)), {
+      undoLabel: t("toast_undo"),
+      onUndo: () => {
+        setEntries(prev);
+        setStats(prevStats);
+      },
+      onCommit: async () => {
+        try {
+          await Promise.all(ids.map((id) => api.deleteMemory(id)));
+        } catch (e) {
+          setEntries(prev);
+          setStats(prevStats);
+          if (e instanceof AuthError) return onAuthError();
+          setError(String(e));
+        }
+      },
+    });
+  };
+
   return (
     <Card
       title={t("memory_title")}
       right={
-        editing ? null : (
-          <Button variant="primary" onClick={startNew}>
-            {t("memory_new")}
-          </Button>
+        editing ? null : bulkMode ? (
+          <div className="flex gap-1.5">
+            <Button
+              variant="danger"
+              disabled={selected.size === 0}
+              onClick={bulkDelete}
+            >
+              {t("memory_bulk_delete_n").replace("{n}", String(selected.size))}
+            </Button>
+            <Button onClick={exitBulk}>{t("cancel")}</Button>
+          </div>
+        ) : (
+          <div className="flex gap-1.5">
+            {entries.length > 0 && (
+              <Button onClick={() => setBulkMode(true)}>{t("memory_bulk_select")}</Button>
+            )}
+            <Button variant="primary" onClick={startNew}>
+              {t("memory_new")}
+            </Button>
+          </div>
         )
       }
     >
@@ -411,6 +482,32 @@ export function MemoryView({ onAuthError }: { onAuthError: () => void }) {
             );
           })}
         </div>
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-fg-faint">{t("memory_filter_tag")}</span>
+            {allTags.map((tag) => (
+              <button
+                key={tag}
+                onClick={() => setTagFilter((cur) => (cur === tag ? null : tag))}
+                className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium transition-colors ${
+                  tagFilter === tag
+                    ? "bg-[var(--accent)] text-white"
+                    : "bg-accent/15 text-accent hover:bg-accent/25"
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+            {tagFilter && (
+              <button
+                onClick={() => setTagFilter(null)}
+                className="text-xs text-fg-faint underline-offset-2 hover:underline"
+              >
+                {t("memory_filter_clear")}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {entries.length === 0 && !editing ? (
@@ -429,21 +526,40 @@ export function MemoryView({ onAuthError }: { onAuthError: () => void }) {
             {t("memory_empty_desc")}
           </Empty>
         )
+      ) : visible.length === 0 ? (
+        <Empty>{t("memory_empty_query")}</Empty>
       ) : (
         <div ref={listRef} className="space-y-2">
-          {entries.map((m) => (
+          {visible.map((m) => (
             <div
               key={m.id}
-              className={`flex items-start justify-between gap-3 rounded-lg border border-l-[3px] border-line p-3 ${TIER_BORDER[m.tier]}`}
+              className={`flex items-start justify-between gap-3 rounded-lg border border-l-[3px] border-line p-3 ${TIER_BORDER[m.tier]} ${
+                bulkMode && selected.has(m.id) ? "ring-1 ring-accent" : ""
+              }`}
             >
-              <div className="min-w-0">
+              {bulkMode && (
+                <input
+                  type="checkbox"
+                  checked={selected.has(m.id)}
+                  onChange={() => toggleSelect(m.id)}
+                  aria-label={t("memory_bulk_select")}
+                  className="mt-1 h-4 w-4 shrink-0 accent-[var(--accent)]"
+                />
+              )}
+              <div className="min-w-0 flex-1">
                 <p className="text-sm text-fg">{m.text}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-fg-faint">
                   <TierBadge tier={m.tier} label={t(TIER_KEY[m.tier])} />
                   {m.tags.map((tag) => (
-                    <Badge key={tag} tone="blue">
-                      {tag}
-                    </Badge>
+                    <button
+                      key={tag}
+                      onClick={() => setTagFilter((cur) => (cur === tag ? null : tag))}
+                      title={t("memory_filter_tag")}
+                    >
+                      <Badge tone="blue" className="cursor-pointer hover:opacity-80">
+                        {tag}
+                      </Badge>
+                    </button>
                   ))}
                   <span className="inline-flex items-center gap-1.5">
                     {t("memory_salience").toLowerCase()}
@@ -451,32 +567,36 @@ export function MemoryView({ onAuthError }: { onAuthError: () => void }) {
                   </span>
                   {m.useCount > 0 && <span className="tabular">· {t("memory_recalled")} {m.useCount}×</span>}
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs text-fg-faint">{t("memory_move_to")}</span>
-                  {(["hot", "warm", "cold"] as MemoryTier[])
-                    .filter((tier) => tier !== m.tier)
-                    .map((tier) => {
-                      const Icon = TIER_ICON[tier];
-                      return (
-                        <button
-                          key={tier}
-                          onClick={() => setTier(m.id, tier)}
-                          aria-label={t("memory_move_to_tier").replace("{tier}", t(TIER_KEY[tier]))}
-                          className="inline-flex min-h-[44px] items-center gap-1 rounded-full border border-line px-2 text-xs font-medium text-fg-dim hover:border-accent/40 hover:bg-accent/5 hover:text-accent transition-colors"
-                        >
-                          <Icon size={11} />
-                          {t(TIER_KEY[tier])}
-                        </button>
-                      );
-                    })}
+                {!bulkMode && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-fg-faint">{t("memory_move_to")}</span>
+                    {(["hot", "warm", "cold"] as MemoryTier[])
+                      .filter((tier) => tier !== m.tier)
+                      .map((tier) => {
+                        const Icon = TIER_ICON[tier];
+                        return (
+                          <button
+                            key={tier}
+                            onClick={() => setTier(m.id, tier)}
+                            aria-label={t("memory_move_to_tier").replace("{tier}", t(TIER_KEY[tier]))}
+                            className="inline-flex min-h-[44px] items-center gap-1 rounded-full border border-line px-2 text-xs font-medium text-fg-dim hover:border-accent/40 hover:bg-accent/5 hover:text-accent transition-colors"
+                          >
+                            <Icon size={11} />
+                            {t(TIER_KEY[tier])}
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+              {!bulkMode && (
+                <div className="flex shrink-0 gap-1.5">
+                  <Button onClick={() => startEdit(m)}>{t("edit")}</Button>
+                  <Button variant="danger" onClick={() => del(m.id)}>
+                    {t("delete")}
+                  </Button>
                 </div>
-              </div>
-              <div className="flex shrink-0 gap-1.5">
-                <Button onClick={() => startEdit(m)}>{t("edit")}</Button>
-                <Button variant="danger" onClick={() => del(m.id)}>
-                  {t("delete")}
-                </Button>
-              </div>
+              )}
             </div>
           ))}
         </div>
