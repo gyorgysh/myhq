@@ -17,6 +17,7 @@ import {
   Brain,
   KeyRound,
   Plug,
+  Webhook,
   MessageSquareQuote,
   Sparkles,
   Pencil,
@@ -55,6 +56,7 @@ export type Tab =
   | "logs"
   | "sessions"
   | "schedules"
+  | "webhooks"
   | "heartbeat"
   | "remote"
   | "feedback"
@@ -120,6 +122,7 @@ export const NAV: Group[] = [
       { id: "inbox", labelKey: "nav_inbox", icon: Inbox, hintKey: "nav_inbox_hint" },
       { id: "workers", labelKey: "nav_workers", icon: Bot, hintKey: "nav_workers_hint" },
       { id: "schedules", labelKey: "nav_schedules", icon: Clock, hintKey: "nav_schedules_hint" },
+      { id: "webhooks", labelKey: "nav_webhooks", icon: Webhook, hintKey: "nav_webhooks_hint" },
     ],
   },
   {

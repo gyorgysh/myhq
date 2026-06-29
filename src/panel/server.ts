@@ -70,6 +70,7 @@ import { listConnectors, setConnector } from "../core/connectors.js";
 import { listWebhookTools, createWebhookTool, updateWebhookTool, deleteWebhookTool } from "../core/webhookTools.js";
 import { getBranding, setBranding, brandingUnlocked, effectiveBranding } from "../core/branding.js";
 import { searchConversations } from "../core/conversationSearch.js";
+import { webhookTriggers, signWebhookBody, panelBaseHint } from "../core/webhookTriggers.js";
 import { vault, importProviderSecrets, resolveSecret, vaultUsages } from "../core/vault.js";
 import { backupManifest, exportBackup, importBackup } from "../core/backup.js";
 import {
@@ -128,6 +129,33 @@ export async function startPanel(): Promise<(() => Promise<void>) | undefined> {
   // 64MB body limit so a full-state backup import (base64 archive) fits; the
   // default 1MB is far too small once memory.json is in the payload.
   const app = Fastify({ logger: false, bodyLimit: 64 * 1024 * 1024 });
+
+  // Inbound webhook triggers (`POST /hook/:id`) authenticate by HMAC over the
+  // EXACT request bytes, so we must keep the raw body before any JSON parsing.
+  // This content-type parser captures the raw string on `req.rawBody` and still
+  // hands JSON routes a parsed object (everything else gets the raw string). It
+  // runs for all routes, which is harmless: the panel's own routes read the
+  // parsed body as before.
+  app.addContentTypeParser(
+    ["application/json", "text/plain", "application/x-www-form-urlencoded"],
+    { parseAs: "string" },
+    (req, bodyStr, done) => {
+      (req as { rawBody?: string }).rawBody = bodyStr as string;
+      const s = (bodyStr as string).trim();
+      if (!s) return done(null, undefined);
+      if (req.headers["content-type"]?.includes("application/json")) {
+        try {
+          done(null, JSON.parse(s));
+        } catch (err) {
+          (err as { statusCode?: number }).statusCode = 400;
+          done(err as Error, undefined);
+        }
+        return;
+      }
+      done(null, bodyStr);
+    },
+  );
+
   await app.register(fastifyWebsocket);
   const hub = new PanelHub();
   // Wire worker run events to all panel clients (worker tick already running).
@@ -148,6 +176,10 @@ export async function startPanel(): Promise<(() => Promise<void>) | undefined> {
   tunnelManager.start((m) => hub.broadcast(m));
   // Push suggestion-inbox changes to every panel client.
   suggestions.onChange(() => hub.broadcast({ type: "suggestion", suggestions: suggestions.list() }));
+  // Push webhook-trigger changes (incl. fire counts) to every panel client.
+  webhookTriggers.onChange(() =>
+    hub.broadcast({ type: "webhook-trigger", triggers: webhookTriggers.list() }),
+  );
   // Tell clients to reload the board when recurring templates spawn fresh cards.
   onRecurrenceFire(() => hub.broadcast({ type: "task", event: "refresh" }));
   // Stream live log lines to every panel client.
@@ -720,6 +752,88 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
       return reply.code(404).send({ error: "not found" });
     return { ok: true };
   });
+
+  // --- Inbound webhook triggers ---
+  // Management routes are token-gated like the rest of /api. The actual firing
+  // endpoint is PUBLIC (`POST /hook/:id`, registered below outside the /api
+  // prefix) and authenticates by HMAC-SHA256 over the raw body instead.
+  app.get("/api/webhook-triggers", async () => ({
+    triggers: webhookTriggers.list(),
+    baseUrl: panelBaseHint(),
+  }));
+  app.post("/api/webhook-triggers", async (req, reply) => {
+    const { name, prompt, cwd, leadId, enabled } = (req.body ?? {}) as {
+      name?: string;
+      prompt?: string;
+      cwd?: string;
+      leadId?: string;
+      enabled?: boolean;
+    };
+    // The prompt runs as an autonomous bypassPermissions turn, so cap + sanitise
+    // it the same way scheduled/delegated prompts are guarded.
+    const cleanPrompt = sanitizeCardField(prompt ?? "", SCHEDULE_PROMPT_MAX);
+    if (!cleanPrompt) return reply.code(400).send({ error: "prompt required" });
+    const view = webhookTriggers.add({ name: name ?? "", prompt: cleanPrompt, cwd, leadId, enabled });
+    return { trigger: view, triggers: webhookTriggers.list() };
+  });
+  app.put("/api/webhook-triggers/:id", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const patch = (req.body ?? {}) as {
+      name?: string;
+      prompt?: string;
+      cwd?: string;
+      leadId?: string;
+      enabled?: boolean;
+    };
+    if (typeof patch.prompt === "string") {
+      const cleanPrompt = sanitizeCardField(patch.prompt, SCHEDULE_PROMPT_MAX);
+      if (!cleanPrompt) return reply.code(400).send({ error: "prompt required" });
+      patch.prompt = cleanPrompt;
+    }
+    const view = webhookTriggers.update(id, patch);
+    if (!view) return reply.code(404).send({ error: "not found" });
+    return { trigger: view, triggers: webhookTriggers.list() };
+  });
+  app.post("/api/webhook-triggers/:id/rotate", async (req, reply) => {
+    const view = webhookTriggers.rotateSecret((req.params as { id: string }).id);
+    if (!view) return reply.code(404).send({ error: "not found" });
+    return { trigger: view, triggers: webhookTriggers.list() };
+  });
+  // Reveal the signing secret + a ready-to-paste signed example for testing.
+  app.get("/api/webhook-triggers/:id/secret", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const secret = webhookTriggers.reveal(id);
+    if (!secret) return reply.code(404).send({ error: "not found" });
+    const sampleBody = '{"hello":"world"}';
+    return {
+      secret,
+      header: "X-Signature-256",
+      sampleBody,
+      sampleSignature: `sha256=${signWebhookBody(sampleBody, secret)}`,
+    };
+  });
+  app.delete("/api/webhook-triggers/:id", async (req, reply) => {
+    if (!webhookTriggers.remove((req.params as { id: string }).id))
+      return reply.code(404).send({ error: "not found" });
+    return { ok: true, triggers: webhookTriggers.list() };
+  });
+
+  // PUBLIC inbound firing endpoint. Not under /api, so the bearer-token auth hook
+  // skips it; authentication is HMAC-SHA256 over the raw request body using the
+  // trigger's own secret. Accepts the digest in `X-Signature-256` or GitHub's
+  // `X-Hub-Signature-256` header (with or without the `sha256=` prefix).
+  app.post("/hook/:id", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const sig =
+      (req.headers["x-signature-256"] as string | undefined) ??
+      (req.headers["x-hub-signature-256"] as string | undefined) ??
+      (req.headers["x-signature"] as string | undefined);
+    const rawBody = (req as { rawBody?: string }).rawBody ?? "";
+    const res = webhookTriggers.fire(id, rawBody, sig);
+    if (!res.ok) return reply.code(res.status).send({ error: res.error ?? "rejected" });
+    return reply.code(res.status).send({ ok: true, taskId: res.taskId });
+  });
+
   app.get("/api/usage", async () => usageSummary());
   app.get("/api/usage/agents", async () => ({
     agents: agentUsage.list(),

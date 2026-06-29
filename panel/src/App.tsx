@@ -20,6 +20,7 @@ const CrewView       = lazy(() => import("./components/Crew.tsx").then((m) => ({
 const StatusView     = lazy(() => import("./components/Status.tsx").then((m) => ({ default: m.StatusView })));
 const SessionsView   = lazy(() => import("./components/Sessions.tsx").then((m) => ({ default: m.SessionsView })));
 const SchedulesView  = lazy(() => import("./components/Schedules.tsx").then((m) => ({ default: m.SchedulesView })));
+const WebhookTriggersView = lazy(() => import("./components/WebhookTriggers.tsx").then((m) => ({ default: m.WebhookTriggersView })));
 const UsageView      = lazy(() => import("./components/Usage.tsx").then((m) => ({ default: m.UsageView })));
 const PromptView_    = lazy(() => import("./components/Prompt.tsx").then((m) => ({ default: m.PromptView_ })));
 const SkillsView     = lazy(() => import("./components/Skills.tsx").then((m) => ({ default: m.SkillsView })));
@@ -346,6 +347,7 @@ export function App() {
             {tab === "logs" && <LogsView onAuthError={onAuthError} />}
             {tab === "sessions" && <SessionsView onAuthError={onAuthError} />}
             {tab === "schedules" && <SchedulesView onAuthError={onAuthError} />}
+            {tab === "webhooks" && <WebhookTriggersView onAuthError={onAuthError} />}
             {tab === "heartbeat" && <HeartbeatView_ onAuthError={onAuthError} />}
             {tab === "remote" && <RemoteAccessView onAuthError={onAuthError} />}
             {tab === "feedback" && <FeedbackView onAuthError={onAuthError} onGoto={select} />}

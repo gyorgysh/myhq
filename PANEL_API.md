@@ -155,6 +155,45 @@ curl -X PUT -H "$AUTH" -H "Content-Type: application/json" $BASE/api/schedules/<
 curl -X DELETE -H "$AUTH" $BASE/api/schedules/<id>
 ```
 
+### Webhook triggers (inbound)
+
+Register endpoints that external services hit to fire an autonomous run. The
+management routes below are token-gated like the rest of `/api`. The actual
+**firing endpoint is public** (`POST /hook/<id>`, no Bearer token) and instead
+authenticates with an HMAC-SHA256 signature of the raw request body using the
+trigger's own secret.
+
+```bash
+# List triggers (secrets are returned only as a 4-char hint) + the base URL
+curl -H "$AUTH" $BASE/api/webhook-triggers
+
+# Create a trigger (returns the new trigger; secret is generated server-side)
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/webhook-triggers \
+  -d '{ "name": "GitHub push", "prompt": "Triage this push event", "leadId": "" }'
+
+# Update a trigger (name, prompt, cwd, leadId, enabled)
+curl -X PUT -H "$AUTH" -H "Content-Type: application/json" $BASE/api/webhook-triggers/<id> \
+  -d '{ "enabled": false }'
+
+# Rotate the signing secret (the caller must be reconfigured afterwards)
+curl -X POST -H "$AUTH" $BASE/api/webhook-triggers/<id>/rotate
+
+# Reveal the signing secret + a ready-to-paste signed sample for testing
+curl -H "$AUTH" $BASE/api/webhook-triggers/<id>/secret
+
+# Remove a trigger
+curl -X DELETE -H "$AUTH" $BASE/api/webhook-triggers/<id>
+
+# Fire a trigger (PUBLIC — no Bearer token; HMAC-SHA256 over the raw body).
+# Compute the digest with the trigger's secret, send it in X-Signature-256
+# (GitHub's X-Hub-Signature-256 and a bare hex digest are also accepted).
+BODY='{"hello":"world"}'
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "<secret>" | awk '{print $2}')
+curl -X POST -H "Content-Type: application/json" -H "X-Signature-256: sha256=$SIG" \
+  --data "$BODY" $BASE/hook/<id>
+# 202 → a backlog card was filed and delegated to an autonomous run
+```
+
 ### Memory
 
 ```bash

@@ -160,6 +160,21 @@ export interface ScheduleView {
   webhookUrl?: string;
 }
 
+export interface WebhookTriggerView {
+  id: string;
+  name: string;
+  prompt: string;
+  cwd?: string;
+  leadId?: string;
+  leadName?: string;
+  enabled: boolean;
+  createdAt: number;
+  lastFiredAt?: number;
+  fireCount: number;
+  secretHint: string;
+  path: string;
+}
+
 export interface UsageSummary {
   total: UsageStat;
   today: UsageStat;
@@ -903,6 +918,29 @@ export const api = {
   runScheduleNow: (id: string) =>
     req<{ ok: boolean; schedules: ScheduleView[] }>("POST", `/api/schedules/${id}/run`, {}),
   deleteSchedule: (id: string) => req<{ ok: boolean }>("DELETE", `/api/schedules/${id}`),
+
+  webhookTriggers: () =>
+    get<{ triggers: WebhookTriggerView[]; baseUrl: string }>("/api/webhook-triggers"),
+  createWebhookTrigger: (t: {
+    name: string;
+    prompt: string;
+    cwd?: string;
+    leadId?: string;
+    enabled?: boolean;
+  }) => req<{ trigger: WebhookTriggerView; triggers: WebhookTriggerView[] }>("POST", "/api/webhook-triggers", t),
+  updateWebhookTrigger: (
+    id: string,
+    patch: { name?: string; prompt?: string; cwd?: string; leadId?: string; enabled?: boolean },
+  ) => req<{ trigger: WebhookTriggerView; triggers: WebhookTriggerView[] }>("PUT", `/api/webhook-triggers/${id}`, patch),
+  rotateWebhookTriggerSecret: (id: string) =>
+    req<{ trigger: WebhookTriggerView; triggers: WebhookTriggerView[] }>("POST", `/api/webhook-triggers/${id}/rotate`, {}),
+  webhookTriggerSecret: (id: string) =>
+    get<{ secret: string; header: string; sampleBody: string; sampleSignature: string }>(
+      `/api/webhook-triggers/${id}/secret`,
+    ),
+  deleteWebhookTrigger: (id: string) =>
+    req<{ ok: boolean; triggers: WebhookTriggerView[] }>("DELETE", `/api/webhook-triggers/${id}`),
+
   usage: () => get<UsageSummary>("/api/usage"),
   usageAgents: () => get<{ agents: AgentUsageEntry[]; dailyByRole: AgentDailyByRole }>("/api/usage/agents"),
 
