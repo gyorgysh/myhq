@@ -68,6 +68,7 @@ import { getStatus } from "../core/status.js";
 import { heartbeat } from "../core/heartbeat.js";
 import { listConnectors, setConnector } from "../core/connectors.js";
 import { listWebhookTools, createWebhookTool, updateWebhookTool, deleteWebhookTool } from "../core/webhookTools.js";
+import { getBranding, setBranding, brandingUnlocked, effectiveBranding } from "../core/branding.js";
 import { vault, importProviderSecrets, resolveSecret, vaultUsages } from "../core/vault.js";
 import { backupManifest, exportBackup, importBackup } from "../core/backup.js";
 import {
@@ -544,8 +545,12 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
     version: VERSION,
     updateAvailable: getUpdateStatus().available,
     updateCount: getUpdateStatus().behindBy,
-    atlasName: config.ATLAS_NAME,
-    brandName: config.BRAND_NAME,
+    // Effective branding: env defaults until the white-label feature is unlocked,
+    // then the saved overrides. The panel chrome renders from these.
+    atlasName: effectiveBranding().agentName,
+    brandName: effectiveBranding().brandName,
+    branding: effectiveBranding(),
+    brandingUnlocked: brandingUnlocked(),
     // Claude Pro/Max are flat-rate subscriptions where Claude Code usage costs
     // nothing extra, so the SDK's per-token cost estimate is misleading. The
     // panel hides every USD figure when this is true (the OAuth probe can also
@@ -1064,6 +1069,18 @@ function registerApi(app: FastifyInstance, hub: PanelHub): void {
     if (!ok) return reply.code(404).send({ error: "not found" });
     return { ok: true };
   });
+
+  // --- white-label branding (licensed; draft persists, applies only when unlocked) ---
+  app.get("/api/branding", async () => ({
+    branding: getBranding(),
+    unlocked: brandingUnlocked(),
+    effective: effectiveBranding(),
+  }));
+  app.put("/api/branding", async (req) => ({
+    branding: setBranding((req.body ?? {}) as never),
+    unlocked: brandingUnlocked(),
+    effective: effectiveBranding(),
+  }));
 
   // --- secret vault ---
   app.get("/api/vault", async () => ({

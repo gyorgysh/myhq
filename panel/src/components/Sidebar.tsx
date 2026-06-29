@@ -445,6 +445,7 @@ export function Sidebar({
   inboxPending = 0,
   expanded = false,
   brandName = "MyHQ",
+  logoUrl,
 }: {
   tab: Tab | "settings";
   onSelect: (t: Tab | "settings") => void;
@@ -457,6 +458,7 @@ export function Sidebar({
   inboxPending?: number;
   expanded?: boolean;
   brandName?: string;
+  logoUrl?: string;
 }) {
   const { t } = useI18n();
   void chatEnabled; // Command Hub stays visible regardless; see App.tsx routing.
@@ -507,11 +509,18 @@ export function Sidebar({
     <div className="flex h-full flex-col bg-surface">
       {/* Wordmark */}
       <div className="flex h-14 items-center gap-2 border-b border-line px-4">
-        <span className="mono text-sm font-medium text-fg">
-          <span className="text-accent">%</span>
-          <span className={`ml-1.5 ${labelCls}`}>{brandName}</span>
-          <span className="ml-0.5 animate-pulse text-accent">▮</span>
-        </span>
+        {logoUrl ? (
+          <span className="flex items-center gap-2">
+            <img src={logoUrl} alt={brandName} className="h-6 w-6 rounded object-contain" />
+            <span className={`text-sm font-medium text-fg ${labelCls}`}>{brandName}</span>
+          </span>
+        ) : (
+          <span className="mono text-sm font-medium text-fg">
+            <span className="text-accent">%</span>
+            <span className={`ml-1.5 ${labelCls}`}>{brandName}</span>
+            <span className="ml-0.5 animate-pulse text-accent">▮</span>
+          </span>
+        )}
       </div>
 
       {/* Nav — all three groups always visible on desktop with section

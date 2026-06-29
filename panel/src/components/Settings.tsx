@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { api, AuthError, type MainAgent, type Autonomy, type Provider, type PlanView, type PlanType, type ProbeResult, type EmbeddingConfig, type OllamaStatus, type LmStudioStatus, type PreferredBackend, type PushView } from "../api.ts";
+import { api, AuthError, type MainAgent, type Autonomy, type Provider, type PlanView, type PlanType, type ProbeResult, type EmbeddingConfig, type OllamaStatus, type LmStudioStatus, type PreferredBackend, type PushView, type Branding } from "../api.ts";
 import { Accordion, Badge, Button, Card, Input, Label, Select, Skeleton, TextArea } from "./ui.tsx";
 import { useI18n, INTERFACE_LANGUAGES } from "../lib/useI18n.ts";
 import { toast } from "../lib/useToast.ts";
@@ -41,7 +41,7 @@ export function SettingsView({ onAuthError }: { onAuthError: () => void }) {
       <ProvidersSettings onAuthError={onAuthError} />
       <PlanBudgetSettings onAuthError={onAuthError} />
       <NotificationsSettings onAuthError={onAuthError} />
-      <WhitelabelSettings />
+      <WhitelabelSettings onAuthError={onAuthError} />
 
       {/* Configuration — low-traffic config surfaces folded in as collapsible
           accordion sections (each remains deep-linkable via its own route). */}
@@ -318,45 +318,115 @@ function ServiceControl({ onAuthError }: { onAuthError: () => void }) {
 // Whitelabel (coming soon placeholder)
 // ---------------------------------------------------------------------------
 
-function WhitelabelSettings() {
+function WhitelabelSettings({ onAuthError }: { onAuthError: () => void }) {
   const { t } = useI18n();
-  // Surface the live ATLAS_NAME / BRAND_NAME so the card reflects the actual
-  // running config, even though editing is gated behind "coming soon" (reserved
-  // for future business licensing). Edits are intentionally disabled.
-  const [brand, setBrand] = useState("MyHQ");
-  const [agentName, setAgentName] = useState("Atlas");
+  // Full white-label configuration. The draft persists regardless, but applying
+  // it (so the panel chrome actually changes) is gated behind `unlocked`, a
+  // licensed entitlement set via BRANDING_UNLOCKED in .env (free for personal
+  // use). When locked the form is editable + saveable but a notice makes clear
+  // the values have no effect yet.
+  const [unlocked, setUnlocked] = useState(false);
+  const [b, setB] = useState<Branding>({});
+  const [saved, setSaved] = useState<Branding>({});
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api
-      .me()
-      .then((m) => {
-        if (m.brandName) setBrand(m.brandName);
-        if (m.atlasName) setAgentName(m.atlasName);
+      .branding()
+      .then((v) => {
+        setUnlocked(v.unlocked);
+        setB(v.branding);
+        setSaved(v.branding);
       })
-      .catch(() => {});
-  }, []);
+      .catch((e) => e instanceof AuthError && onAuthError());
+  }, [onAuthError]);
+
+  const dirty = JSON.stringify(b) !== JSON.stringify(saved);
+  const set = (patch: Partial<Branding>) => setB((cur) => ({ ...cur, ...patch }));
+
+  const onFile = (key: "logoUrl" | "faviconUrl") => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => set({ [key]: String(reader.result) });
+    reader.readAsDataURL(file);
+  };
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const v = await api.saveBranding(b);
+      setSaved(v.branding);
+      setB(v.branding);
+      toast.success(unlocked ? t("settings_whitelabel_saved") : t("settings_whitelabel_saved_locked"));
+    } catch (e) {
+      if (e instanceof AuthError) onAuthError();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <Card
       title={t("settings_whitelabel")}
-      right={<Badge tone="zinc">{t("settings_coming_soon")}</Badge>}
+      right={unlocked ? <Badge tone="green">{t("settings_whitelabel_active")}</Badge> : <Badge tone="zinc">{t("settings_whitelabel_locked")}</Badge>}
     >
-      <p className="mb-4 text-sm text-fg-dim">{t("settings_whitelabel_desc")}</p>
-      <div className="space-y-3 opacity-50 pointer-events-none select-none" aria-hidden="true">
-        <div>
-          <Label>{t("settings_whitelabel_brand")}</Label>
-          <Input disabled placeholder="MyHQ" value={brand} onChange={() => {}} />
+      <p className="mb-3 text-sm text-fg-dim">{t("settings_whitelabel_desc")}</p>
+      {!unlocked && (
+        <div className="mb-4 rounded-lg border border-accent/30 bg-accent/5 p-3 text-sm text-fg-dim">
+          {t("settings_whitelabel_lock_notice")}
+        </div>
+      )}
+      <div className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label>{t("settings_whitelabel_brand")}</Label>
+            <Input placeholder="MyHQ" value={b.brandName ?? ""} onChange={(e) => set({ brandName: e.target.value })} />
+          </div>
+          <div>
+            <Label>{t("settings_whitelabel_agent_name")}</Label>
+            <Input placeholder="Atlas" value={b.agentName ?? ""} onChange={(e) => set({ agentName: e.target.value })} />
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label>{t("settings_whitelabel_panel_title")}</Label>
+            <Input placeholder="Command Center" value={b.panelTitle ?? ""} onChange={(e) => set({ panelTitle: e.target.value })} />
+          </div>
+          <div>
+            <Label>{t("settings_whitelabel_accent")}</Label>
+            <div className="flex items-center gap-2">
+              <input type="color" className="h-9 w-12 cursor-pointer rounded border border-line bg-transparent" value={b.accentColor || "#6d28d9"} onChange={(e) => set({ accentColor: e.target.value })} />
+              <Input placeholder="#6d28d9" value={b.accentColor ?? ""} onChange={(e) => set({ accentColor: e.target.value })} />
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label>{t("settings_whitelabel_logo")}</Label>
+            <div className="flex items-center gap-3">
+              {b.logoUrl && <img src={b.logoUrl} alt="" className="h-9 w-9 rounded object-contain" />}
+              <input type="file" accept="image/*" onChange={onFile("logoUrl")} className="text-sm text-fg-dim" />
+              {b.logoUrl && <Button onClick={() => set({ logoUrl: "" })}>{t("remove")}</Button>}
+            </div>
+          </div>
+          <div>
+            <Label>{t("settings_whitelabel_favicon")}</Label>
+            <div className="flex items-center gap-3">
+              {b.faviconUrl && <img src={b.faviconUrl} alt="" className="h-9 w-9 rounded object-contain" />}
+              <input type="file" accept="image/*" onChange={onFile("faviconUrl")} className="text-sm text-fg-dim" />
+              {b.faviconUrl && <Button onClick={() => set({ faviconUrl: "" })}>{t("remove")}</Button>}
+            </div>
+          </div>
         </div>
         <div>
-          <Label>{t("settings_whitelabel_agent_name")}</Label>
-          <Input disabled placeholder="Atlas" value={agentName} onChange={() => {}} />
-        </div>
-        <div>
-          <Label>{t("settings_whitelabel_panel_title")}</Label>
-          <Input disabled placeholder="Command Center" value="" onChange={() => {}} />
+          <Label>{t("settings_whitelabel_email_footer")}</Label>
+          <TextArea rows={2} placeholder={t("settings_whitelabel_email_footer_ph")} value={b.emailFooter ?? ""} onChange={(e) => set({ emailFooter: e.target.value })} />
         </div>
         <div className="pt-1">
-          <Button disabled>{t("settings_coming_soon")}</Button>
+          <Button variant="primary" disabled={!dirty || busy} onClick={save}>
+            {busy ? t("saving") : t("save")}
+          </Button>
         </div>
       </div>
     </Card>

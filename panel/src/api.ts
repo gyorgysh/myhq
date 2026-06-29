@@ -506,6 +506,22 @@ export interface WebhookTool {
 
 export type WebhookToolInput = Partial<Omit<WebhookTool, "id" | "createdAt">>;
 
+export interface Branding {
+  brandName?: string;
+  agentName?: string;
+  panelTitle?: string;
+  logoUrl?: string;
+  faviconUrl?: string;
+  emailFooter?: string;
+  accentColor?: string;
+}
+
+export interface BrandingView {
+  branding: Branding;
+  unlocked: boolean;
+  effective: Branding;
+}
+
 export type HeartbeatMode = "off" | "alert" | "active";
 export type HeartbeatSignalKey = "cpu" | "mem" | "swap" | "disk" | "stale" | "spend" | "calendar";
 export interface HeartbeatConfig {
@@ -831,7 +847,7 @@ export interface PushView {
 
 export const api = {
   me: () =>
-    get<{ ok: boolean; chatEnabled: boolean; version: string; updateAvailable: boolean; updateCount: number; atlasName: string; brandName: string; subscriptionPlan: boolean; defaultWorkdir: string; homeDir: string; platform: string; allowedUserCount: number; panelHost: string; panelPort: number; tunnelEnabled: boolean; terminalEnabled: boolean }>("/api/me"),
+    get<{ ok: boolean; chatEnabled: boolean; version: string; updateAvailable: boolean; updateCount: number; atlasName: string; brandName: string; branding?: Branding; brandingUnlocked?: boolean; subscriptionPlan: boolean; defaultWorkdir: string; homeDir: string; platform: string; allowedUserCount: number; panelHost: string; panelPort: number; tunnelEnabled: boolean; terminalEnabled: boolean }>("/api/me"),
   sendFeedback: (kind: "bug" | "suggestion" | "other", message: string, email?: string) =>
     req<{ ok: boolean }>("POST", "/api/feedback", { kind, message, email }),
   health: () => get<Health>("/api/health"),
@@ -976,6 +992,9 @@ export const api = {
   createWebhookTool: (t: WebhookToolInput) => req<WebhookTool>("POST", "/api/webhook-tools", t),
   updateWebhookTool: (id: string, t: WebhookToolInput) => req<WebhookTool>("PUT", `/api/webhook-tools/${id}`, t),
   deleteWebhookTool: (id: string) => req<{ ok: true }>("DELETE", `/api/webhook-tools/${id}`),
+
+  branding: () => get<BrandingView>("/api/branding"),
+  saveBranding: (b: Branding) => req<BrandingView>("PUT", "/api/branding", b),
 
   heartbeat: () => get<HeartbeatView>("/api/heartbeat"),
   saveHeartbeat: (c: Partial<HeartbeatConfig>) => req<HeartbeatView>("PUT", "/api/heartbeat", c),

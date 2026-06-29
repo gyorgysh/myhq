@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { api, checkToken, clearToken, getToken, setToken } from "./api.ts";
+import { api, checkToken, clearToken, getToken, setToken, type Branding } from "./api.ts";
 import { useTheme } from "./lib/useTheme.ts";
 import { Login } from "./components/Login.tsx";
 import { Sidebar, BottomNav, MoreDrawer, tabLabel, isTab, isCommandChild, type Tab } from "./components/Sidebar.tsx";
@@ -37,6 +37,28 @@ const SettingsView   = lazy(() => import("./components/Settings.tsx").then((m) =
 const RemoteAccessView = lazy(() => import("./components/RemoteAccess.tsx").then((m) => ({ default: m.RemoteAccessView })));
 const FeedbackView   = lazy(() => import("./components/Feedback.tsx").then((m) => ({ default: m.FeedbackView })));
 
+/**
+ * Apply white-label branding to the document chrome (title, favicon, accent).
+ * `branding` is the *effective* branding from `/api/me`: env defaults unless the
+ * licensed feature is unlocked, so this is a no-op for unlicensed installs.
+ */
+function applyBranding(branding: Branding | undefined, brandName: string): void {
+  const title = branding?.panelTitle || brandName;
+  if (title) document.title = title;
+  if (branding?.faviconUrl) {
+    let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.href = branding.faviconUrl;
+  }
+  if (branding?.accentColor) {
+    document.documentElement.style.setProperty("--color-accent", branding.accentColor);
+  }
+}
+
 /** Tab from the URL path (e.g. /status), falling back to health. */
 function tabFromPath(): Tab | "settings" {
   const seg = location.pathname.replace(/^\/+/, "").split("/")[0];
@@ -52,6 +74,7 @@ export function App() {
   const [chatEnabled, setChatEnabled] = useState(true);
   const [terminalEnabled, setTerminalEnabled] = useState(false);
   const [brandName, setBrandName] = useState("MyHQ");
+  const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [updateCount, setUpdateCount] = useState(0);
   const [inboxPending, setInboxPending] = useState(0);
@@ -129,6 +152,8 @@ export function App() {
       if (m.brandName) setBrandName(m.brandName);
       setUpdateAvailable(m.updateAvailable);
       setUpdateCount(m.updateCount ?? 0);
+      applyBranding(m.branding, m.brandName);
+      setLogoUrl(m.branding?.logoUrl);
     }).catch(() => {});
   }, [authed]);
 
@@ -200,6 +225,7 @@ export function App() {
           updateCount={updateCount}
           inboxPending={inboxPending}
           brandName={brandName}
+          logoUrl={logoUrl}
         />
       </aside>
 
