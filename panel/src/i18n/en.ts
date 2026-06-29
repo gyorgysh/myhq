@@ -100,6 +100,11 @@ export const en = {
   conn_locked: "Access temporarily locked",
   conn_locked_hint: "Too many failed sign-ins from this network. Access is paused.",
   conn_locked_retry: "Try again in ~{m} min",
+  // Multi-device presence
+  presence_title: "Multiple devices",
+  presence_one: "Also open on {device}. Changes you both make can collide.",
+  presence_many: "Also open on {count} other devices ({devices}). Changes can collide.",
+  presence_dismiss: "Got it",
   // Common labels
   model: "Model",
   provider: "Provider",

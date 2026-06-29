@@ -1815,15 +1815,26 @@ function registerWs(app: FastifyInstance, hub: PanelHub): void {
       } catch { /* client gone */ }
     }
 
-    // Relay terminal input from this client to the PTY (when the feature is on).
+    // Send the current presence roster so a fresh client sees who else is on.
+    try {
+      socket.send(JSON.stringify({ type: "presence", clients: hub.presenceList() }));
+    } catch { /* client gone */ }
+
+    // Relay client frames: terminal input to the PTY, and the `hello` device
+    // handshake that registers this socket in the presence roster.
     socket.on("message", (raw) => {
-      if (!ptyManager.enabled) return;
+      let msg: { type?: string; event?: string; data?: unknown; clientId?: unknown; label?: unknown };
       try {
-        const msg = JSON.parse(raw.toString());
-        if (msg?.type === "terminal" && msg.event === "input" && typeof msg.data === "string") {
-          ptyManager.write(msg.data);
-        }
-      } catch { /* ignore malformed frames */ }
+        msg = JSON.parse(raw.toString());
+      } catch { return; /* ignore malformed frames */ }
+      if (msg?.type === "hello" && typeof msg.clientId === "string") {
+        hub.register(socket, { clientId: msg.clientId, label: String(msg.label ?? "") });
+        return;
+      }
+      if (!ptyManager.enabled) return;
+      if (msg?.type === "terminal" && msg.event === "input" && typeof msg.data === "string") {
+        ptyManager.write(msg.data);
+      }
     });
   });
 }

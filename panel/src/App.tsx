@@ -11,6 +11,7 @@ import { HealthView } from "./components/Health.tsx";
 import { SetupView } from "./components/Setup.tsx";
 import { ToastViewport, Breadcrumb } from "./components/ui.tsx";
 import { ConnectionBanner } from "./components/ConnectionBanner.tsx";
+import { PresenceBanner } from "./components/PresenceBanner.tsx";
 import { CommandPalette } from "./components/CommandPalette.tsx";
 import { StatusStrip } from "./components/StatusStrip.tsx";
 import { useSuggestionEvents } from "./lib/useSuggestionEvents.ts";
@@ -277,6 +278,7 @@ export function App() {
         </header>
 
         <ConnectionBanner />
+        <PresenceBanner />
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-6 sm:px-6 md:pb-6">
           {/* Desktop breadcrumb: Home → current view. Hidden on mobile (the top

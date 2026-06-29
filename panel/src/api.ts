@@ -59,6 +59,13 @@ export function openHealthSocket(): WebSocket {
   return new WebSocket(`${proto}://${location.host}/ws?token=${encodeURIComponent(token)}`);
 }
 
+/** One connected panel device, as broadcast in `{type:"presence"}` WS frames. */
+export interface PresenceClient {
+  clientId: string;
+  label: string;
+  since: number;
+}
+
 /** Result of probing whether the backend has locked this client out (429). */
 export interface LockoutProbe {
   locked: boolean;

@@ -102,6 +102,11 @@ export const hu: Translations = {
   conn_locked: "Hozzáférés ideiglenesen zárolva",
   conn_locked_hint: "Túl sok sikertelen bejelentkezés erről a hálózatról. A hozzáférés szünetel.",
   conn_locked_retry: "Próbáld újra ~{m} perc múlva",
+  // Több eszköz jelenléte
+  presence_title: "Több eszköz",
+  presence_one: "Megnyitva itt is: {device}. A párhuzamos módosítások ütközhetnek.",
+  presence_many: "Megnyitva még {count} eszközön ({devices}). A módosítások ütközhetnek.",
+  presence_dismiss: "Értem",
   // Általános feliratok
   model: "Modell",
   provider: "Szolgáltató",
