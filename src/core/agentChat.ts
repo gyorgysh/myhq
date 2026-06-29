@@ -7,14 +7,19 @@
  * so the President can talk to a single agent in its own persona, cwd, model,
  * provider and domain context, with a resumable session per agent.
  *
- * Each agent gets its own in-memory session (resume token + transcript). Turns
- * run with `bypassPermissions` (this is the President driving from the trusted
- * panel) and stream live to all panel clients over the hub using `agentchat`
- * frames, keyed by `agentId` so the UI can route them to the right tab.
+ * Each agent gets its own session (resume token + transcript). The resume token
+ * is persisted to disk per-agent (agentChat.json) so a Lead conversation
+ * survives a restart, mirroring how the main Telegram session stores its
+ * sessionId in state.json. The transcript stays in-memory (cheap to lose, and
+ * the resumed Claude context carries the real continuity). Turns run with
+ * `bypassPermissions` (this is the President driving from the trusted panel) and
+ * stream live to all panel clients over the hub using `agentchat` frames, keyed
+ * by `agentId` so the UI can route them to the right tab.
  */
 
 import { randomBytes } from "node:crypto";
 import { config } from "../config.js";
+import { loadJson, saveJson } from "./jsonStore.js";
 
 /**
  * Prepended to a message when the panel Chat is in *Planning mode*. Mirrors the
@@ -62,6 +67,14 @@ type Broadcaster = (msg: unknown) => void;
 
 const HISTORY_CAP = 200;
 
+/** On-disk store: just the per-agent resume token, so chats survive restarts. */
+const RESUME_FILE = "agentChat.json";
+interface ResumeFile {
+  version: 1;
+  /** agentId → Claude resume token. */
+  resume: Record<string, string>;
+}
+
 /** Per-agent in-memory chat state. */
 interface AgentSession {
   /** Claude resume token, carried turn to turn for continuity. */
@@ -76,6 +89,12 @@ interface AgentSession {
 export class AgentChatManager {
   private broadcast: Broadcaster = () => {};
   private sessions = new Map<string, AgentSession>();
+  /** Persisted agentId → resume token, loaded once at construction. */
+  private persistedResume: Record<string, string>;
+
+  constructor() {
+    this.persistedResume = loadJson<ResumeFile>(RESUME_FILE, { version: 1, resume: {} }).resume ?? {};
+  }
 
   start(broadcast: Broadcaster): void {
     this.broadcast = broadcast;
@@ -88,10 +107,23 @@ export class AgentChatManager {
   private session(agentId: string): AgentSession {
     let s = this.sessions.get(agentId);
     if (!s) {
-      s = { messages: [], busy: false };
+      // Rehydrate the Claude resume token from disk so a chat continues its
+      // conversation after a restart (the transcript itself starts empty).
+      s = { messages: [], busy: false, resume: this.persistedResume[agentId] };
       this.sessions.set(agentId, s);
     }
     return s;
+  }
+
+  /** Persist all live agents' resume tokens to disk (owner-only via jsonStore). */
+  private saveResume(): void {
+    const resume: Record<string, string> = { ...this.persistedResume };
+    for (const [agentId, s] of this.sessions) {
+      if (s.resume) resume[agentId] = s.resume;
+      else delete resume[agentId];
+    }
+    this.persistedResume = resume;
+    saveJson<ResumeFile>(RESUME_FILE, { version: 1, resume });
   }
 
   /** Panel-facing snapshot for one agent. */
@@ -122,6 +154,7 @@ export class AgentChatManager {
     s.abort?.abort();
     s.resume = undefined;
     s.messages = [];
+    this.saveResume();
     this.broadcast({ type: "agentchat", event: "cleared", agentId });
     audit("agentchat.clear", { agentId });
   }
@@ -218,7 +251,10 @@ export class AgentChatManager {
           this.broadcast({ type: "agentchat", event: "tool", agentId, id: streamId, tool: name, arg, ...(diff ?? {}) });
         },
         onSessionId: (id) => {
-          if (id) s.resume = id;
+          if (id && id !== s.resume) {
+            s.resume = id;
+            this.saveResume();
+          }
         },
       });
       const turnUsage = {
