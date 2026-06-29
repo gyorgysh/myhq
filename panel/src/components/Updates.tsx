@@ -379,6 +379,25 @@ export function UpdatesView({
         {available && status?.active && (
           <p className="mt-2 text-xs text-warn-fg">⚠️ {t("updates_active_warn")}</p>
         )}
+
+        {/* Streamed output — rendered right under the update button so progress
+            is visible immediately where the action was taken, not buried below
+            the changelog sections further down the page. */}
+        {lines.length > 0 && (
+          <div className="mt-3">
+            <p className="mb-1.5 text-xs font-medium text-fg-dim">{t("updates_output")}</p>
+            <div
+              ref={boxRef}
+              className="max-h-80 overflow-auto rounded-lg bg-input p-3 font-mono text-xs leading-relaxed text-fg-muted"
+            >
+              {lines.map((l, i) => (
+                <div key={i} className="whitespace-pre-wrap break-words">
+                  {l}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* What's new: changelog entries newer than the installed version, or a
@@ -457,22 +476,6 @@ export function UpdatesView({
               </Button>
             </div>
           )}
-        </Card>
-      )}
-
-      {/* Streamed output */}
-      {lines.length > 0 && (
-        <Card title={t("updates_output")}>
-          <div
-            ref={boxRef}
-            className="max-h-80 overflow-auto rounded-lg bg-input p-3 font-mono text-xs leading-relaxed text-fg-muted"
-          >
-            {lines.map((l, i) => (
-              <div key={i} className="whitespace-pre-wrap break-words">
-                {l}
-              </div>
-            ))}
-          </div>
         </Card>
       )}
 
