@@ -1,5 +1,13 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { api, AuthError, type Worker, type WorkerRun, type Autonomy } from "../api.ts";
+import {
+  api,
+  AuthError,
+  type Worker,
+  type WorkerRun,
+  type Autonomy,
+  type NamedProvider,
+  type ProviderKind,
+} from "../api.ts";
 import { useWorkerEvents, type LiveRun } from "../lib/useWorkerEvents.ts";
 import { useI18n } from "../lib/useI18n.ts";
 import type { TranslationKey } from "../i18n/en.ts";
@@ -37,6 +45,15 @@ function shortModel(id: string): string {
   return id.replace(/^claude-/, "").replace(/-\d{8}$/, "");
 }
 
+/** Fixed display label for each provider kind; Anthropic is the implicit
+ *  default when a worker has no provider set (the cloud API). */
+const PROVIDER_KIND_LABEL: Record<ProviderKind, string> = {
+  anthropic: "Anthropic",
+  ollama: "Ollama",
+  lmstudio: "LM Studio",
+  custom: "Provider",
+};
+
 // Suggested Anthropic model ids (free-text, so local model names work too).
 const MODEL_SUGGESTIONS = [
   "claude-haiku-4-5-20251001",
@@ -71,7 +88,7 @@ export function WorkersView({
   const { t } = useI18n();
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [skills, setSkills] = useState<Named[]>([]);
-  const [providers, setProviders] = useState<Named[]>([]);
+  const [providers, setProviders] = useState<NamedProvider[]>([]);
   const [creating, setCreating] = useState(false);
   const [wizarding, setWizarding] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -218,7 +235,7 @@ function WorkerRow({
 }: {
   worker: Worker;
   skills: Named[];
-  providers: Named[];
+  providers: NamedProvider[];
   workers: Worker[];
   live?: LiveRun;
   onChange: () => void;
@@ -231,7 +248,15 @@ function WorkerRow({
   const [open, setOpen] = useState(false);
   const [runs, setRuns] = useState<WorkerRun[]>([]);
   const running = worker.running || live?.status === "running";
-  const providerName = providers.find((p) => p.id === worker.providerId)?.name;
+  // Resolve the agent's backend provider. With no providerId set it runs on the
+  // Anthropic cloud API; otherwise it points at a local/custom provider preset.
+  // We always show a type badge (Anthropic / Ollama / LM Studio / Provider) so
+  // cloud agents read consistently with local ones, not just a bare model name.
+  const provider = providers.find((p) => p.id === worker.providerId);
+  const providerKind: ProviderKind = provider?.kind ?? "anthropic";
+  const providerLabel =
+    providerKind === "custom" ? provider?.name || PROVIDER_KIND_LABEL.custom : PROVIDER_KIND_LABEL[providerKind];
+  const isLocalProvider = providerKind === "ollama" || providerKind === "lmstudio";
 
   const loadRuns = () => api.workerRuns(worker.id).then((r) => setRuns(r.runs));
   useEffect(() => {
@@ -275,8 +300,15 @@ function WorkerRow({
         {worker.schedule && worker.schedule !== "manual" && (
           <Badge tone="blue">{worker.schedule}</Badge>
         )}
-        {worker.model && <Badge>{shortModel(worker.model)}</Badge>}
-        {providerName && <Badge tone="blue">⌂ {providerName}</Badge>}
+        {/* Unified backend badge: provider type (always) + model (when set), so
+            an Anthropic cloud agent reads the same way as a local one. */}
+        <span title={provider?.name ?? providerLabel}>
+          <Badge tone="blue">
+            {isLocalProvider ? "⌂ " : ""}
+            {providerLabel}
+            {worker.model ? ` · ${shortModel(worker.model)}` : ""}
+          </Badge>
+        </span>
         {!worker.enabled && <Badge tone="amber">{t("disabled")}</Badge>}
         {worker.escalated && (
           <span title={t("crew_escalated_hint")}>
@@ -450,7 +482,7 @@ function WorkerWizard({
   onCancel,
   onAuthError,
 }: {
-  providers: Named[];
+  providers: NamedProvider[];
   workers: Worker[];
   onDone: () => Promise<void>;
   onCancel: () => void;
@@ -691,7 +723,7 @@ function WizardConfigEditor({
 }: {
   form: Form;
   onChange: (patch: Partial<Form>) => void;
-  providers: Named[];
+  providers: NamedProvider[];
   workers: Worker[];
   onAuthError: () => void;
   onConfirm: () => Promise<void>;
@@ -877,7 +909,7 @@ function WorkerForm({
   onAuthError,
 }: {
   skills: Named[];
-  providers: Named[];
+  providers: NamedProvider[];
   workers: Worker[];
   initial: Form;
   enabled?: boolean;

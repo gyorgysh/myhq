@@ -469,7 +469,7 @@ function AgentBreakdownCard({
             <p className="text-xs font-semibold uppercase tracking-wider text-fg-dim">
               {t("usage_tokens_per_day")}
             </p>
-            <div className="flex flex-wrap items-center gap-3 text-[10px] text-fg-faint">
+            <div className="flex flex-wrap items-center gap-3 text-xs text-fg-faint">
               {grouped.map((g) => (
                 <span key={g.role} className="flex items-center gap-1">
                   <span className={`inline-block h-2 w-2 rounded-sm ${g.color}`} />
@@ -504,7 +504,7 @@ function AgentBreakdownCard({
 
               {/* Column header (only shown once per group when >1 agent) */}
               {cat.agents.length > 1 && (
-                <div className={`${COL} mb-0.5 text-[10px] text-fg-faint`}>
+                <div className={`${COL} mb-0.5 text-xs text-fg-faint`}>
                   <span className="pl-3">{t("usage_agents_col_agent")}</span>
                   <span className="text-right">{t("usage_agents_col_input")}</span>
                   <span className="text-right">{t("usage_agents_col_output")}</span>
@@ -587,8 +587,8 @@ function AgentTokenChart({ dailyByRole }: { dailyByRole: AgentDailyByRole }) {
             return <div key={s.role} className={`w-full ${base}`} style={{ height: `${pct}%` }} />;
           })}
         </div>
-        <p className="text-[10px] text-fg-faint">{day}</p>
-        <p className="text-[10px] text-fg-faint">{tokens(dayTotal)}</p>
+        <p className="text-xs text-fg-faint">{day}</p>
+        <p className="text-xs text-fg-faint">{tokens(dayTotal)}</p>
         <p className="text-center text-xs text-fg-faint">{t("usage_chart_today_hint")}</p>
       </div>
     );
@@ -734,7 +734,7 @@ function TokenChart({ myhq }: { myhq: UsageSummary }) {
         {todayTotal > 0 && (
           <div className="flex w-full items-center gap-4 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3">
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-accent">
+              <p className="text-xs font-semibold uppercase tracking-wider text-accent">
                 {t("usage_chart_today_label")}
               </p>
               <p className="mt-0.5 text-xl font-bold tabular text-fg">
@@ -776,7 +776,7 @@ function TokenChart({ myhq }: { myhq: UsageSummary }) {
         {todayTotal > 0 && (
           <div className="flex items-center gap-4 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3">
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-accent">
+              <p className="text-xs font-semibold uppercase tracking-wider text-accent">
                 {t("usage_chart_today_label")}
               </p>
               <p className="mt-0.5 text-xl font-bold tabular text-fg">{tokens(todayTotal)}</p>
@@ -796,8 +796,8 @@ function TokenChart({ myhq }: { myhq: UsageSummary }) {
             <div className="w-full bg-emerald-400/70" style={{ height: `${outPct}%` }} />
             <div className="w-full bg-accent/70" style={{ height: `${inPct}%` }} />
           </div>
-          <p className="text-[10px] text-fg-faint">{d.day}</p>
-          <p className="text-[10px] text-fg-faint">{tokens(total)}</p>
+          <p className="text-xs text-fg-faint">{d.day}</p>
+          <p className="text-xs text-fg-faint">{tokens(total)}</p>
         </div>
         <p className="text-center text-xs text-fg-faint">{t("usage_chart_today_hint")}</p>
       </div>
@@ -842,7 +842,7 @@ function TokenChart({ myhq }: { myhq: UsageSummary }) {
 function Tile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-input p-3">
-      <p className="text-[10px] uppercase tracking-wide text-fg-faint">{label}</p>
+      <p className="text-xs uppercase tracking-wide text-fg-faint">{label}</p>
       <p className="mt-1 text-xl font-bold tabular text-fg">{value}</p>
     </div>
   );

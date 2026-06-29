@@ -36,6 +36,7 @@ import { sendVoiceReply, ttsEnabled } from "./telegram/tts.js";
 import { schedules, type ScheduleRunner } from "./schedule/manager.js";
 import { heartbeat } from "./core/heartbeat.js";
 import { taskDelegator } from "./core/taskRunner.js";
+import { createTask } from "./core/tasks.js";
 import { push } from "./core/push.js";
 import { fireWebhook, type WebhookSource } from "./core/webhook.js";
 import { resolveMainRunFor, isDryRun, dryRunDescription, DRY_RUN_TOOLS } from "./core/mainSettings.js";
@@ -249,8 +250,42 @@ export function buildBot(): Telegraf {
   });
 
   // --- Scheduled prompts: run due jobs as autonomous turns, pushed to the chat ---
+  // When the chat is busy at firing time we don't drop the job: the scheduler
+  // retries it every tick (~30s) until the chat frees up. If it's still busy
+  // after this long, fall back to running it as a background Kanban task so a
+  // long-running conversation never silently swallows a scheduled run.
+  const SCHED_BUSY_FALLBACK_MS = 5 * 60_000;
   const runScheduled: ScheduleRunner = async (s) => {
-    if (sessions.get(s.chatId).busy) return false;
+    if (sessions.get(s.chatId).busy) {
+      const waited = s.busySince ? Date.now() - s.busySince : 0;
+      if (waited < SCHED_BUSY_FALLBACK_MS) return "busy"; // retry next tick
+      // Busy too long: move the run to a background task and report when done.
+      log.info("Scheduled task busy too long; moving to background task", {
+        chatId: s.chatId,
+        id: s.id,
+        waitedMs: waited,
+      });
+      const card = createTask({
+        title: `Scheduled: ${s.prompt.slice(0, 80)}`,
+        notes: s.prompt,
+        column: "backlog",
+        createdBy: "schedule",
+      });
+      const r = taskDelegator.delegate(card.id);
+      if (!r.ok && !r.queued && !r.blocked) {
+        // Couldn't delegate (no runner/capacity issue): keep retrying the chat.
+        log.warn("Scheduled fallback delegate failed; will retry chat", { id: s.id, error: r.error });
+        return "busy";
+      }
+      await bot.telegram
+        .sendMessage(
+          s.chatId,
+          t("bot_scheduled_deferred", langForChat(s.chatId), { prompt: escapeHtml(s.prompt) }),
+          { parse_mode: "HTML" },
+        )
+        .catch(() => {});
+      return "deferred";
+    }
     log.info("Scheduled task firing", { chatId: s.chatId, id: s.id });
     await bot.telegram
       .sendMessage(s.chatId, t("bot_scheduled", langForChat(s.chatId), { prompt: escapeHtml(s.prompt) }), {
@@ -264,7 +299,7 @@ export function buildBot(): Telegraf {
         ? { url: s.webhookUrl, source: "schedule", title: s.prompt.slice(0, 120), id: s.id }
         : undefined,
     });
-    return true;
+    return "started";
   };
   schedules.start(runScheduled);
 

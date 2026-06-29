@@ -178,7 +178,7 @@ export function BottomNav({
           <button
             key={it.id}
             onClick={() => onSelect(it.id)}
-            className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition-colors ${
+            className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-xs transition-colors ${
               active ? "text-accent" : "text-fg-dim"
             }`}
           >
@@ -194,7 +194,7 @@ export function BottomNav({
       })}
       <button
         onClick={onOpenMenu}
-        className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] text-fg-dim transition-colors"
+        className="flex flex-1 flex-col items-center gap-0.5 py-2 text-xs text-fg-dim transition-colors"
       >
         <span className="text-base leading-none">☰</span>
         <span>{t("nav_more")}</span>
@@ -316,7 +316,7 @@ export function MoreDrawer({
             <>
               {groups.map((g) => (
                 <div key={g.headingKey} className="mb-3">
-                  <div className="mono mb-1 px-2 text-[10px] font-medium uppercase tracking-widest text-fg-faint">
+                  <div className="mono-xs mb-1 px-2 font-medium uppercase tracking-widest text-fg-faint">
                     {t(g.headingKey)}
                   </div>
                   {g.items.map((it) => {
@@ -345,7 +345,7 @@ export function MoreDrawer({
                           )}
                         </span>
                         {(inboxBadge || updateBadge) && (
-                          <span className="shrink-0 rounded-full bg-accent/15 px-1.5 text-[10px] font-semibold text-accent">
+                          <span className="shrink-0 rounded-full bg-accent/15 px-1.5 text-xs font-semibold text-accent">
                             {inboxBadge ? (inboxPending > 99 ? "99+" : inboxPending) : t("nav_more_new")}
                           </span>
                         )}
@@ -458,7 +458,7 @@ export function Sidebar({
         </span>
         <span className={`flex-1 text-left ${labelCls}`}>{t(it.labelKey)}</span>
         {badge && (
-          <span className={`rounded-full bg-accent/15 px-1.5 text-[10px] font-semibold text-accent ${labelCls}`}>
+          <span className={`rounded-full bg-accent/15 px-1.5 text-xs font-semibold text-accent ${labelCls}`}>
             {badgeText}
           </span>
         )}
@@ -485,7 +485,7 @@ export function Sidebar({
         {NAV.map((group, gi) => (
           <div key={group.headingKey} className={gi > 0 ? "mt-4" : ""}>
             <div
-              className={`mono mb-1 px-2.5 text-[10px] font-medium uppercase tracking-widest text-fg-faint ${labelCls}`}
+              className={`mono-xs mb-1 px-2.5 font-medium uppercase tracking-widest text-fg-faint ${labelCls}`}
             >
               {t(group.headingKey)}
             </div>

@@ -35,6 +35,19 @@ export interface ProviderView {
   updatedAt: number;
 }
 
+/** Coarse classification of a provider endpoint, for display. "anthropic" is
+ *  the implicit default when no provider is set (the cloud API); local servers
+ *  are recognised by their well-known ports, anything else is a custom proxy. */
+export type ProviderKind = "anthropic" | "ollama" | "lmstudio" | "custom";
+
+/** Classify a provider's base URL. LM Studio defaults to :1234, Ollama :11434. */
+export function providerKind(baseUrl: string): ProviderKind {
+  const url = baseUrl.toLowerCase();
+  if (url.includes(":11434") || url.includes("ollama")) return "ollama";
+  if (url.includes(":1234") || url.includes("lmstudio") || url.includes("lm-studio")) return "lmstudio";
+  return "custom";
+}
+
 function tokenHint(token: string): string {
   if (!token) return "";
   return token.length <= 4 ? "••••" : `••••${token.slice(-4)}`;

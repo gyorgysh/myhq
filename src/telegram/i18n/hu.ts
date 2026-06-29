@@ -15,6 +15,8 @@ export const hu: Record<keyof typeof en, string> = {
   bot_voice_no_speech: "🎤 Nem hallottam ki beszédet abból a hangüzenetből.",
   bot_voice_failed: "⚠️ A hangátirat nem sikerült: {error}",
   bot_scheduled: "⏰ <b>Ütemezett feladat</b>\n<i>{prompt}</i>",
+  bot_scheduled_deferred:
+    "⏰ <b>Ütemezett feladat</b> — a csevegés foglalt volt, ezért háttérfeladatként indítottam el, és jelzek, ha kész.\n<i>{prompt}</i>",
   bot_task_stopped: "⏹ Feladat leállítva — {title}{by}",
   bot_task_failed: "⚠️ Feladat sikertelen — {title}{by}{error}",
   bot_inbox_suggestion:

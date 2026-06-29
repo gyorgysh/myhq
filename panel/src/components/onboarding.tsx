@@ -184,7 +184,7 @@ function FlowNode({
       }`}
     >
       <span className={`text-xs font-semibold ${accent ? "text-accent" : "text-fg"}`}>{label}</span>
-      {sub && <span className="mt-0.5 text-[10px] leading-tight text-fg-faint">{sub}</span>}
+      {sub && <span className="mt-0.5 text-xs leading-tight text-fg-faint">{sub}</span>}
     </div>
   );
 }
@@ -456,7 +456,7 @@ function SetupWizard({ onClose }: { onClose: () => void }) {
         {WIZARD_ORDER.map((id, i) => (
           <div key={id} className="flex flex-1 items-center gap-2">
             <span
-              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold ${
+              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${
                 doneFlags[id]
                   ? "border-accent bg-accent text-accent-fg"
                   : i === idx

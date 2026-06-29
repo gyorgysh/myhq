@@ -176,7 +176,7 @@ export function CommandPalette({
             autoCorrect="off"
             spellCheck={false}
           />
-          <kbd className="hidden rounded border border-line px-1.5 py-0.5 text-[10px] font-mono text-fg-faint sm:inline">
+          <kbd className="mono-xs hidden rounded border border-line px-1.5 py-0.5 text-fg-faint sm:inline">
             esc
           </kbd>
         </div>
@@ -218,7 +218,7 @@ export function CommandPalette({
                   <div className="flex items-baseline gap-2">
                     <span className="text-sm font-medium">{item.label}</span>
                     {item.group && (
-                      <span className="text-[10px] uppercase tracking-wider text-fg-faint">
+                      <span className="text-xs uppercase tracking-wider text-fg-faint">
                         {item.group}
                       </span>
                     )}
@@ -230,7 +230,7 @@ export function CommandPalette({
                   )}
                 </div>
                 {isActive && (
-                  <kbd className="shrink-0 rounded border border-line px-1.5 py-0.5 text-[10px] font-mono text-fg-faint">
+                  <kbd className="mono-xs shrink-0 rounded border border-line px-1.5 py-0.5 text-fg-faint">
                     ↵
                   </kbd>
                 )}

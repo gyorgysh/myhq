@@ -407,7 +407,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="flex flex-col gap-1 bg-input px-3 py-2.5">
       <span className="text-lg font-semibold leading-none text-fg tabular">{value}</span>
-      <span className="truncate text-[11px] uppercase tracking-wide text-fg-faint">{label}</span>
+      <span className="truncate text-xs uppercase tracking-wide text-fg-faint">{label}</span>
     </div>
   );
 }

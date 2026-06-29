@@ -38,6 +38,8 @@ export function LogsView({ onAuthError }: { onAuthError: () => void }) {
   // Usage insights (most-used tools/commands over the 72h window).
   const [insights, setInsights] = useState<LogUsageSummary | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(false);
+  // True while a debounced cross-file/single-file search is in flight.
+  const [searching, setSearching] = useState(false);
 
   const isAllFiles = selectedDate === ALL_FILES;
   const retryRef = useRef<ReturnType<typeof setTimeout>>();
@@ -123,12 +125,16 @@ export function LogsView({ onAuthError }: { onAuthError: () => void }) {
   useEffect(() => {
     if (!selectedDate) return;
     clearTimeout(searchRef.current);
+    setSearching(true);
     searchRef.current = setTimeout(() => {
       const req =
         selectedDate === ALL_FILES
           ? api.logsSearch({ q: search || undefined, hours: 72 })
           : api.logs({ date: selectedDate, q: search || undefined });
-      req.then((r) => setHistLogs(r.logs)).catch(() => {});
+      req
+        .then((r) => setHistLogs(r.logs))
+        .catch(() => {})
+        .finally(() => setSearching(false));
     }, 300);
     return () => clearTimeout(searchRef.current);
   }, [search, selectedDate]);
@@ -191,6 +197,7 @@ export function LogsView({ onAuthError }: { onAuthError: () => void }) {
           toggle={toggle}
           follow={follow}
           setFollow={setFollow}
+          searching={searching && !!selectedDate}
           clear={() => {
             setLiveLogs([]);
             setHistLogs(null);
@@ -559,14 +566,14 @@ function ActivityFeed({
       {/* Per-agent filter buttons */}
       {showAgentFilters && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] uppercase tracking-wide text-fg-faint">
+          <span className="text-xs uppercase tracking-wide text-fg-faint">
             {t("logs_filter_agent")}
           </span>
           {agentKeys.map((key) => (
             <button
               key={key}
               onClick={() => toggleAgent(key)}
-              className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+              className={`rounded-full border px-2 py-0.5 text-xs font-medium transition-colors ${
                 hiddenAgents.has(key)
                   ? "border-line text-fg-faint opacity-50"
                   : "border-accent/30 bg-accent/10 text-accent"
@@ -578,7 +585,7 @@ function ActivityFeed({
           {hasUnknown && (
             <button
               onClick={() => toggleAgent(UNKNOWN_AGENT)}
-              className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+              className={`rounded-full border px-2 py-0.5 text-xs font-medium transition-colors ${
                 hiddenAgents.has(UNKNOWN_AGENT)
                   ? "border-line text-fg-faint opacity-50"
                   : "border-line bg-surface-2 text-fg-muted"
@@ -593,12 +600,12 @@ function ActivityFeed({
       {/* Per-task filter: single-select (a task at a time, or all). */}
       {showTaskFilters && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] uppercase tracking-wide text-fg-faint">
+          <span className="text-xs uppercase tracking-wide text-fg-faint">
             {t("logs_filter_task")}
           </span>
           <button
             onClick={() => setTaskFilter(null)}
-            className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+            className={`rounded-full border px-2 py-0.5 text-xs font-medium transition-colors ${
               !activeTask
                 ? "border-accent/30 bg-accent/10 text-accent"
                 : "border-line text-fg-faint opacity-60"
@@ -611,7 +618,7 @@ function ActivityFeed({
               key={id}
               onClick={() => setTaskFilter((cur) => (cur === id ? null : id))}
               title={taskLabels.get(id)}
-              className={`max-w-[14rem] truncate rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+              className={`max-w-[14rem] truncate rounded-full border px-2 py-0.5 text-xs font-medium transition-colors ${
                 activeTask === id
                   ? "border-accent/30 bg-accent/10 text-accent"
                   : "border-line text-fg-muted opacity-70 hover:opacity-100"
@@ -642,7 +649,7 @@ function ActivityFeed({
                     {a.agentLabel && (
                       <span
                         title={a.agentTitle}
-                        className="shrink-0 max-w-[12rem] truncate rounded-full px-2 py-0.5 text-[10px] font-semibold bg-accent/10 text-accent border border-accent/20 tracking-wide"
+                        className="shrink-0 max-w-[12rem] truncate rounded-full px-2 py-0.5 text-xs font-semibold bg-accent/10 text-accent border border-accent/20 tracking-wide"
                       >
                         {a.agentLabel}
                       </span>
@@ -650,7 +657,7 @@ function ActivityFeed({
                     {a.taskId && (
                       <span
                         title={a.taskTitle || a.taskId}
-                        className="shrink-0 cursor-help rounded px-1.5 py-0.5 font-mono text-[10px] text-fg-faint bg-surface-2 border border-line"
+                        className="mono-xs shrink-0 cursor-help rounded px-1.5 py-0.5 text-fg-faint bg-surface-2 border border-line"
                       >
                         #{a.taskId}
                       </span>
@@ -665,30 +672,30 @@ function ActivityFeed({
                     {a.target && (
                       <span
                         title={a.target}
-                        className="min-w-0 flex-1 truncate font-mono text-[11px] text-fg-dim leading-snug"
+                        className="mono-xs min-w-0 flex-1 truncate text-fg-dim leading-snug"
                       >
                         {a.target}
                       </span>
                     )}
                     {a.diffLines && (
-                      <span className="shrink-0 font-mono text-[10px] text-fg-faint bg-surface-2 rounded px-1.5 py-0.5">{a.diffLines}</span>
+                      <span className="mono-xs shrink-0 text-fg-faint bg-surface-2 rounded px-1.5 py-0.5">{a.diffLines}</span>
                     )}
                     {a.diffSnippet && (
                       <button
                         type="button"
                         onClick={() => toggleDiff(a.key)}
-                        className="shrink-0 text-[10px] font-medium text-accent hover:text-accent/80 underline-offset-2 hover:underline"
+                        className="shrink-0 text-xs font-medium text-accent hover:text-accent/80 underline-offset-2 hover:underline"
                       >
                         {isDiffOpen(a.key) ? t("logs_act_diff_collapse") : t("logs_act_diff_expand")}
                       </button>
                     )}
                   </div>
-                  <span className="tabular shrink-0 text-[10px] text-fg-faint font-mono">
+                  <span className="mono-xs tabular shrink-0 text-fg-faint">
                     {new Date(a.ts).toLocaleTimeString()}
                   </span>
                 </div>
                 {a.diffSnippet && isDiffOpen(a.key) && (
-                  <pre className="mt-1 ml-8 overflow-x-auto rounded border border-line bg-surface px-2 py-1 text-[11px] leading-snug">
+                  <pre className="mt-1 ml-8 overflow-x-auto rounded border border-line bg-surface px-2 py-1 text-xs leading-snug">
                     {a.diffSnippet.split("\n").map((line, i) => (
                       <div
                         key={i}
@@ -728,6 +735,7 @@ function RawLogs({
   toggle,
   follow,
   setFollow,
+  searching,
   clear,
   t,
 }: {
@@ -742,6 +750,7 @@ function RawLogs({
   toggle: (l: Level) => void;
   follow: boolean;
   setFollow: (v: boolean) => void;
+  searching: boolean;
   clear: () => void;
   t: TFn;
 }) {
@@ -781,13 +790,21 @@ function RawLogs({
             </option>
           ))}
         </Select>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={isAllFiles ? t("logs_search_all_placeholder") : t("logs_search_placeholder")}
-          className="min-w-0 flex-1 rounded border border-line bg-input px-2 py-1 text-xs text-fg placeholder:text-fg-faint"
-        />
+        <div className="relative min-w-0 flex-1">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={isAllFiles ? t("logs_search_all_placeholder") : t("logs_search_placeholder")}
+            className="w-full rounded border border-line bg-input px-2 py-1 pr-24 text-xs text-fg placeholder:text-fg-faint"
+          />
+          {searching && (
+            <span className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-xs text-fg-faint">
+              <span className="h-3 w-3 animate-spin rounded-full border border-line border-t-fg-muted" />
+              {t("logs_searching")}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Toolbar row 2: level toggles + follow + clear */}

@@ -1049,6 +1049,7 @@ export const hu: Translations = {
   logs_failed_load: "Betöltés sikertelen: {error}",
   logs_search_placeholder: "Keresés…",
   logs_search_all_placeholder: "Keresés minden fájlban (72ó)…",
+  logs_searching: "Keresés…",
   logs_date_today: "Ma",
   logs_date_label: "Dátum",
   logs_all_files: "Minden fájl (72ó)",
@@ -1217,6 +1218,9 @@ export const hu: Translations = {
   sched_pause: "Szüneteltetés",
   sched_resume: "Folytatás",
   sched_paused: "Szüneteltetve",
+  sched_failing: "Hibás",
+  sched_waiting_busy: "Várakozik (csevegés foglalt)",
+  sched_last_error: "Utolsó hiba",
 
   // Állapot nézet
   status_kind_anthropic: "Anthropic",

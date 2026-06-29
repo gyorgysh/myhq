@@ -9,9 +9,18 @@ import {
 
 const TICK_MS = 30_000;
 
-/** Callback that runs one due schedule; resolves true if it actually started
- *  (false means it was skipped, e.g. the chat was busy, so we retry next tick). */
-export type ScheduleRunner = (s: Schedule) => Promise<boolean>;
+/** Outcome of attempting to fire one due schedule:
+ *  - "started": the run actually began; advance nextRunAt and clear busy/error.
+ *  - "busy": the chat was busy, skip and retry next tick (records busySince).
+ *  - "deferred": the runner handled it another way (e.g. moved it to a background
+ *    task because it had been busy too long); advance and clear busy state.
+ *  A boolean is still accepted for back-compat (true → "started", false → "busy"). */
+export type RunOutcome = "started" | "busy" | "deferred";
+
+/** Callback that runs one due schedule. The schedule passed in carries
+ *  `busySince` so the runner can decide to fall back to a background task once
+ *  the chat has been busy for a while. */
+export type ScheduleRunner = (s: Schedule) => Promise<RunOutcome | boolean>;
 
 export class ScheduleManager {
   private schedules: Schedule[] = loadSchedules();
@@ -37,10 +46,21 @@ export class ScheduleManager {
     const s = this.schedules.find((s) => s.id === id);
     if (!s) return "not_found";
     if (!this.runner) return "no_runner";
-    const started = await this.runner(s);
-    if (!started) return "busy";
+    let outcome: RunOutcome;
+    try {
+      outcome = normalizeOutcome(await this.runner(s));
+    } catch (err) {
+      s.lastError = errText(err);
+      s.lastRunAt = Date.now();
+      s.nextRunAt = nextRun(s.spec, Date.now());
+      saveSchedules(this.schedules);
+      return "ok";
+    }
+    if (outcome === "busy") return "busy";
     s.lastRunAt = Date.now();
     s.nextRunAt = nextRun(s.spec, Date.now());
+    s.lastError = undefined;
+    s.busySince = undefined;
     saveSchedules(this.schedules);
     return "ok";
   }
@@ -133,21 +153,46 @@ export class ScheduleManager {
     for (const s of this.schedules) {
       if (s.enabled === false) continue;
       if (s.nextRunAt > now) continue;
-      let started = false;
+      let outcome: RunOutcome;
       try {
-        started = await run(s);
+        outcome = normalizeOutcome(await run(s));
       } catch (err) {
-        log.error("Scheduled run threw", { id: s.id, error: errText(err) });
-        started = true; // don't hammer a persistently failing job; roll it forward
-      }
-      if (started) {
+        // The run threw: record the error so the panel can flag a broken job,
+        // then roll forward so we don't hammer a persistently failing schedule.
+        const msg = errText(err);
+        log.error("Scheduled run threw", { id: s.id, error: msg });
+        s.lastError = msg;
         s.lastRunAt = now;
         s.nextRunAt = nextRun(s.spec, now);
+        s.busySince = undefined;
         dirty = true;
+        continue;
       }
+      if (outcome === "busy") {
+        // Chat was busy: leave nextRunAt alone so we retry next tick, but mark
+        // when the wait started so the runner can fall back to a background task.
+        if (s.busySince === undefined) {
+          s.busySince = now;
+          dirty = true;
+        }
+        continue;
+      }
+      // "started" or "deferred" (runner moved it to a background task): advance.
+      s.lastRunAt = now;
+      s.nextRunAt = nextRun(s.spec, now);
+      s.lastError = undefined;
+      s.busySince = undefined;
+      dirty = true;
     }
     if (dirty) saveSchedules(this.schedules);
   }
+}
+
+/** Coerce a runner's return into a {@link RunOutcome}. */
+function normalizeOutcome(r: RunOutcome | boolean): RunOutcome {
+  if (r === true) return "started";
+  if (r === false) return "busy";
+  return r;
 }
 
 /** Parse a "when" token: `30s|m|h|d` (interval) or `[daily ]HH:MM` (clock). */

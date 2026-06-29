@@ -80,10 +80,17 @@ export function SchedulesView({ onAuthError }: { onAuthError: () => void }) {
     }
   };
 
-  const del = async (id: string) => {
+  const del = (id: string) => {
     if (!confirm(t("sched_delete_confirm"))) return;
-    await api.deleteSchedule(id);
-    await load();
+    setError(null);
+    // Optimistically drop the row; roll back if the delete request fails.
+    const prev = schedules;
+    setSchedules((cur) => cur.filter((s) => s.id !== id));
+    api.deleteSchedule(id).catch((e) => {
+      setSchedules(prev);
+      if (e instanceof AuthError) return onAuthError();
+      setError(String(e));
+    });
   };
 
   return (
@@ -212,11 +219,15 @@ export function SchedulesView({ onAuthError }: { onAuthError: () => void }) {
             ) : (
               <div
                 key={s.id}
-                className={`rounded-lg border border-line p-3${s.enabled ? "" : " opacity-60"}`}
+                className={`rounded-lg border p-3${s.enabled ? "" : " opacity-60"}${
+                  s.lastError ? " border-critical/50" : " border-line"
+                }`}
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone="blue">{s.spec}</Badge>
                   {!s.enabled && <Badge tone="amber">{t("sched_paused")}</Badge>}
+                  {s.lastError && <Badge tone="critical">{t("sched_failing")}</Badge>}
+                  {s.busySince && <Badge tone="amber">{t("sched_waiting_busy")}</Badge>}
                   <span className="ml-auto tabular text-xs text-fg-muted">
                     {s.enabled
                       ? t("sched_next").replace("{time}", relTime(s.nextRunAt))
@@ -236,6 +247,11 @@ export function SchedulesView({ onAuthError }: { onAuthError: () => void }) {
                 <div className="mono mt-1 truncate text-xs text-fg-faint" title={s.cwd}>
                   {s.cwd}
                 </div>
+                {s.lastError && (
+                  <div className="mt-1 text-xs text-critical-fg" title={s.lastError}>
+                    {t("sched_last_error")}: {s.lastError}
+                  </div>
+                )}
                 {s.webhookUrl && (
                   <div className="mono mt-1 truncate text-xs text-fg-faint" title={s.webhookUrl}>
                     {t("sched_webhook")}: {s.webhookUrl}

@@ -204,7 +204,7 @@ function SheetAgent({
       </span>
       <span className="min-w-0 flex-1">
         <span className={`block truncate text-sm ${active ? "font-medium text-accent" : "text-fg"}`}>{label}</span>
-        {sub && <span className="block truncate text-[10px] text-fg-faint">{sub}</span>}
+        {sub && <span className="block truncate text-xs text-fg-faint">{sub}</span>}
       </span>
     </button>
   );
@@ -310,7 +310,7 @@ function Pill({
         <span className={`block truncate text-xs font-medium ${active ? "text-accent" : "text-fg"}`}>
           {label}
         </span>
-        {sub && <span className="block truncate text-[10px] text-fg-faint">{sub}</span>}
+        {sub && <span className="block truncate text-xs text-fg-faint">{sub}</span>}
       </span>
     </button>
   );
@@ -345,7 +345,7 @@ function AtlasChat({ onAuthError }: { onAuthError: () => void }) {
       <div className="min-w-0">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
           {t("chat_agent_atlas")}
-          <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+          <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
             {t("chat_shared_badge")}
           </span>
         </h2>
@@ -416,7 +416,7 @@ function AgentChat({ agentId, onAuthError }: { agentId: string; onAuthError: () 
       <div className="min-w-0">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
           {view?.name ?? "…"}
-          <span className="rounded-full bg-blue-400/10 px-2 py-0.5 text-[10px] font-medium text-blue-400">
+          <span className="rounded-full bg-blue-400/10 px-2 py-0.5 text-xs font-medium text-blue-400">
             {t("chat_agent_private")}
           </span>
         </h2>
@@ -543,7 +543,7 @@ function ChatPane({
         {stream && (
           <div className="flex flex-col gap-1">
             {agentName && (
-              <span className="ml-1 self-start rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-accent border border-accent/20">
+              <span className="ml-1 self-start rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold tracking-wide text-accent border border-accent/20">
                 {agentName}
               </span>
             )}
@@ -552,7 +552,7 @@ function ChatPane({
                 <div className="mono mb-1 flex items-center gap-2 text-xs text-fg-dim">
                   <span>⚙ {stream.tool}</span>
                   {stream.diffLines && (
-                    <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-fg-faint">
+                    <span className="mono-xs rounded bg-surface-2 px-1.5 py-0.5 text-fg-faint">
                       {stream.diffLines}
                     </span>
                   )}
@@ -560,7 +560,7 @@ function ChatPane({
                     <button
                       type="button"
                       onClick={() => setDiffOpen((o) => !o)}
-                      className="text-[10px] text-accent hover:underline"
+                      className="text-xs text-accent hover:underline"
                     >
                       {diffOpen ? "hide diff" : "show diff"}
                     </button>
@@ -568,7 +568,7 @@ function ChatPane({
                 </div>
               )}
               {stream.diffSnippet && diffOpen && (
-                <pre className="mb-2 overflow-x-auto rounded border border-line bg-base px-2 py-1 text-[11px] leading-snug">
+                <pre className="mb-2 overflow-x-auto rounded border border-line bg-base px-2 py-1 text-xs leading-snug">
                   {stream.diffSnippet.split("\n").map((line, i) => (
                     <div
                       key={i}
@@ -622,7 +622,7 @@ function Bubble({ m, agentName }: { m: ChatMessage; agentName?: string }) {
   return (
     <div className={`flex flex-col gap-1 ${user ? "items-end" : "items-start"}`}>
       {!user && agentName && (
-        <span className="ml-1 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-accent border border-accent/20">
+        <span className="ml-1 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold tracking-wide text-accent border border-accent/20">
           {agentName}
         </span>
       )}

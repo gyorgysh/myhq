@@ -27,6 +27,10 @@ export interface ScheduleView {
   specRaw: string;
   nextRunAt: number;
   lastRunAt?: number;
+  /** Last error from a fire that threw; absent when the last fire succeeded. */
+  lastError?: string;
+  /** Epoch ms since which the job has been waiting for a busy chat to free up. */
+  busySince?: number;
   createdAt: number;
   enabled: boolean;
   webhookUrl?: string;
@@ -61,6 +65,8 @@ export function listSchedules(): ScheduleView[] {
     specRaw: specToWhen(s.spec),
     nextRunAt: s.nextRunAt,
     lastRunAt: s.lastRunAt,
+    lastError: s.lastError,
+    busySince: s.busySince,
     createdAt: s.createdAt,
     enabled: s.enabled !== false,
     webhookUrl: s.webhookUrl,

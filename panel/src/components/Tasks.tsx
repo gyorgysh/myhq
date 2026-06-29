@@ -551,7 +551,7 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
                 setDropBeforeId(null);
                 void drop(col.id, null);
               }}
-              className={`flex w-[85vw] shrink-0 snap-start flex-col rounded-xl border bg-surface p-3 transition-colors sm:w-[70vw] md:w-auto md:shrink ${
+              className={`flex w-[85vw] max-w-[calc(100vw-2rem)] shrink-0 snap-start flex-col rounded-xl border bg-surface p-3 transition-colors sm:w-[70vw] md:w-auto md:max-w-none md:shrink ${
                 dragId && dragOverCol === col.id ? "border-dashed border-accent ring-2 ring-accent/40" : "border-line"
               }`}
             >
@@ -618,7 +618,7 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
                         }}
                         placeholder={t("tasks_wip_placeholder")}
                         aria-label={t("tasks_set_wip")}
-                        className="tabular h-11 w-12 shrink-0 rounded bg-input px-1 text-xs text-fg outline-none focus:ring-1 focus:ring-accent/50"
+                        className="tabular h-11 w-auto min-w-[3rem] shrink-0 rounded bg-input px-1 text-xs text-fg outline-none focus:ring-1 focus:ring-accent/50"
                       />
                     ) : (
                       <button
@@ -760,7 +760,7 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
                   <p className="text-xs">{t("tasks_archive_empty")}</p>
                 </div>
               ) : (
-                <div ref={archiveRef} className="grid gap-1.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                <div ref={archiveRef} className="grid gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                   {archivedCards.map((tk) => {
                     const restoreCol = normalCols[0];
                     const restoreLabel = restoreCol
@@ -812,9 +812,9 @@ function staleTier(task: Task): "stale14" | "stale7" | null {
 function ageBorder(task: Task): string {
   switch (staleTier(task)) {
     case "stale14":
-      return "border-l-2 border-l-red-500/60 border-line";
+      return "border-l-2 border-l-critical/60 border-line";
     case "stale7":
-      return "border-l-2 border-l-amber-500/50 border-line";
+      return "border-l-2 border-l-warn/50 border-line";
     default:
       return "border-line";
   }
@@ -1039,7 +1039,7 @@ function Card({
               {task.blockingIds.map((bid) => {
                 const dep = allTasks.find((x) => x.id === bid);
                 return (
-                  <span key={bid} className="font-mono text-[10px] text-fg-faint" title={dep?.title}>
+                  <span key={bid} className="mono-xs text-fg-faint" title={dep?.title}>
                     ↳ #{bid}
                     {dep && <span className="ml-1 font-sans text-fg-dim">{dep.title.slice(0, 24)}</span>}
                   </span>
@@ -1048,7 +1048,7 @@ function Card({
             </div>
           )}
           <div className="mt-1 flex items-center gap-1.5 text-xs text-fg-faint">
-            <span className="font-mono text-[10px] text-fg-faint opacity-60">#{task.id}</span>
+            <span className="mono-xs text-fg-faint opacity-60">#{task.id}</span>
             <span>{t("tasks_created").replace("{date}", formatDate(task.createdAt))}</span>
             {(task.createdByName || task.createdBy) && (
               <span className="rounded bg-accent/10 px-1.5 py-0.5 text-accent">
@@ -1312,7 +1312,7 @@ function DependencyPicker({
                   onChange={() => toggle(c.id)}
                   className="h-3.5 w-3.5 accent-accent"
                 />
-                <span className="font-mono text-[10px] text-fg-faint">#{c.id}</span>
+                <span className="mono-xs text-fg-faint">#{c.id}</span>
                 <span className="truncate">{c.title}</span>
                 {c.column === "done" && <span className="ml-auto text-ok-fg">✓</span>}
               </label>

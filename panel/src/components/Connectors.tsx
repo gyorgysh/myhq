@@ -76,7 +76,7 @@ export function ConnectorsView({ onAuthError }: { onAuthError: () => void }) {
                 {live && c.hasWrite && (
                   <div className="mt-2">
                     <Label>{t("connectors_access")}</Label>
-                    <div className="mt-1 inline-flex rounded-md border border-line p-0.5">
+                    <div className="mt-1 inline-flex rounded border border-line p-0.5">
                       {(["read", "write"] as ConnectorScope[]).map((s) => (
                         <button
                           key={s}

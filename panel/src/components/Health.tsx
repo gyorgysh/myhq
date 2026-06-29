@@ -169,7 +169,7 @@ function StatusPill({
     <div className="flex w-40 shrink-0 snap-start flex-col gap-1.5 rounded-xl border border-line bg-surface px-3 py-2.5 md:w-auto md:flex-1">
       <div className="flex items-center gap-1.5">
         {dotClass && <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${dotClass}`} />}
-        <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-fg-faint">{label}</span>
+        <span className="truncate text-xs font-semibold uppercase tracking-wider text-fg-faint">{label}</span>
       </div>
       <span className={`text-lg font-bold leading-none tabular ${valClass ?? "text-fg"}`}>{value}</span>
       {pct != null && (
@@ -177,7 +177,7 @@ function StatusPill({
           <div className={`h-full rounded-full transition-all duration-500 ${barClass ?? "bg-accent"}`} style={{ width: `${Math.min(100, pct)}%` }} />
         </div>
       )}
-      {sub && <span className="truncate text-[11px] text-fg-faint">{sub}</span>}
+      {sub && <span className="truncate text-xs text-fg-faint">{sub}</span>}
     </div>
   );
 }
@@ -386,7 +386,13 @@ function ClaudeUsageCard() {
       }
     >
       {loading && !probe ? (
-        <p className="text-sm text-fg-faint">{t("health_loading")}</p>
+        <p className="flex items-center gap-2 text-sm text-fg-faint">
+          <span
+            aria-hidden
+            className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-accent/30 border-t-accent"
+          />
+          {t("health_loading")}
+        </p>
       ) : probe?.source === "none" || !probe ? (
         <p className="text-sm text-fg-faint">{t("health_no_probe")}</p>
       ) : (
@@ -581,7 +587,7 @@ function PreviewGroup({ label, tone, entries }: { label: string; tone: "delete" 
       <div className="space-y-1">
         {entries.map((e) => (
           <div key={e.id} className="flex items-start gap-2 rounded border border-line bg-input px-2.5 py-1.5 text-xs">
-            <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-fg-faint">{e.tier}</span>
+            <span className="mono-xs shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-fg-faint">{e.tier}</span>
             <span className="min-w-0 flex-1 truncate text-fg-dim">{e.text}</span>
             <span className="tabular shrink-0 text-fg-faint">{e.salience.toFixed(2)}</span>
           </div>

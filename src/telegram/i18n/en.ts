@@ -23,6 +23,8 @@ export const en = {
   bot_voice_no_speech: "🎤 Couldn't make out any speech in that note.",
   bot_voice_failed: "⚠️ Voice transcription failed: {error}",
   bot_scheduled: "⏰ <b>Scheduled task</b>\n<i>{prompt}</i>",
+  bot_scheduled_deferred:
+    "⏰ <b>Scheduled task</b> — chat was busy, so I moved it to a background task and will report when it's done.\n<i>{prompt}</i>",
   bot_task_stopped: "⏹ Task stopped — {title}{by}",
   bot_task_failed: "⚠️ Task failed — {title}{by}{error}",
   bot_inbox_suggestion:

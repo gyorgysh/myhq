@@ -7,15 +7,18 @@ export function Card({
   right,
   children,
   className = "",
+  compact = false,
 }: {
   title?: ReactNode;
   right?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** Tighter padding tier (`p-3`) for dense/nested cards; default is `p-4`. */
+  compact?: boolean;
 }) {
   return (
     <div
-      className={`rounded-xl border border-line bg-surface p-4 ${className}`}
+      className={`rounded-xl border border-line bg-surface ${compact ? "p-3" : "p-4"} ${className}`}
     >
       {(title || right) && (
         <div className="mb-3 flex items-center justify-between">
@@ -73,7 +76,7 @@ export function Badge({
   className = "",
 }: {
   children: ReactNode;
-  tone?: "zinc" | "green" | "amber" | "blue" | "violet";
+  tone?: "zinc" | "green" | "amber" | "blue" | "violet" | "critical";
   className?: string;
 }) {
   const tones: Record<string, string> = {
@@ -81,6 +84,7 @@ export function Badge({
     green: "bg-ok-subtle text-ok-fg",
     amber: "bg-warn-subtle text-warn-fg",
     blue: "bg-accent/15 text-accent",
+    critical: "bg-critical-subtle text-critical-fg",
     // Neon violet — the "Private Chat on Web" counterpart to the green Telegram
     // badge. Fixed violet (not the theme accent) so it reads as a distinct channel.
     violet: "bg-violet-500/15 text-violet-500 dark:text-violet-300",

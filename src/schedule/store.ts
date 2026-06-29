@@ -20,6 +20,13 @@ export interface Schedule {
   nextRunAt: number;
   createdAt: number;
   lastRunAt?: number;
+  /** Last error from a fire that threw, so the panel can surface a broken job.
+   *  Cleared on the next successful fire. */
+  lastError?: string;
+  /** Epoch ms of when this schedule first became due but couldn't fire because
+   *  the chat was busy. Cleared once it actually fires (or is moved to a task).
+   *  Drives the "retry until free, then fall back to a background task" path. */
+  busySince?: number;
   /** Paused schedules stay in the list but are skipped on tick. Defaults to enabled. */
   enabled?: boolean;
   /** Optional URL POSTed a JSON outcome payload when the run completes. */

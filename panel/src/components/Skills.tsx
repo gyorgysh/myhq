@@ -43,11 +43,20 @@ function PromptLibrary({ onAuthError }: { onAuthError: () => void }) {
   };
 
   const save = async () => {
+    const wasEditing = editing;
     try {
-      if (editing === "new") await api.createSkill(form);
-      else if (editing) await api.updateSkill(editing, form);
+      const saved =
+        wasEditing === "new" ? await api.createSkill(form) : await api.updateSkill(wasEditing!, form);
+      // Splice the returned skill into local state instead of re-fetching the
+      // whole list (avoids the flash + layout shift).
+      setSkills((prev) => {
+        const idx = prev.findIndex((s) => s.id === saved.id);
+        if (idx === -1) return [...prev, saved];
+        const next = [...prev];
+        next[idx] = saved;
+        return next;
+      });
       setEditing(null);
-      await load();
       toast.success(t("saved"));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
@@ -55,16 +64,20 @@ function PromptLibrary({ onAuthError }: { onAuthError: () => void }) {
     }
   };
 
-  const del = async (id: string) => {
+  const del = (id: string) => {
     if (!confirm(t("skills_delete_confirm"))) return;
-    try {
-      await api.deleteSkill(id);
-      await load();
-      toast.success(t("deleted"));
-    } catch (e) {
-      if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
-    }
+    // Optimistically remove the row; roll back and surface an error if the
+    // delete request fails.
+    const prev = skills;
+    setSkills((cur) => cur.filter((s) => s.id !== id));
+    api
+      .deleteSkill(id)
+      .then(() => toast.success(t("deleted")))
+      .catch((e) => {
+        setSkills(prev);
+        if (e instanceof AuthError) return onAuthError();
+        toast.error(String(e));
+      });
   };
 
   return (

@@ -234,7 +234,7 @@ function SetupStep({
     <Card
       title={
         <span className="flex items-center gap-2 normal-case">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent/15 text-[11px] font-semibold text-accent">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold text-accent">
             {n}
           </span>
           {title}

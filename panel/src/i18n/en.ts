@@ -1045,6 +1045,7 @@ export const en = {
   logs_failed_load: "Failed to load: {error}",
   logs_search_placeholder: "Search…",
   logs_search_all_placeholder: "Search all files (72h)…",
+  logs_searching: "Searching…",
   logs_date_today: "Today",
   logs_date_label: "Date",
   logs_all_files: "All files (72h)",
@@ -1212,6 +1213,9 @@ export const en = {
   sched_pause: "Pause",
   sched_resume: "Resume",
   sched_paused: "Paused",
+  sched_failing: "Failing",
+  sched_waiting_busy: "Waiting (chat busy)",
+  sched_last_error: "Last error",
 
   // Status view
   status_kind_anthropic: "Anthropic",
