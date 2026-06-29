@@ -1,37 +1,39 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { api, checkToken, clearToken, getToken, setToken } from "./api.ts";
 import { useTheme } from "./lib/useTheme.ts";
 import { Login } from "./components/Login.tsx";
 import { Sidebar, BottomNav, MoreDrawer, tabLabel, isTab, isCommandChild, type Tab } from "./components/Sidebar.tsx";
 import { useI18n } from "./lib/useI18n.ts";
 import type { TranslationKey } from "./i18n/en.ts";
+// Eager — these are on the critical path (first paint / always visible).
 import { CommandHub } from "./components/CommandHub.tsx";
-import { CrewView } from "./components/Crew.tsx";
 import { HealthView } from "./components/Health.tsx";
-import { StatusView } from "./components/Status.tsx";
-import { SessionsView } from "./components/Sessions.tsx";
-import { SchedulesView } from "./components/Schedules.tsx";
-import { UsageView } from "./components/Usage.tsx";
-import { PromptView_ } from "./components/Prompt.tsx";
-import { SkillsView } from "./components/Skills.tsx";
-import { MemoryView } from "./components/Memory.tsx";
-import { VaultView } from "./components/Vault.tsx";
-import { BackupView } from "./components/Backup.tsx";
-import { ConnectorsView } from "./components/Connectors.tsx";
-import { useSuggestionEvents } from "./lib/useSuggestionEvents.ts";
-import { UpdatesView } from "./components/Updates.tsx";
-import { TasksView } from "./components/Tasks.tsx";
-import { InboxView } from "./components/Inbox.tsx";
-import { WorkersView } from "./components/Workers.tsx";
-import { LogsView } from "./components/Logs.tsx";
-import { HeartbeatView_ } from "./components/Heartbeat.tsx";
-import { SettingsView } from "./components/Settings.tsx";
 import { SetupView } from "./components/Setup.tsx";
-import { RemoteAccessView } from "./components/RemoteAccess.tsx";
-import { FeedbackView } from "./components/Feedback.tsx";
 import { ToastViewport, Breadcrumb } from "./components/ui.tsx";
 import { ConnectionBanner } from "./components/ConnectionBanner.tsx";
 import { CommandPalette } from "./components/CommandPalette.tsx";
+import { useSuggestionEvents } from "./lib/useSuggestionEvents.ts";
+// Lazy — loaded on first visit to that tab.
+const CrewView       = lazy(() => import("./components/Crew.tsx").then((m) => ({ default: m.CrewView })));
+const StatusView     = lazy(() => import("./components/Status.tsx").then((m) => ({ default: m.StatusView })));
+const SessionsView   = lazy(() => import("./components/Sessions.tsx").then((m) => ({ default: m.SessionsView })));
+const SchedulesView  = lazy(() => import("./components/Schedules.tsx").then((m) => ({ default: m.SchedulesView })));
+const UsageView      = lazy(() => import("./components/Usage.tsx").then((m) => ({ default: m.UsageView })));
+const PromptView_    = lazy(() => import("./components/Prompt.tsx").then((m) => ({ default: m.PromptView_ })));
+const SkillsView     = lazy(() => import("./components/Skills.tsx").then((m) => ({ default: m.SkillsView })));
+const MemoryView     = lazy(() => import("./components/Memory.tsx").then((m) => ({ default: m.MemoryView })));
+const VaultView      = lazy(() => import("./components/Vault.tsx").then((m) => ({ default: m.VaultView })));
+const BackupView     = lazy(() => import("./components/Backup.tsx").then((m) => ({ default: m.BackupView })));
+const ConnectorsView = lazy(() => import("./components/Connectors.tsx").then((m) => ({ default: m.ConnectorsView })));
+const UpdatesView    = lazy(() => import("./components/Updates.tsx").then((m) => ({ default: m.UpdatesView })));
+const TasksView      = lazy(() => import("./components/Tasks.tsx").then((m) => ({ default: m.TasksView })));
+const InboxView      = lazy(() => import("./components/Inbox.tsx").then((m) => ({ default: m.InboxView })));
+const WorkersView    = lazy(() => import("./components/Workers.tsx").then((m) => ({ default: m.WorkersView })));
+const LogsView       = lazy(() => import("./components/Logs.tsx").then((m) => ({ default: m.LogsView })));
+const HeartbeatView_ = lazy(() => import("./components/Heartbeat.tsx").then((m) => ({ default: m.HeartbeatView_ })));
+const SettingsView   = lazy(() => import("./components/Settings.tsx").then((m) => ({ default: m.SettingsView })));
+const RemoteAccessView = lazy(() => import("./components/RemoteAccess.tsx").then((m) => ({ default: m.RemoteAccessView })));
+const FeedbackView   = lazy(() => import("./components/Feedback.tsx").then((m) => ({ default: m.FeedbackView })));
 
 /** Tab from the URL path (e.g. /status), falling back to health. */
 function tabFromPath(): Tab | "settings" {
@@ -257,6 +259,7 @@ export function App() {
               ]}
             />
           )}
+          {/* Eager tabs — on the critical path, no Suspense needed. */}
           {tab === "setup" && <SetupView onAuthError={onAuthError} onGoto={select} />}
           {(tab === "command" || isCommandChild(tab)) && (
             <CommandHub
@@ -267,39 +270,43 @@ export function App() {
               onAuthError={onAuthError}
             />
           )}
-          {tab === "crew" && (
-            <CrewView onAuthError={onAuthError} onChat={chatEnabled ? chatWith : undefined} />
-          )}
           {tab === "health" && <HealthView onGoto={select} />}
-          {tab === "status" && <StatusView onAuthError={onAuthError} />}
-          {tab === "updates" && (
-            <UpdatesView
-              onAuthError={onAuthError}
-              onStatus={(available, count) => {
-                setUpdateAvailable(available);
-                setUpdateCount(count);
-              }}
-            />
-          )}
-          {tab === "workers" && (
-            <WorkersView onAuthError={onAuthError} onChat={chatEnabled ? chatWith : undefined} />
-          )}
-          {tab === "inbox" && <InboxView onAuthError={onAuthError} />}
-          {tab === "tasks" && <TasksView onAuthError={onAuthError} />}
-          {tab === "skills" && <SkillsView onAuthError={onAuthError} />}
-          {tab === "memory" && <MemoryView onAuthError={onAuthError} />}
-          {tab === "vault" && <VaultView onAuthError={onAuthError} />}
-          {tab === "backup" && <BackupView onAuthError={onAuthError} />}
-          {tab === "connectors" && <ConnectorsView onAuthError={onAuthError} />}
-          {tab === "prompt" && <PromptView_ onAuthError={onAuthError} />}
-          {tab === "logs" && <LogsView onAuthError={onAuthError} />}
-          {tab === "sessions" && <SessionsView onAuthError={onAuthError} />}
-          {tab === "schedules" && <SchedulesView onAuthError={onAuthError} />}
-          {tab === "heartbeat" && <HeartbeatView_ onAuthError={onAuthError} />}
-          {tab === "remote" && <RemoteAccessView onAuthError={onAuthError} />}
-          {tab === "feedback" && <FeedbackView onAuthError={onAuthError} />}
-          {tab === "usage" && <UsageView onAuthError={onAuthError} />}
-          {tab === "settings" && <SettingsView onAuthError={onAuthError} />}
+          {/* Lazy tabs — loaded on first visit. Suspense shows nothing while the
+              chunk fetches (chunks are small, flash would be jarring). */}
+          <Suspense>
+            {tab === "crew" && (
+              <CrewView onAuthError={onAuthError} onChat={chatEnabled ? chatWith : undefined} />
+            )}
+            {tab === "status" && <StatusView onAuthError={onAuthError} />}
+            {tab === "updates" && (
+              <UpdatesView
+                onAuthError={onAuthError}
+                onStatus={(available, count) => {
+                  setUpdateAvailable(available);
+                  setUpdateCount(count);
+                }}
+              />
+            )}
+            {tab === "workers" && (
+              <WorkersView onAuthError={onAuthError} onChat={chatEnabled ? chatWith : undefined} />
+            )}
+            {tab === "inbox" && <InboxView onAuthError={onAuthError} />}
+            {tab === "tasks" && <TasksView onAuthError={onAuthError} />}
+            {tab === "skills" && <SkillsView onAuthError={onAuthError} />}
+            {tab === "memory" && <MemoryView onAuthError={onAuthError} />}
+            {tab === "vault" && <VaultView onAuthError={onAuthError} />}
+            {tab === "backup" && <BackupView onAuthError={onAuthError} />}
+            {tab === "connectors" && <ConnectorsView onAuthError={onAuthError} />}
+            {tab === "prompt" && <PromptView_ onAuthError={onAuthError} />}
+            {tab === "logs" && <LogsView onAuthError={onAuthError} />}
+            {tab === "sessions" && <SessionsView onAuthError={onAuthError} />}
+            {tab === "schedules" && <SchedulesView onAuthError={onAuthError} />}
+            {tab === "heartbeat" && <HeartbeatView_ onAuthError={onAuthError} />}
+            {tab === "remote" && <RemoteAccessView onAuthError={onAuthError} />}
+            {tab === "feedback" && <FeedbackView onAuthError={onAuthError} />}
+            {tab === "usage" && <UsageView onAuthError={onAuthError} />}
+            {tab === "settings" && <SettingsView onAuthError={onAuthError} />}
+          </Suspense>
 
           {tab !== "command" && !isCommandChild(tab) && (
           <footer className="mt-10">

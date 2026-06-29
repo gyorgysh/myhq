@@ -56,5 +56,20 @@ export default defineConfig({
       "/ws": { target: "ws://127.0.0.1:8787", ws: true },
     },
   },
-  build: { outDir: "dist", emptyOutDir: true },
+  build: {
+    outDir: "dist",
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Stable vendor libs — long cache TTL, rarely change.
+          "vendor-react": ["react", "react-dom"],
+          "vendor-lucide": ["lucide-react"],
+          // xterm is already lazily imported inside Terminal.tsx, but
+          // naming it here ensures it stays in its own cacheable chunk.
+          "vendor-xterm": ["@xterm/xterm", "@xterm/addon-fit"],
+        },
+      },
+    },
+  },
 });
