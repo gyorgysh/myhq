@@ -5,6 +5,7 @@ import { useI18n } from "../lib/useI18n.ts";
 import { relTime } from "../lib/format.ts";
 import { reloadFresh } from "../lib/reload.ts";
 import { Markdown } from "../lib/markdown.tsx";
+import { CheckCircle2 } from "lucide-react";
 
 const CHANGELOG_URL =
   "https://raw.githubusercontent.com/gyorgysh/myhq/refs/heads/main/CHANGELOG.md";
@@ -332,7 +333,10 @@ export function UpdatesView({
             {available ? (
               <Badge tone="amber">{t("updates_available")}</Badge>
             ) : (
-              <Badge tone="green">{t("updates_up_to_date")}</Badge>
+              <Badge tone="green">
+                <CheckCircle2 size={13} className="mr-1" />
+                {t("updates_up_to_date")}
+              </Badge>
             )}
             <Button onClick={check} disabled={checking || running}>
               {checking ? t("updates_checking") : t("updates_check")}
