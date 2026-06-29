@@ -1768,8 +1768,10 @@ function githubMcp(token: string, scope: ConnectorScope) {
 
 type McpServer = ReturnType<typeof createSdkMcpServer>;
 
-/** Raw SSE/HTTP external MCP server config (for connectors that proxy to a local process). */
-type ExternalMcpServer = { type: "sse" | "http"; url: string; headers?: Record<string, string> };
+/** Raw external MCP server config (SSE/HTTP to local process, or stdio subprocess). */
+type ExternalMcpServer =
+  | { type: "sse" | "http"; url: string; headers?: Record<string, string> }
+  | { type: "stdio"; command: string; args?: string[]; env?: Record<string, string> };
 
 /** Returns true when the connector is toggled on, regardless of whether it has a credential. */
 function connectorIsEnabled(id: string): boolean {
@@ -1805,6 +1807,11 @@ export function buildConnectorMcps(): Record<string, McpServer | ExternalMcpServ
     const ueUrl = urlOverride ?? "http://127.0.0.1:8000/mcp";
     out["unreal-engine"] = { type: "sse", url: ueUrl };
   }
+  const unityScript = credentialFor("unity");
+  if (unityScript) {
+    // Credential is the absolute path to the mcp-unity Server~/build/index.js script.
+    out["unity"] = { type: "stdio", command: "node", args: [unityScript] };
+  }
   if (Object.keys(out).length) {
     log.debug("Connector MCPs enabled", {
       connectors: Object.keys(out).map((id) => `${id}:${connectorScope(id)}`),
@@ -1814,4 +1821,4 @@ export function buildConnectorMcps(): Record<string, McpServer | ExternalMcpServ
 }
 
 /** Names of the live connectors that have wired MCP servers (for the panel). */
-export const LIVE_CONNECTORS = ["notion", "gcal", "gmail", "gdrive", "apple-calendar", "apple-mail", "slack", "github", "unreal-engine"] as const;
+export const LIVE_CONNECTORS = ["notion", "gcal", "gmail", "gdrive", "apple-calendar", "apple-mail", "slack", "github", "unreal-engine", "unity"] as const;

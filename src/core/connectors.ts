@@ -4,14 +4,15 @@ import { audit } from "./audit.js";
 const FILE = "connectors.json";
 
 /**
- * Catalog of external MCP connectors. All nine are **live** (Notion, Google
+ * Catalog of external MCP connectors. All ten are **live** (Notion, Google
  * Calendar, Gmail, Google Drive, Apple Calendar, Apple Mail, Slack, GitHub,
- * Unreal Engine): each is wired to a real MCP server in
+ * Unreal Engine, Unity): each is wired to a real MCP server in
  * `src/mcp/connectorsMcp.ts`, contributing tools to every interactive/delegated
  * run once enabled. Most connectors require a vault-attached credential; the
- * Unreal Engine connector is credential-free (it connects to a locally running
- * editor). The `credential` field on each def is the human-readable hint for
- * what secret to vault (token type / format), surfaced in the panel.
+ * Unreal Engine connector is credential-free (SSE to local editor), and the
+ * Unity connector credential is the path to the mcp-unity server script.
+ * The `credential` field on each def is the human-readable hint for what
+ * secret to vault (token type / format), surfaced in the panel.
  */
 /**
  * Access scope for a connector's tools:
@@ -45,6 +46,7 @@ export const CONNECTORS: ConnectorDef[] = [
   { id: "slack", name: "Slack", description: "List channels, read and search messages; post messages, reply in threads, and upload files via the Slack Web API.", credential: "Slack bot token (xoxb-…)", status: "live", hasWrite: true },
   { id: "github", name: "GitHub", description: "List repos, issues and PRs, read file contents; create/comment on issues, open PRs, and push files.", credential: "GitHub personal access token (ghp_… / fine-grained)", status: "live", hasWrite: true },
   { id: "unreal-engine", name: "Unreal Engine", description: "Control a running Unreal Engine 5.8+ editor via the built-in MCP plugin (no credential needed; enable the plugin and toggle this on).", credential: "Editor MCP URL (optional override; defaults to http://127.0.0.1:8000/mcp)", status: "live", hasWrite: true },
+  { id: "unity", name: "Unity", description: "Control a running Unity Editor via the mcp-unity package (CoderGamester). Requires Node.js 18+.", credential: "Absolute path to mcp-unity server script (e.g. /path/to/project/Library/PackageCache/com.gamelovers.mcp-unity@<hash>/Server~/build/index.js)", status: "live", hasWrite: true },
 ];
 
 interface ConnectorConfig {
