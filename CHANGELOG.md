@@ -3,6 +3,31 @@
 All notable changes to MyHQ are documented here, grouped by release.
 Commit links point to `github.com/gyorgysh/myhq`.
 
+## [0.5.6] - 2026-06-29
+
+### Added
+- **Recurring Kanban card templates**: mark a card as a recurring template (daily/weekly/monthly cadence) and a fresh backlog copy spawns on schedule; the template stays put and copies don't carry the recurrence. A 60s ticker fires due templates regardless of the panel, and live-refreshes the board over the WebSocket when it does. ([20be716](https://github.com/gyorgysh/myhq/commit/20be716))
+- **Live "What's running" status strip**: a panel strip that surfaces the currently active agent runs at a glance. ([59d947e](https://github.com/gyorgysh/myhq/commit/59d947e))
+- **Thumbs up/down reactions on assistant messages**: react to a panel-chat reply; a thumbs-up files the response as a durable memory. Backed by `POST /api/chat/react`. ([9462712](https://github.com/gyorgysh/myhq/commit/9462712))
+- **Memory tag filtering + bulk-delete mode**: filter the Memory view by tag and multi-select entries for bulk deletion. ([af8ad13](https://github.com/gyorgysh/myhq/commit/af8ad13))
+- **Vault search filter + copy-to-clipboard** on the Vault view. ([7a3d046](https://github.com/gyorgysh/myhq/commit/7a3d046))
+- **Wizard-first agent menu**: the Workers/agent menu leads with the guided wizard, with a collapsible memory tag list. ([6ab87f4](https://github.com/gyorgysh/myhq/commit/6ab87f4))
+
+### Improved
+- **Workers UX**: renamed the create buttons Wizard→Easy and Manual→Advanced, reordered them, pre-filled the Advanced worker `cwd` with the host home directory plus a platform-aware path hint, and added inline form/wizard hints. ([63c845d](https://github.com/gyorgysh/myhq/commit/63c845d), [b2eb1f9](https://github.com/gyorgysh/myhq/commit/b2eb1f9), [36972cc](https://github.com/gyorgysh/myhq/commit/36972cc))
+- **Reusable UI primitives**: added `Modal`, `Popover`, and `ConfirmDialog` to `ui.tsx`, and adopted styled confirm dialogs plus a run-agent model badge across the panel. ([6c45608](https://github.com/gyorgysh/myhq/commit/6c45608), [0b972f0](https://github.com/gyorgysh/myhq/commit/0b972f0))
+- **Finer memory salience control**: a more precise slider with a numeric input. ([111facb](https://github.com/gyorgysh/myhq/commit/111facb))
+- **Updates badge**: a `CheckCircle2` icon on the up-to-date state. ([c1529e0](https://github.com/gyorgysh/myhq/commit/c1529e0))
+
+### Fixed
+- **Draft keepalive vs. `crew_ask_president`**: the draft streamer's keepalive now pauses while a `crew_ask_president` call is awaiting the user, so the pending question isn't clobbered. ([204fe09](https://github.com/gyorgysh/myhq/commit/204fe09))
+
+### Security
+- **Crash-atomic vault key rotation**: a write-ahead journal makes `rotateKey()` recoverable if the process dies mid-rotation, so secrets can't be left half-re-encrypted. ([c3b611b](https://github.com/gyorgysh/myhq/commit/c3b611b))
+- **Wider vault secret-id entropy**: secret ids widened from 32-bit to 64-bit to make them unguessable. ([a5fce6a](https://github.com/gyorgysh/myhq/commit/a5fce6a))
+- **Separate ceiling on expensive GET reads**: new `PANEL_READ_RATE_LIMIT` (default 600/window) caps the few heavy read endpoints (memory semantic search, log reads/search, run transcripts) so a runaway client can't flood them, without throttling normal fleet activity. ([be86cdc](https://github.com/gyorgysh/myhq/commit/be86cdc))
+- **Loud terminal env warning**: when `PANEL_TERMINAL_INHERIT_ENV=true` exposes the full host environment to the panel shell, the bot now logs a loud warning and DMs allowed users. ([6ee3831](https://github.com/gyorgysh/myhq/commit/6ee3831))
+
 ## [0.5.5] - 2026-06-29
 
 ### Added

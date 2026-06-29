@@ -102,6 +102,15 @@ curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/tasks \
 # Update a task (move column, change priority, edit notes)
 curl -X PATCH -H "$AUTH" -H "Content-Type: application/json" $BASE/api/tasks/<id> \
   -d '{ "column": "doing", "priority": "high" }'
+# recurrence: make a card a recurring template (accepted on create and update).
+# The template stays put and spawns a fresh backlog copy on each cadence (copies
+# don't carry the recurrence). Shapes:
+#   { "kind": "daily",   "hour": 9, "minute": 0 }
+#   { "kind": "weekly",  "dayOfWeek": 1, "hour": 9, "minute": 0 }   # 0=Sun..6=Sat
+#   { "kind": "monthly", "dayOfMonth": 1, "hour": 9, "minute": 0 }  # 1..31
+# Pass recurrence: null on update to stop the card repeating.
+curl -X PATCH -H "$AUTH" -H "Content-Type: application/json" $BASE/api/tasks/<id> \
+  -d '{ "recurrence": { "kind": "weekly", "dayOfWeek": 1, "hour": 9, "minute": 0 } }'
 
 # Delegate a card to an autonomous agent run.
 # Optional { "leadId": "<worker-id>" } body routes the run under a specific Lead; omit to auto-route.
@@ -552,6 +561,7 @@ A few more endpoints exist, mostly mirroring panel views:
 - `GET /api/update/changelog`: the locally served `CHANGELOG.md` (`{ content }`); used as the Updates view's fallback when GitHub is unreachable.
 - `GET /api/connectors`, `PUT /api/connectors/<id>`: the external-connector catalogue. All six (Notion, Google Calendar, Gmail, Google Drive, Apple Calendar, Apple Mail) are live; `PUT` takes `{ enabled, secretId, scope }` where `scope` is `read` (default) or `write` (gates the write tools).
 - `GET /api/chat`, `POST /api/chat/send|stop|clear|approve`, `PUT /api/chat/settings`: the panel's own Claude chat session (talks to Atlas). The autonomy level is set per-chat from the toolbar (replacing the removed `PANEL_CHAT_BYPASS` env flag).
+- `POST /api/chat/react`: react to an assistant reply with `{ reaction: "up" | "down", text }`. A thumbs-up files the response text as a durable memory; a thumbs-down is recorded. Returns 400 for any other reaction.
 - `GET /api/asks`, `POST /api/asks/resolve`: the pending `AskUserQuestion` queue and its resolver, used to render interactive question widgets in panel chat. Resolve with `{ id, optionIndices?, text? }`.
 - `GET /api/agent-chat/<id>`, `POST /api/agent-chat/<id>/send|stop|clear`, `PUT /api/agent-chat/<id>/settings`: an interactive chat with a specific worker/Lead by id.
 - `GET /api/usage/agents`: per-agent token + cost totals and a daily-by-role breakdown.
