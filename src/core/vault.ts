@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
 import { platform } from "node:os";
 import { loadJson, saveJson, dataPath } from "./jsonStore.js";
@@ -19,6 +19,13 @@ function newVaultId(): string {
 
 const FILE = "vault.json";
 const KEY_FILE = "vault.key";
+// Write-ahead journal for key rotation. Rotation touches two independent stores
+// (the master key in Keychain/key file, and the re-encrypted vault.json), so a
+// kill between them leaves the vault undecryptable. The journal holds both keys
+// (old + new) so startup can deterministically finish or roll back. It is mode
+// 0600 inside the 0700 data dir (same exposure as vault.key) and removed the
+// instant rotation completes, so it normally does not exist.
+const ROTATE_JOURNAL = "vault.rotate.journal";
 const KEYCHAIN_SERVICE = "cct-vault";
 const KEYCHAIN_ACCOUNT = "master";
 
@@ -135,6 +142,51 @@ function storeMasterKey(key: Buffer): void {
   cachedKey = key;
 }
 
+// --- key-rotation write-ahead journal ---
+
+interface RotateJournal {
+  /** Schema marker. */
+  v: 1;
+  /** Master key in effect before rotation (base64). */
+  oldKey: string;
+  /** New master key the rotation switches to (base64). */
+  newKey: string;
+  startedAt: number;
+}
+
+/** Write the rotation journal (0600) before any store is mutated. */
+function writeJournal(j: RotateJournal): void {
+  const p = dataPath(ROTATE_JOURNAL);
+  writeFileSync(p, JSON.stringify(j), { mode: 0o600 });
+  if (process.platform !== "win32") {
+    try {
+      chmodSync(p, 0o600);
+    } catch (err) {
+      log.error("vault: failed to chmod rotation journal to 0600", { err: String(err) });
+    }
+  }
+}
+
+function readJournal(): RotateJournal | null {
+  const p = dataPath(ROTATE_JOURNAL);
+  if (!existsSync(p)) return null;
+  try {
+    const j = JSON.parse(readFileSync(p, "utf8")) as RotateJournal;
+    if (j?.v === 1 && typeof j.oldKey === "string" && typeof j.newKey === "string") return j;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function clearJournal(): void {
+  try {
+    rmSync(dataPath(ROTATE_JOURNAL), { force: true });
+  } catch (err) {
+    log.error("vault: failed to remove rotation journal", { err: String(err) });
+  }
+}
+
 /** AES-256-GCM encrypt with an explicit key (defaults to the master key). */
 function encrypt(plain: string, key: Buffer = loadMasterKey()): string {
   const iv = randomBytes(12);
@@ -150,6 +202,16 @@ function decrypt(blob: string, key: Buffer = loadMasterKey()): string {
   const d = createDecipheriv("aes-256-gcm", key, Buffer.from(ivB, "base64"));
   d.setAuthTag(Buffer.from(tagB, "base64"));
   return Buffer.concat([d.update(Buffer.from(ctB, "base64")), d.final()]).toString("utf8");
+}
+
+/** True if `blob` decrypts cleanly under `key` (GCM auth tag verifies). */
+function canDecrypt(blob: string, key: Buffer): boolean {
+  try {
+    decrypt(blob, key);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function hint(plain: string): string {
@@ -169,7 +231,63 @@ export class VaultStore {
   private keyRotatedAt = this.file.keyRotatedAt;
 
   constructor() {
+    // Finish or roll back any rotation interrupted by a crash BEFORE anything
+    // tries to decrypt with the (possibly mismatched) master key.
+    this.recoverInterruptedRotation();
     this.backfillHints();
+  }
+
+  /**
+   * Crash recovery for key rotation. If a rotation journal is present, a prior
+   * rotation was killed mid-flight, so the on-disk master key and the
+   * vault.json ciphertexts may disagree. The journal carries both keys, so we
+   * deterministically reconcile:
+   *
+   *  - entries already decrypt under the NEW key  → vault.json was persisted;
+   *    just ensure the master key store holds the new key, then clear journal.
+   *  - entries decrypt under the OLD key          → vault.json still holds
+   *    old-key ciphertexts; re-encrypt under the new key, persist, store the
+   *    new key, then clear journal.
+   *  - empty vault                                → nothing to re-encrypt; make
+   *    the new key authoritative and clear journal.
+   *
+   * If neither key decrypts the entries (corruption beyond an interrupted
+   * rotation) the journal is left in place and a loud error is logged so the
+   * operator can intervene rather than us silently losing data.
+   */
+  private recoverInterruptedRotation(): void {
+    const j = readJournal();
+    if (!j) return;
+    const oldKey = Buffer.from(j.oldKey, "base64");
+    const newKey = Buffer.from(j.newKey, "base64");
+    const sample = this.entries[0]?.ciphertext;
+
+    if (!sample) {
+      storeMasterKey(newKey);
+      clearJournal();
+      log.warn("vault: recovered interrupted key rotation (empty vault) — new key is authoritative");
+      return;
+    }
+    if (canDecrypt(sample, newKey)) {
+      // vault.json already re-encrypted; make sure the key store agrees.
+      storeMasterKey(newKey);
+      clearJournal();
+      log.warn("vault: recovered interrupted key rotation — completed (ciphertexts already under new key)");
+      return;
+    }
+    if (canDecrypt(sample, oldKey)) {
+      // Re-encrypt every entry old→new, persist, then commit the new key.
+      for (const e of this.entries) e.ciphertext = encrypt(decrypt(e.ciphertext, oldKey), newKey);
+      this.keyRotatedAt = j.startedAt;
+      this.persist();
+      storeMasterKey(newKey);
+      clearJournal();
+      log.warn(`vault: recovered interrupted key rotation — re-encrypted ${this.entries.length} entries under new key`);
+      return;
+    }
+    log.error(
+      "vault: rotation journal present but ciphertexts decrypt under neither key — leaving journal in place for manual recovery",
+    );
   }
 
   /**
@@ -262,16 +380,26 @@ export class VaultStore {
   /**
    * Rotate the master key: decrypt every entry with the current key, generate a
    * fresh 32-byte key, store it (Keychain or `vault.key`), re-encrypt all
-   * entries, and stamp `keyRotatedAt`. Atomic in spirit: if any entry fails to
-   * decrypt the rotation aborts and nothing is changed.
+   * entries, and stamp `keyRotatedAt`.
+   *
+   * Crash-atomic via a write-ahead journal. Rotation mutates two independent
+   * stores (the master key + vault.json), so a kill between them would otherwise
+   * leave the vault undecryptable. Ordering:
+   *   1. Decrypt everything up-front with the old key (throws → abort, no change).
+   *   2. Write the journal (old + new key). After this point a crash is
+   *      recoverable on next boot by `recoverInterruptedRotation`.
+   *   3. Persist vault.json re-encrypted under the new key (atomic rename).
+   *   4. Commit the new master key to the platform store.
+   *   5. Clear the journal — rotation is complete.
    */
   rotateKey(): { rotated: number; keyRotatedAt: number } {
+    const oldKey = loadMasterKey();
     // 1. Decrypt everything up-front with the current key (throws on any failure).
-    const plaintexts = this.entries.map((e) => ({ id: e.id, value: decrypt(e.ciphertext) }));
-    // 2. Generate + persist a new master key.
+    const plaintexts = this.entries.map((e) => ({ id: e.id, value: decrypt(e.ciphertext, oldKey) }));
+    // 2. Generate the new key and journal both keys before mutating any store.
     const newKey = randomBytes(32);
-    storeMasterKey(newKey);
-    // 3. Re-encrypt all entries under the new key.
+    writeJournal({ v: 1, oldKey: oldKey.toString("base64"), newKey: newKey.toString("base64"), startedAt: Date.now() });
+    // 3. Re-encrypt all entries under the new key and persist (atomic write).
     const now = Date.now();
     for (const e of this.entries) {
       const p = plaintexts.find((x) => x.id === e.id)!;
@@ -279,6 +407,9 @@ export class VaultStore {
     }
     this.keyRotatedAt = now;
     this.persist();
+    // 4. Commit the new master key, then 5. drop the journal.
+    storeMasterKey(newKey);
+    clearJournal();
     audit("vault.rotate", { rotated: this.entries.length });
     return { rotated: this.entries.length, keyRotatedAt: now };
   }
