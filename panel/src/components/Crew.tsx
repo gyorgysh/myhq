@@ -723,7 +723,7 @@ function CrewNode({
           <span className="font-medium text-fg">{title}</span>
           {role && (
             <span
-              className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-fg-dim"
+              className="max-w-[18ch] truncate rounded bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-fg-dim"
               title={role}
             >
               {role}
