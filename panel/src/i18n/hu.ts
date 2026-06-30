@@ -871,6 +871,7 @@ export const hu: Translations = {
   workers_cwd: "Munkakönyvtár",
   workers_cwd_placeholder_unix: "pl. /home/te/projektek/appom",
   workers_cwd_placeholder_win: "pl. C:\\Users\\te\\projektek\\appom",
+  workers_cwd_default: "Alapértelmezett munkaterület",
   workers_task_placeholder: "Mit csináljon ez a munkás minden futáskor?",
   workers_provider: "Szolgáltató (opcionális)",
   workers_anthropic_default: "Anthropic (alapértelmezett)",

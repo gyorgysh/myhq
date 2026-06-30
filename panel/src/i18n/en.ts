@@ -867,6 +867,7 @@ export const en = {
   workers_cwd: "Working directory",
   workers_cwd_placeholder_unix: "e.g. /home/you/projects/myapp",
   workers_cwd_placeholder_win: "e.g. C:\\Users\\you\\projects\\myapp",
+  workers_cwd_default: "Default workspace",
   workers_task_placeholder: "What should this worker do every run?",
   workers_provider: "Provider (optional)",
   workers_anthropic_default: "Anthropic (default)",

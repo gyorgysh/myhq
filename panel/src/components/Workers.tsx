@@ -1216,6 +1216,8 @@ function WorkerForm({
   const [fetched, setFetched] = useState<string[]>([]);
   const [fetchingModels, setFetchingModels] = useState(false);
   const [platform, setPlatform] = useState("");
+  const [defaultWorkdir, setDefaultWorkdir] = useState<string>("");
+  const [knownPaths, setKnownPaths] = useState<Array<{ label: string; path: string }>>([]);
   const listId = useId();
 
   // Prefill the working directory with the user's home dir for a brand-new
@@ -1228,8 +1230,13 @@ function WorkerForm({
       .me()
       .then((m) => {
         setPlatform(m.platform);
-        setForm((f) => (f.cwd.trim() ? f : { ...f, cwd: m.homeDir }));
+        setDefaultWorkdir(m.defaultWorkdir);
+        setForm((f) => (f.cwd.trim() ? f : { ...f, cwd: m.defaultWorkdir }));
       })
+      .catch(() => {});
+    api
+      .agent()
+      .then((a) => setKnownPaths(a.knownPaths ?? []))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1277,6 +1284,30 @@ function WorkerForm({
             onChange={(e) => setForm({ ...form, cwd: e.target.value })}
             placeholder={t(cwdPlaceholderKey(platform))}
           />
+          {(defaultWorkdir || knownPaths.length > 0) && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {defaultWorkdir && (
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, cwd: defaultWorkdir })}
+                  className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20"
+                >
+                  <span className="opacity-60">⌂</span>
+                  {t("workers_cwd_default")}
+                </button>
+              )}
+              {knownPaths.map((kp) => (
+                <button
+                  key={kp.label}
+                  type="button"
+                  onClick={() => setForm({ ...form, cwd: kp.path })}
+                  className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs bg-surface text-fg-dim hover:text-fg hover:bg-accent/10 transition-colors border border-line"
+                >
+                  {kp.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       <div>
