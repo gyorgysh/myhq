@@ -15,7 +15,9 @@ import { SessionManager } from "../session/manager.js";
 import { isAuthorized } from "../auth.js";
 import { resolveSecret } from "../core/vault.js";
 import { getProvider } from "../core/providers.js";
-import { TelegramStreamer } from "./streamer.js";
+import { TelegramStreamer, type Streamer } from "./streamer.js";
+import { DraftStreamer } from "./draftStreamer.js";
+import { RichDraftStreamer } from "./richDraftStreamer.js";
 import { setBotProfilePhoto } from "./botPhoto.js";
 import { AskQuestionManager } from "./askQuestion.js";
 import { sendExpandableQuote, sendFormattedMarkdown } from "./send.js";
@@ -69,8 +71,23 @@ export class LeadBot {
     }
     s.busy = true;
     s.abort = new AbortController();
-    const placeholder = await tg.sendMessage(chatId, t("bot_working", langForChat(chatId)));
-    const streamer = new TelegramStreamer(tg, chatId, placeholder.message_id);
+
+    const ack = await tg.sendMessage(chatId, t("bot_working", langForChat(chatId))).catch(() => undefined);
+    let streamer: Streamer;
+    if (config.STREAM_MODE === "rich") {
+      const draft = new RichDraftStreamer(tg, chatId);
+      await draft.start();
+      streamer = draft;
+    } else if (config.STREAM_MODE === "draft") {
+      const draft = new DraftStreamer(tg, chatId);
+      await draft.start();
+      streamer = draft;
+    } else if (ack) {
+      streamer = new TelegramStreamer(tg, chatId, ack.message_id);
+    } else {
+      const placeholder = await tg.sendMessage(chatId, t("bot_working", langForChat(chatId)));
+      streamer = new TelegramStreamer(tg, chatId, placeholder.message_id);
+    }
 
     await tg.sendChatAction(chatId, "typing").catch(() => {});
     const typing = setInterval(() => {

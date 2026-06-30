@@ -784,11 +784,11 @@ function ChatPane({
             )}
             <div className="flex min-w-0 flex-col gap-1">
             {agentName && (
-              <div className="ml-1 flex flex-wrap items-center gap-1.5 self-start">
-                <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold tracking-wide text-accent border border-accent/20">
+              <div className="ml-1 flex min-w-0 items-center gap-1.5 self-start">
+                <span className="max-w-[14ch] shrink-0 truncate rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold tracking-wide text-accent border border-accent/20" title={agentName}>
                   {agentName}
                 </span>
-                {agentRole && <span className="max-w-[18ch] truncate text-xs text-fg-dim" title={agentRole}>{agentRole}</span>}
+                {agentRole && <span className="min-w-0 truncate text-xs text-fg-dim" title={agentRole}>{agentRole}</span>}
               </div>
             )}
             <div className="max-w-full rounded-2xl rounded-tl-sm bg-surface px-4 py-2.5 text-sm">
@@ -1251,11 +1251,11 @@ function Bubble({
       )}
       <div className="flex min-w-0 flex-col items-start gap-1">
         {agentName && (
-          <div className="ml-1 flex flex-wrap items-center gap-1.5">
-            <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold tracking-wide text-accent border border-accent/20">
+          <div className="ml-1 flex min-w-0 items-center gap-1.5">
+            <span className="max-w-[14ch] shrink-0 truncate rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold tracking-wide text-accent border border-accent/20" title={agentName}>
               {agentName}
             </span>
-            {agentRole && <span className="text-xs text-fg-dim">{agentRole}</span>}
+            {agentRole && <span className="min-w-0 truncate text-xs text-fg-dim" title={agentRole}>{agentRole}</span>}
           </div>
         )}
         <div
