@@ -190,8 +190,10 @@ export class AgentChatManager {
     // chat turn behaves like the agent's autonomous runs (persona, domain, etc).
     const skill = w.skillId ? getSkill(w.skillId) : undefined;
     if (skill && w.skillId) recordSkillUse(w.skillId);
+    // Lead workers identify as themselves (not Atlas). The protocol block is
+    // passed as workerIdentity so it replaces the Atlas personality, not appends.
     const protocol = w.role === "lead" ? getLeadProtocol(w.name, w.portfolio) : undefined;
-    const append = [protocol, skill?.prompt, w.systemPrompt].filter(Boolean).join("\n\n") || undefined;
+    const append = [skill?.prompt, w.systemPrompt].filter(Boolean).join("\n\n") || undefined;
     const provider = w.providerId ? getProvider(w.providerId) : undefined;
     const env = provider
       ? {
@@ -221,6 +223,7 @@ export class AgentChatManager {
         env,
         resume: s.resume,
         systemPromptAppend: append,
+        workerIdentity: protocol,
         persona: w.persona,
         language: w.language,
         // The President is driving from the trusted panel, so allow tools.

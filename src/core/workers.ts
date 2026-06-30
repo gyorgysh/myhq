@@ -326,10 +326,10 @@ export class WorkerManager {
   ): Promise<void> {
     const skill = w.skillId ? getSkill(w.skillId) : undefined;
     if (skill && w.skillId) recordSkillUse(w.skillId);
-    // Lead workers get the crew-protocol block prepended so they know to use
-    // crew_report / crew_suggest / crew_delegate after every meaningful turn.
+    // Lead workers identify as themselves (not Atlas). The protocol block is
+    // passed as workerIdentity so it replaces the Atlas personality, not appends.
     const protocol = w.role === "lead" ? getLeadProtocol(w.name, w.portfolio) : undefined;
-    const append = [protocol, skill?.prompt, w.systemPrompt].filter(Boolean).join("\n\n") || undefined;
+    const append = [skill?.prompt, w.systemPrompt].filter(Boolean).join("\n\n") || undefined;
     // Point the run at a local model server / proxy if a provider is set.
     // Clear ANTHROPIC_API_KEY so the auth token (not a stale key) is used.
     const provider = w.providerId ? getProvider(w.providerId) : undefined;
@@ -381,6 +381,7 @@ export class WorkerManager {
         model: w.model,
         env,
         systemPromptAppend: append,
+        workerIdentity: protocol,
         persona: w.persona,
         language: w.language,
         permissionMode,

@@ -80,6 +80,11 @@ export interface RunOptions {
   /** Named directory shortcuts injected into the system prompt (main agent only). */
   knownPaths?: Array<{ label: string; path: string }>;
   /**
+   * When set, replaces the Atlas personality block so a Lead/worker identifies
+   * as itself rather than as Atlas. Pass getLeadProtocol() output here.
+   */
+  workerIdentity?: string;
+  /**
    * Character and tone override (persona). Injected into the system prompt after
    * the base personality block, before work.md and worker instructions.
    */
@@ -169,6 +174,7 @@ export async function runTurn(opts: RunOptions): Promise<RunResult> {
           opts.language,
           opts.pendingSuggestions,
           opts.knownPaths,
+          opts.workerIdentity,
         ),
         permissionMode: opts.permissionMode,
         includePartialMessages: true,

@@ -136,6 +136,10 @@ At the end of every turn where you did real work:
  * Claude Code behavior stay intact) plus our personality and, if present, the
  * operator playbook from work.md. Read fresh each turn so editing work.md takes
  * effect without restarting.
+ *
+ * @param workerIdentity - When set, replaces the Atlas personality block so a
+ *   Lead or worker agent identifies as itself rather than as Atlas. Pass the
+ *   result of getLeadProtocol() or a custom identity string here.
  */
 export function systemPrompt(
   extraAppend?: string,
@@ -145,8 +149,10 @@ export function systemPrompt(
   language?: string,
   pendingSuggestions?: string,
   knownPaths?: Array<{ label: string; path: string }>,
+  workerIdentity?: string,
 ): { type: "preset"; preset: "claude_code"; append: string } {
-  let append = getPersonality();
+  // Use the worker's own identity when provided; otherwise fall back to Atlas.
+  let append = workerIdentity?.trim() ? workerIdentity.trim() : getPersonality();
 
   if (persona?.trim()) {
     append += `\n\n# Agent character\n${persona.trim()}`;
