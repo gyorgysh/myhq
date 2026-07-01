@@ -4,6 +4,7 @@ import { api, AuthError, type Connector, type ConnectorScope, type SecretView } 
 import { Badge, Button, Card, Empty, Label, Modal, Select } from "./ui.tsx";
 import { ConnectorsArt } from "./onboarding.tsx";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 import { getConnectorIcon } from "../lib/connectorIcons.ts";
 import { CONNECTOR_HELP } from "../lib/connectorHelp.ts";
 import type { Tab } from "./Sidebar.tsx";
@@ -181,7 +182,7 @@ export function ConnectorsView({ onAuthError, onGoto }: { onAuthError: () => voi
         setConnectors(c.connectors);
         setSecrets(v.secrets);
       })
-      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(String(e))));
+      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(errorMessage(e, t))));
 
   useEffect(() => {
     void load();

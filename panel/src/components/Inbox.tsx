@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, AuthError, type Suggestion, type SuggestionStatus, type Worker } from "../api.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 import type { TranslationKey } from "../i18n/en.ts";
 import { relTime } from "../lib/format.ts";
 import { useSuggestionEvents } from "../lib/useSuggestionEvents.ts";
@@ -41,7 +42,7 @@ export function InboxView({ onAuthError }: { onAuthError: () => void }) {
     api
       .suggestions()
       .then((r) => setAll(r.suggestions))
-      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(String(e))));
+      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(errorMessage(e, t))));
 
   useEffect(() => {
     void load();
@@ -63,7 +64,7 @@ export function InboxView({ onAuthError }: { onAuthError: () => void }) {
       await load();
     } catch (e) {
       if (e instanceof AuthError) onAuthError();
-      else setError(String(e));
+      else setError(errorMessage(e, t));
     } finally {
       setBusy(null);
     }
@@ -82,7 +83,7 @@ export function InboxView({ onAuthError }: { onAuthError: () => void }) {
       await load();
     } catch (e) {
       if (e instanceof AuthError) onAuthError();
-      else setError(String(e));
+      else setError(errorMessage(e, t));
     } finally {
       setBusy(null);
     }
@@ -95,7 +96,7 @@ export function InboxView({ onAuthError }: { onAuthError: () => void }) {
       await load();
     } catch (e) {
       if (e instanceof AuthError) onAuthError();
-      else setError(String(e));
+      else setError(errorMessage(e, t));
     } finally {
       setBusy(null);
     }

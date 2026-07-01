@@ -14,6 +14,7 @@ import { ConnectionBanner } from "./components/ConnectionBanner.tsx";
 import { PresenceBanner } from "./components/PresenceBanner.tsx";
 import { PlaybookSizeBanner } from "./components/PlaybookSizeBanner.tsx";
 import { CommandPalette } from "./components/CommandPalette.tsx";
+import { ShortcutsModal } from "./components/ShortcutsModal.tsx";
 import { StatusStrip } from "./components/StatusStrip.tsx";
 import { useSuggestionEvents } from "./lib/useSuggestionEvents.ts";
 // Lazy — loaded on first visit to that tab.
@@ -75,6 +76,7 @@ export function App() {
   const [tab, setTab] = useState<Tab | "settings">(tabFromPath);
   const [drawer, setDrawer] = useState(false);
   const [palette, setPalette] = useState(false);
+  const [shortcuts, setShortcuts] = useState(false);
   const [chatEnabled, setChatEnabled] = useState(true);
   const [terminalEnabled, setTerminalEnabled] = useState(false);
   const [brandName, setBrandName] = useState("MyHQ");
@@ -168,13 +170,26 @@ export function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  // Cmd+K / Ctrl+K opens the command palette.
+  // Cmd+K / Ctrl+K opens the command palette; "?" opens the shortcuts sheet
+  // (only when not typing into a field, so it doesn't hijack real question marks).
   useEffect(() => {
     if (!authed) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setPalette((p) => !p);
+        return;
+      }
+      if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const el = e.target as HTMLElement | null;
+        const typing =
+          el?.isContentEditable ||
+          el?.tagName === "INPUT" ||
+          el?.tagName === "TEXTAREA" ||
+          el?.tagName === "SELECT";
+        if (typing) return;
+        e.preventDefault();
+        setShortcuts((s) => !s);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -277,6 +292,13 @@ export function App() {
             className="text-base text-fg-dim transition-colors hover:text-fg"
           >
             ⌕
+          </button>
+          <button
+            onClick={() => setShortcuts(true)}
+            aria-label={t("shortcuts_open")}
+            className="text-sm font-semibold text-fg-dim transition-colors hover:text-fg"
+          >
+            ?
           </button>
         </header>
 
@@ -418,6 +440,22 @@ export function App() {
         onSelect={(t) => { select(t); setPalette(false); }}
         chatEnabled={chatEnabled}
       />
+
+      {/* "?" keyboard-shortcuts cheat sheet — opened by the persistent help
+          affordance or the ? key. */}
+      {shortcuts && <ShortcutsModal onClose={() => setShortcuts(false)} />}
+
+      {/* Persistent help affordance: a small floating "?" that opens the
+          shortcuts sheet, so the cheat sheet is discoverable without knowing
+          the key. Sits above the mobile bottom nav / status strip. */}
+      <button
+        onClick={() => setShortcuts(true)}
+        aria-label={t("shortcuts_open")}
+        title={t("shortcuts_open")}
+        className="fixed bottom-24 right-4 z-30 hidden h-9 w-9 items-center justify-center rounded-full border border-line bg-surface text-sm font-semibold text-fg-dim shadow-md transition-colors hover:text-fg md:flex md:bottom-4"
+      >
+        ?
+      </button>
     </div>
   );
 }

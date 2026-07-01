@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { api, AuthError, type ScheduleView } from "../api.ts";
+import { api, AuthError, ApiError, type ScheduleView } from "../api.ts";
 import { Badge, Button, Card, Empty, InfoCard, Input, Label } from "./ui.tsx";
 import { ScheduleArt } from "./onboarding.tsx";
 import { relTime } from "../lib/format.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 
 const blank = { prompt: "", when: "", cwd: "", webhookUrl: "" };
 
@@ -20,7 +21,7 @@ export function SchedulesView({ onAuthError }: { onAuthError: () => void }) {
     api
       .schedules()
       .then((r) => setSchedules(r.schedules))
-      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(String(e))));
+      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(errorMessage(e, t))));
 
   useEffect(() => {
     void load();
@@ -36,7 +37,7 @@ export function SchedulesView({ onAuthError }: { onAuthError: () => void }) {
       setAdding(false);
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      setError(String(e));
+      setError(errorMessage(e, t));
     }
   };
 
@@ -53,7 +54,7 @@ export function SchedulesView({ onAuthError }: { onAuthError: () => void }) {
       setEditingId(null);
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      setError(String(e));
+      setError(errorMessage(e, t));
     }
   };
 
@@ -64,8 +65,9 @@ export function SchedulesView({ onAuthError }: { onAuthError: () => void }) {
       setSchedules(r.schedules);
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      const msg = String(e);
-      setError(msg.includes("409") ? t("sched_run_busy") : msg);
+      // 409 = a run is already in flight; show the friendlier "busy" copy.
+      if (e instanceof ApiError && e.status === 409) return setError(t("sched_run_busy"));
+      setError(errorMessage(e, t));
     }
   };
 
@@ -76,7 +78,7 @@ export function SchedulesView({ onAuthError }: { onAuthError: () => void }) {
       setSchedules(r.schedules);
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      setError(String(e));
+      setError(errorMessage(e, t));
     }
   };
 
@@ -89,7 +91,7 @@ export function SchedulesView({ onAuthError }: { onAuthError: () => void }) {
     api.deleteSchedule(id).catch((e) => {
       setSchedules(prev);
       if (e instanceof AuthError) return onAuthError();
-      setError(String(e));
+      setError(errorMessage(e, t));
     });
   };
 

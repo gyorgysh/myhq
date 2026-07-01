@@ -5,7 +5,7 @@
   var t = "dark";
   try {
     var s = localStorage.getItem("cct.panel.theme");
-    if (s === "light" || s === "dark" || s === "matrix") t = s;
+    if (s === "light" || s === "dark" || s === "matrix" || s === "contrast") t = s;
   } catch (e) {}
   document.documentElement.setAttribute("data-theme", t);
 })();

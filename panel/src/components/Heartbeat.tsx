@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { api, AuthError, type HeartbeatConfig, type HeartbeatMode, type HeartbeatSignalKey, type HeartbeatView } from "../api.ts";
-import { Badge, Button, Card, Empty, InfoCard, Label } from "./ui.tsx";
+import { Badge, Button, Card, Empty, InfoCard, Label, Skeleton } from "./ui.tsx";
 import { relTime } from "../lib/format.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 import { toast } from "../lib/useToast.ts";
 import type { TranslationKey } from "../i18n/en.ts";
 import { HeartbeatArt } from "./onboarding.tsx";
@@ -30,7 +31,7 @@ export function HeartbeatView_({ onAuthError }: { onAuthError: () => void }) {
     api
       .heartbeat()
       .then(setView)
-      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(String(e))));
+      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(errorMessage(e, t))));
 
   useEffect(() => {
     void load();
@@ -42,7 +43,7 @@ export function HeartbeatView_({ onAuthError }: { onAuthError: () => void }) {
       setView(await api.saveHeartbeat(patch));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     }
   };
 
@@ -52,7 +53,20 @@ export function HeartbeatView_({ onAuthError }: { onAuthError: () => void }) {
     await load();
   };
 
-  if (!view) return <Card title={t("hb_title")}>{error ? <p className="text-sm text-critical-fg">{error}</p> : <Empty>{t("loading")}</Empty>}</Card>;
+  if (!view)
+    return (
+      <Card title={t("hb_title")}>
+        {error ? (
+          <p className="text-sm text-critical-fg">{error}</p>
+        ) : (
+          <div className="space-y-2" aria-busy="true" aria-label={t("loading")}>
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-9 w-full rounded-lg" />
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+        )}
+      </Card>
+    );
   const c = view.config;
 
   return (

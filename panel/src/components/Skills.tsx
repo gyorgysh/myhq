@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, AuthError, type ClaudeRoot, type Skill } from "../api.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 import { toast } from "../lib/useToast.ts";
 import { Badge, Button, Card, Empty, Input, Label, TextArea } from "./ui.tsx";
 import { SkillsArt, FilesArt } from "./onboarding.tsx";
@@ -26,7 +27,7 @@ function PromptLibrary({ onAuthError }: { onAuthError: () => void }) {
     api
       .skills()
       .then((r) => setSkills(r.skills))
-      .catch((e) => (e instanceof AuthError ? onAuthError() : toast.error(String(e))));
+      .catch((e) => (e instanceof AuthError ? onAuthError() : toast.error(errorMessage(e, t))));
 
   useEffect(() => {
     void load();
@@ -60,7 +61,7 @@ function PromptLibrary({ onAuthError }: { onAuthError: () => void }) {
       toast.success(t("saved"));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     }
   };
 
@@ -76,7 +77,7 @@ function PromptLibrary({ onAuthError }: { onAuthError: () => void }) {
       .catch((e) => {
         setSkills(prev);
         if (e instanceof AuthError) return onAuthError();
-        toast.error(String(e));
+        toast.error(errorMessage(e, t));
       });
   };
 

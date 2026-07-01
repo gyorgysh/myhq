@@ -3,6 +3,7 @@ import { api, AuthError, openHealthSocket, type LogEntry, type LogUsageSummary }
 import { Button, Empty, Select } from "./ui.tsx";
 import { LogsArt } from "./onboarding.tsx";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 import { toolIcon, toolIconColor, lifecycleIcon, lifecycleIconColor } from "../lib/toolIcons.tsx";
 import type { LucideIcon } from "lucide-react";
 
@@ -68,7 +69,7 @@ export function LogsView({ onAuthError }: { onAuthError: () => void }) {
     api
       .logs()
       .then((r) => setLiveLogs(r.logs))
-      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(String(e))));
+      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(errorMessage(e, t))));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -119,7 +120,7 @@ export function LogsView({ onAuthError }: { onAuthError: () => void }) {
         date === ALL_FILES ? api.logsSearch({ hours: 72 }) : api.logs({ date });
       req
         .then((r) => setHistLogs(r.logs))
-        .catch((e) => (e instanceof AuthError ? onAuthError() : setError(String(e))));
+        .catch((e) => (e instanceof AuthError ? onAuthError() : setError(errorMessage(e, t))));
     },
     [onAuthError],
   );
@@ -156,7 +157,7 @@ export function LogsView({ onAuthError }: { onAuthError: () => void }) {
     api
       .logsSummary(72)
       .then(setInsights)
-      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(String(e))))
+      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(errorMessage(e, t))))
       .finally(() => setLoadingInsights(false));
   }, [onAuthError]);
 
@@ -171,7 +172,7 @@ export function LogsView({ onAuthError }: { onAuthError: () => void }) {
       return n;
     });
 
-  if (error) return <Empty>{t("logs_failed_load").replace("{error}", error)}</Empty>;
+  if (error) return <Empty>{error}</Empty>;
 
   const source = histLogs ?? liveLogs;
 

@@ -9,6 +9,7 @@ import {
 } from "../api.ts";
 import { Badge, Button, Card, Input, Label, Select, TextArea } from "./ui.tsx";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 const PARAM_INS: WebhookParamIn[] = ["query", "header", "body", "path"];
@@ -48,7 +49,7 @@ export function WebhookToolsView({ onAuthError }: { onAuthError: () => void }) {
         setTools(w.tools);
         setSecrets(v.secrets);
       })
-      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(String(e))));
+      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(errorMessage(e, t))));
 
   useEffect(() => {
     void load();
@@ -106,7 +107,7 @@ export function WebhookToolsView({ onAuthError }: { onAuthError: () => void }) {
       cancel();
       await load();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e, t));
     }
   };
 

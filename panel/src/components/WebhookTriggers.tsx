@@ -5,6 +5,7 @@ import { useWebhookTriggerEvents } from "../lib/useWebhookTriggerEvents.ts";
 import { toast } from "../lib/useToast.ts";
 import { relTime } from "../lib/format.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 
 const blank = { name: "", prompt: "", cwd: "", leadId: "" };
 
@@ -26,7 +27,7 @@ export function WebhookTriggersView({ onAuthError }: { onAuthError: () => void }
         setTriggers(r.triggers);
         setBaseUrl(r.baseUrl);
       })
-      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(String(e))));
+      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(errorMessage(e, t))));
 
   useEffect(() => {
     void load();
@@ -54,7 +55,7 @@ export function WebhookTriggersView({ onAuthError }: { onAuthError: () => void }
       setAdding(false);
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      setError(String(e));
+      setError(errorMessage(e, t));
     }
   };
 
@@ -76,7 +77,7 @@ export function WebhookTriggersView({ onAuthError }: { onAuthError: () => void }
       setEditingId(null);
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      setError(String(e));
+      setError(errorMessage(e, t));
     }
   };
 
@@ -87,7 +88,7 @@ export function WebhookTriggersView({ onAuthError }: { onAuthError: () => void }
       setTriggers(r.triggers);
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      setError(String(e));
+      setError(errorMessage(e, t));
     }
   };
 
@@ -99,7 +100,7 @@ export function WebhookTriggersView({ onAuthError }: { onAuthError: () => void }
     api.deleteWebhookTrigger(id).catch((e) => {
       setTriggers(prev);
       if (e instanceof AuthError) return onAuthError();
-      setError(String(e));
+      setError(errorMessage(e, t));
     });
   };
 
@@ -133,7 +134,7 @@ export function WebhookTriggersView({ onAuthError }: { onAuthError: () => void }
       toast.success(t("hook_rotated"));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      setError(String(e));
+      setError(errorMessage(e, t));
     }
   };
 

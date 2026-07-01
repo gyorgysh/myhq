@@ -11,6 +11,7 @@ import {
 import { useWorkerEvents, type LiveRun } from "../lib/useWorkerEvents.ts";
 import { roleLabel } from "../lib/agentRole.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 import type { TranslationKey } from "../i18n/en.ts";
 import { Avatar, Badge, Button, Card, ConfirmDialog, Empty, InfoCard, Input, Label, Modal, Select, TextArea } from "./ui.tsx";
 import { useAvatarList, resolveAvatarSlug, AVATAR_SLUGS } from "../lib/avatar.ts";
@@ -150,7 +151,7 @@ export function WorkersView({
         setSkills(r.skills);
         setProviders(r.providers);
       })
-      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(String(e))));
+      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(errorMessage(e, t))));
 
   useEffect(() => {
     void load();
@@ -160,7 +161,7 @@ export function WorkersView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (error) return <Empty>{t("workers_failed_load").replace("{error}", error)}</Empty>;
+  if (error) return <Empty>{error}</Empty>;
 
   return (
     <div className="space-y-4">
@@ -717,7 +718,7 @@ function WorkerWizard({
       setPhase("review");
     } catch (e) {
       if (e instanceof AuthError) { onAuthError(); return; }
-      setGenError(String(e));
+      setGenError(errorMessage(e, t));
       setPhase("questions");
     }
   };

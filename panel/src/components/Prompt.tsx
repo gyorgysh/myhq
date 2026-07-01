@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, AuthError, type PromptView } from "../api.ts";
-import { Badge, Button, Card, Empty, Modal, TextArea } from "./ui.tsx";
+import { Badge, Button, Card, Empty, Modal, Skeleton, TextArea } from "./ui.tsx";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 
 export function PromptView_({ onAuthError }: { onAuthError: () => void }) {
   const { t } = useI18n();
@@ -22,12 +23,19 @@ export function PromptView_({ onAuthError }: { onAuthError: () => void }) {
         setData(p);
         setWork(p.work);
       })
-      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(String(e))));
+      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(errorMessage(e, t))));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (error) return <Empty>{t("prompt_failed_load").replace("{error}", error)}</Empty>;
-  if (!data) return <Empty>{t("loading")}</Empty>;
+  if (error) return <Empty>{error}</Empty>;
+  if (!data)
+    return (
+      <div className="space-y-3" aria-busy="true" aria-label={t("loading")}>
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-40 w-full rounded-lg" />
+        <Skeleton className="h-9 w-28 rounded-lg" />
+      </div>
+    );
 
   const save = async () => {
     setSaving(true);
@@ -40,7 +48,7 @@ export function PromptView_({ onAuthError }: { onAuthError: () => void }) {
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      setError(String(e));
+      setError(errorMessage(e, t));
     } finally {
       setSaving(false);
     }

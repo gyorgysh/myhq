@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, AuthError, type MemoryEntry, type MemoryStats, type MemoryTier } from "../api.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 import { toast } from "../lib/useToast.ts";
 import { useListAnimate } from "../lib/useListAnimate.ts";
 import { relTime } from "../lib/format.ts";
@@ -105,7 +106,7 @@ export function MemoryView({ onAuthError }: { onAuthError: () => void }) {
             : r.memories.filter((m) => m.tier === tierFilter);
         setEntries(filtered);
       })
-      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(String(e))));
+      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(errorMessage(e, t))));
 
   useEffect(() => {
     void loadStats();
@@ -160,7 +161,7 @@ export function MemoryView({ onAuthError }: { onAuthError: () => void }) {
       void loadStats();
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      setError(String(e));
+      setError(errorMessage(e, t));
     }
   };
 
@@ -222,7 +223,7 @@ export function MemoryView({ onAuthError }: { onAuthError: () => void }) {
           setEntries(prev);
           setStats(prevStats);
           if (e instanceof AuthError) return onAuthError();
-          setError(String(e));
+          setError(errorMessage(e, t));
         }
       },
     });
@@ -274,7 +275,7 @@ export function MemoryView({ onAuthError }: { onAuthError: () => void }) {
           setEntries(prev);
           setStats(prevStats);
           if (e instanceof AuthError) return onAuthError();
-          setError(String(e));
+          setError(errorMessage(e, t));
         }
       },
     });
@@ -293,7 +294,7 @@ export function MemoryView({ onAuthError }: { onAuthError: () => void }) {
       URL.revokeObjectURL(url);
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     }
   };
 

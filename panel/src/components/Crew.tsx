@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { api, type Worker, type MainAgent, type DelegationRecord, type CouncilRule } from "../api.ts";
+import { api, AuthError, type Worker, type MainAgent, type DelegationRecord, type CouncilRule } from "../api.ts";
 import { Card, Empty, Badge, InfoCard, Skeleton, Avatar } from "./ui.tsx";
 import { CrewArt } from "./onboarding.tsx";
 import { relTime } from "../lib/format.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 import type { TranslationKey } from "../i18n/en.ts";
 import { useSubscription } from "../lib/useSubscription.ts";
 
@@ -72,14 +73,13 @@ export function CrewView({
         setCouncil(c.sessions as unknown as CouncilSession[]);
         setCouncilRuleState(r.rule);
       })
-      .catch((e) => setError(String(e)))
+      .catch((e) => {
+        if (e instanceof AuthError) return onAuthError();
+        setError(errorMessage(e, t));
+      })
       .finally(() => setLoaded(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (error === "AuthError: unauthorized") onAuthError();
-  }, [error, onAuthError]);
 
   // While a vote is in flight the request blocks until every Lead + Atlas has
   // answered (each is a one-shot model call), so tick an elapsed counter to make
@@ -129,7 +129,7 @@ export function CrewView({
       setCouncil((prev) => [session as unknown as CouncilSession, ...prev]);
       setProposal("");
     } catch (e) {
-      setVoteError(String(e));
+      setVoteError(errorMessage(e, t));
     } finally {
       setVoting(false);
     }
@@ -314,7 +314,7 @@ export function CrewView({
                 onClick={() => {
                   if (r === councilRule) return;
                   setCouncilRuleState(r);
-                  void api.setCouncilRule(r).catch((e) => setError(String(e)));
+                  void api.setCouncilRule(r).catch((e) => setError(errorMessage(e, t)));
                 }}
                 className={`px-3 py-1 text-xs font-medium transition ${
                   councilRule === r ? "bg-accent text-white" : "bg-surface text-fg-dim hover:text-fg"

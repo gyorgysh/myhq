@@ -31,6 +31,7 @@ import {
   Sun,
   Moon,
   Binary,
+  Contrast,
   Power,
   Menu,
   type LucideIcon,
@@ -438,7 +439,7 @@ export function isTab(value: string): value is Tab {
   return (TAB_IDS as string[]).includes(value);
 }
 
-const THEME_ICON: Record<Theme, LucideIcon> = { light: Sun, dark: Moon, matrix: Binary };
+const THEME_ICON: Record<Theme, LucideIcon> = { light: Sun, dark: Moon, matrix: Binary, contrast: Contrast };
 
 export function Sidebar({
   tab,
@@ -599,7 +600,13 @@ export function Sidebar({
                 <ThemeIcon className="h-[18px] w-[18px]" strokeWidth={1.75} />
               </span>
               <span className={labelCls}>
-                {theme === "light" ? t("theme_light") : theme === "dark" ? t("theme_dark") : t("theme_matrix")}
+                {theme === "light"
+                  ? t("theme_light")
+                  : theme === "dark"
+                    ? t("theme_dark")
+                    : theme === "contrast"
+                      ? t("theme_contrast")
+                      : t("theme_matrix")}
               </span>
             </button>
           );

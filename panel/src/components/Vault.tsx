@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, AuthError, type SecretView } from "../api.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 import { toast } from "../lib/useToast.ts";
 import { useListAnimate } from "../lib/useListAnimate.ts";
 import { Badge, Button, Callout, Card, ConfirmDialog, Empty, Input, Label } from "./ui.tsx";
@@ -40,7 +41,7 @@ export function VaultView({ onAuthError }: { onAuthError: () => void }) {
     api
       .vault()
       .then((r) => { setSecrets(r.secrets); setUsages(r.usages ?? {}); setKeyRotatedAt(r.keyRotatedAt); })
-      .catch((e) => (e instanceof AuthError ? onAuthError() : toast.error(String(e))));
+      .catch((e) => (e instanceof AuthError ? onAuthError() : toast.error(errorMessage(e, t))));
 
   useEffect(() => {
     void load();
@@ -76,7 +77,7 @@ export function VaultView({ onAuthError }: { onAuthError: () => void }) {
       toast.success(t("saved"));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     }
   };
 
@@ -100,7 +101,7 @@ export function VaultView({ onAuthError }: { onAuthError: () => void }) {
       toast.success(t("vault_copied"));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     }
   };
 
@@ -118,7 +119,7 @@ export function VaultView({ onAuthError }: { onAuthError: () => void }) {
         } catch (e) {
           setSecrets(prev);
           if (e instanceof AuthError) return onAuthError();
-          toast.error(String(e));
+          toast.error(errorMessage(e, t));
         }
       },
     });
@@ -132,7 +133,7 @@ export function VaultView({ onAuthError }: { onAuthError: () => void }) {
       await load();
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     }
   };
 
@@ -145,7 +146,7 @@ export function VaultView({ onAuthError }: { onAuthError: () => void }) {
       await load();
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(false);
     }
@@ -158,7 +159,7 @@ export function VaultView({ onAuthError }: { onAuthError: () => void }) {
       setExportBlob(blob);
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(false);
     }
@@ -181,7 +182,7 @@ export function VaultView({ onAuthError }: { onAuthError: () => void }) {
       await load();
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(false);
     }

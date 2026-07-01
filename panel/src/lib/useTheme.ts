@@ -1,11 +1,11 @@
 import { useCallback, useState } from "react";
 
-export type Theme = "light" | "dark" | "matrix";
+export type Theme = "light" | "dark" | "matrix" | "contrast";
 const KEY = "cct.panel.theme";
 
 function current(): Theme {
   const t = document.documentElement.getAttribute("data-theme");
-  return t === "light" || t === "matrix" ? t : "dark";
+  return t === "light" || t === "matrix" || t === "contrast" ? t : "dark";
 }
 
 function persist(t: Theme) {

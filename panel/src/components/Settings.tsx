@@ -2,6 +2,8 @@ import { useEffect, useId, useState } from "react";
 import { api, AuthError, type MainAgent, type Autonomy, type Provider, type PlanView, type PlanType, type ProbeResult, type EmbeddingConfig, type OllamaStatus, type LmStudioStatus, type PreferredBackend, type PushView, type Branding } from "../api.ts";
 import { Accordion, Badge, Button, Card, Input, Label, Select, Skeleton, TextArea } from "./ui.tsx";
 import { useI18n, INTERFACE_LANGUAGES } from "../lib/useI18n.ts";
+import { useTheme, type Theme } from "../lib/useTheme.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 import { toast } from "../lib/useToast.ts";
 import type { TranslationKey } from "../i18n/en.ts";
 import { AGENT_LANGUAGES } from "../i18n/languages.ts";
@@ -36,6 +38,7 @@ export function SettingsView({ onAuthError }: { onAuthError: () => void }) {
         <h1 className="text-lg font-semibold text-fg">{t("settings_title")}</h1>
       </div>
       <ServiceControl onAuthError={onAuthError} />
+      <AppearanceSettings />
       <LanguageSettings onAuthError={onAuthError} />
       <MainAgentSettings onAuthError={onAuthError} />
       <KnownPathsSettings onAuthError={onAuthError} />
@@ -147,7 +150,7 @@ function NotificationsSettings({ onAuthError }: { onAuthError: () => void }) {
       await load();
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(null);
     }
@@ -161,7 +164,7 @@ function NotificationsSettings({ onAuthError }: { onAuthError: () => void }) {
       await load();
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(null);
     }
@@ -174,7 +177,7 @@ function NotificationsSettings({ onAuthError }: { onAuthError: () => void }) {
       toast.success(t("settings_push_test_sent").replace("{n}", String(r.subscribers)));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(null);
     }
@@ -285,7 +288,7 @@ function ServiceControl({ onAuthError }: { onAuthError: () => void }) {
       await api.restartAgent();
       toast.info(t("settings_restarting"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(false);
     }
@@ -534,7 +537,7 @@ function MainAgentSettings({ onAuthError }: { onAuthError: () => void }) {
       toast.success(t("saved"));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(null);
     }
@@ -791,7 +794,7 @@ function KnownPathsSettings({ onAuthError }: { onAuthError: () => void }) {
       toast.success(t("saved"));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(false);
     }
@@ -874,6 +877,47 @@ function KnownPathsSettings({ onAuthError }: { onAuthError: () => void }) {
 // ---------------------------------------------------------------------------
 // Language Settings
 // ---------------------------------------------------------------------------
+
+/** Theme picker (light / dark / high-contrast). Reads and writes `data-theme`
+ *  via useTheme; no props needed since the theme lives on <html>. "Hacker"
+ *  stays a hidden easter egg, so it's only listed here when already active. */
+function AppearanceSettings() {
+  const { t } = useI18n();
+  const { theme, set } = useTheme();
+  const options: Array<{ id: Theme; labelKey: TranslationKey }> = [
+    { id: "light", labelKey: "theme_light" },
+    { id: "dark", labelKey: "theme_dark" },
+    { id: "contrast", labelKey: "theme_contrast" },
+  ];
+  // Keep the easter-egg theme selectable (to leave it) once it's on, without
+  // advertising it to everyone else.
+  if (theme === "matrix") options.push({ id: "matrix", labelKey: "theme_matrix" });
+
+  return (
+    <Card title={t("settings_appearance")}>
+      <p className="mb-4 text-sm text-fg-dim">{t("settings_appearance_desc")}</p>
+      <div>
+        <Label>{t("settings_theme_label")}</Label>
+        <div className="mt-1.5 flex flex-wrap gap-2">
+          {options.map((opt) => (
+            <button
+              key={opt.id}
+              onClick={() => set(opt.id)}
+              aria-pressed={theme === opt.id}
+              className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                theme === opt.id
+                  ? "border-accent bg-accent/10 text-accent"
+                  : "border-line text-fg-dim hover:text-fg"
+              }`}
+            >
+              {t(opt.labelKey)}
+            </button>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 function LanguageSettings({ onAuthError }: { onAuthError: () => void }) {
   const { t, lang, setLang } = useI18n();
@@ -1422,7 +1466,7 @@ function ProvidersSettings({ onAuthError }: { onAuthError: () => void }) {
       toast.success(t("saved"));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(null);
     }
@@ -1442,7 +1486,7 @@ function ProvidersSettings({ onAuthError }: { onAuthError: () => void }) {
       toast.success(t("saved"));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(null);
     }
@@ -1461,7 +1505,7 @@ function ProvidersSettings({ onAuthError }: { onAuthError: () => void }) {
       toast.success(t("saved"));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(null);
     }
@@ -1484,7 +1528,7 @@ function ProvidersSettings({ onAuthError }: { onAuthError: () => void }) {
       toast.success(t("ollama_connected"));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(null);
     }
@@ -1506,7 +1550,7 @@ function ProvidersSettings({ onAuthError }: { onAuthError: () => void }) {
       toast.success(t("lmstudio_connected"));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(null);
     }
@@ -1518,7 +1562,7 @@ function ProvidersSettings({ onAuthError }: { onAuthError: () => void }) {
       await api.savePreferredBackend(pref);
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     }
   };
 

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, AuthError, type Column, type ColumnDef, type Priority, type QueueState, type Recurrence, type Task, type TaskRunConfig, type Wip, type Worker } from "../api.ts";
 import { useTaskEvents, type LiveTask } from "../lib/useTaskEvents.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 import { toast } from "../lib/useToast.ts";
 import { useListAnimate } from "../lib/useListAnimate.ts";
 import { Button, Callout, Empty, InfoCard, Input, Skeleton, TextArea } from "./ui.tsx";
@@ -140,7 +141,7 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
         setRunConfig(r.config);
         if (r.queue) setQueue(r.queue);
       })
-      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(String(e))))
+      .catch((e) => (e instanceof AuthError ? onAuthError() : setError(errorMessage(e, t))))
       .finally(() => setLoaded(true));
 
   useEffect(() => {
@@ -262,7 +263,7 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
     try {
       await api.removeColumn(col.id);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(errorMessage(e, t));
     }
     await load();
   };
@@ -353,7 +354,7 @@ export function TasksView({ onAuthError }: { onAuthError: () => void }) {
     toast.success(t("tasks_bulk_combined").replace("{n}", String(n)));
   };
 
-  if (error) return <Empty>{t("tasks_failed_load").replace("{error}", error)}</Empty>;
+  if (error) return <Empty>{error}</Empty>;
 
   // Split columns: normal (non-archive) and the archive column.
   const normalCols = columns.filter((c) => c.id !== "archive");

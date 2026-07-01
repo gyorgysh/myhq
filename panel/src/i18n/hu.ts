@@ -79,7 +79,11 @@ export const hu: Translations = {
   theme_light: "Világos",
   theme_dark: "Sötét",
   theme_matrix: "Hacker",
+  theme_contrast: "Nagy kontraszt",
   theme_toggle: "Téma váltása",
+  settings_appearance: "Megjelenés",
+  settings_appearance_desc: "Válaszd ki a panel kinézetét. A nagy kontraszt a gyengénlátók számára maximalizálja az olvashatóságot.",
+  settings_theme_label: "Téma",
   // Általános műveletek
   save: "Mentés",
   cancel: "Mégse",
@@ -1698,4 +1702,21 @@ export const hu: Translations = {
   feedback_update_nudge_body:
     "{n} verzióval vagy elmaradva. Lehet, hogy ezt a hibát már javították. Érdemes előbb frissíteni.",
   feedback_update_nudge_action: "Ugrás a Frissítésekhez",
+  // Barátságos API hibaüzenetek (a lib/errorMessage.ts képezi le a nyers hibákat).
+  err_session_expired: "A munkameneted lejárt. Kérlek, jelentkezz be újra.",
+  err_network: "Nem érhető el a szerver. Ellenőrizd a kapcsolatot, és próbáld újra.",
+  err_rate_limited: "Túl sok kérés. Várj egy pillanatot, és próbáld újra.",
+  err_server: "A szerver hibába ütközött. Próbáld újra egy pillanat múlva.",
+  err_not_found: "Az elem nem található. Lehet, hogy törölték.",
+  err_forbidden: "Nincs jogosultságod ehhez a művelethez.",
+  err_bad_request: "A kérés nem dolgozható fel. Kérlek, próbáld újra.",
+  err_generic: "Valami hiba történt. Kérlek, próbáld újra.",
+  // Billentyűparancsok súgó (globális "?" ablak). A meglévő shortcuts_* sorokat
+  // használja újra; ezek a plusz szövegek kellenek az ablakhoz.
+  shortcuts_open: "Billentyűparancsok",
+  shortcuts_help_key: "Ez a parancslista megjelenítése",
+  shortcuts_group_tasks: "Feladattábla",
+  shortcuts_tasks_dnd: "Húzz egy kártyát másik oszlopba",
+  shortcuts_tasks_rename: "Oszlop átnevezése (kattints a címére)",
+  shortcuts_hint_footer: "Nyomd meg a ? gombot bármikor a lista újranyitásához.",
 };

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 import { InfoCard, Button, Input, Select, Label } from "./ui.tsx";
 import { toast } from "../lib/useToast.ts";
 import type { TranslationKey } from "../i18n/en.ts";
@@ -527,7 +528,7 @@ function LeadStep({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }
       toast.success(t("onb_wizard_lead_ok"));
       onDone();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(false);
     }
@@ -577,7 +578,7 @@ function ScheduleStep({ onDone, onSkip }: { onDone: () => void; onSkip: () => vo
       toast.success(t("onb_wizard_sched_ok"));
       onDone();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(false);
     }
@@ -648,7 +649,7 @@ function ConnectorStep({ onDone, onSkip }: { onDone: () => void; onSkip: () => v
       toast.success(t("onb_wizard_conn_ok"));
       onDone();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(false);
     }

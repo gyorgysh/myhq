@@ -17,8 +17,10 @@
 }
 
 /* Attribute-based theming: `data-theme` on <html> drives the `dark:` variant
-   (set pre-paint by an inline script). `matrix` is a peer easter-egg theme. */
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *, [data-theme="matrix"], [data-theme="matrix"] *));
+   (set pre-paint by an inline script). `matrix` (easter-egg) and `contrast`
+   (high-contrast accessibility) are dark-based peers, so they opt into the
+   `dark:` variant too. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *, [data-theme="matrix"], [data-theme="matrix"] *, [data-theme="contrast"], [data-theme="contrast"] *));
 
 /* Semantic theme tokens. Exposed to Tailwind as utilities (bg-surface, text-fg,
    border-line, bg-accent, …) so components stay theme-agnostic — only these
@@ -47,6 +49,16 @@
   --color-critical-subtle: var(--critical-subtle);
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+  /* Fluid body type: `text-sm` and `text-base` scale gently with the viewport
+     via clamp() so lines breathe on wide screens and stay compact on narrow
+     ones — smoother than hard breakpoint jumps. The min bounds match the old
+     fixed sizes (0.875rem / 1rem) so nothing shrinks below today's values; the
+     middle (vw) term drives the growth, the max caps it. `text-xs` and the
+     heading sizes stay fixed to keep dense chrome and layout stable. */
+  --text-sm: clamp(0.875rem, 0.84rem + 0.18vw, 0.95rem);
+  --text-sm--line-height: 1.45;
+  --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.1rem);
+  --text-base--line-height: 1.55;
 }
 
 /* Light theme (default) — clean white, indigo-violet accent. */
@@ -98,6 +110,34 @@
   --critical: #f87171;
   --critical-fg: #f87171;
   --critical-subtle: rgb(248 113 113 / 0.12);
+  color-scheme: dark;
+}
+
+/* High-contrast theme — for low-vision users. Pure black surfaces, white text
+   (21:1 contrast), and much stronger borders/dividers so structure is legible
+   without relying on subtle tints. Accent is brightened to stay distinct. */
+[data-theme="contrast"] {
+  --page: #000000;
+  --surface: #000000;
+  --surface-2: #1a1a1a;
+  --line: #ffffff;
+  --input: #000000;
+  --fg: #ffffff;
+  --fg-muted: #f0f0f0;
+  --fg-dim: #d4d4d4;
+  --fg-faint: #b0b0b0;
+  --accent: #9ea2ff;
+  --accent-fg: #000000;
+  /* Status colors — high-contrast (bright, saturated on black) */
+  --ok: #4ade80;
+  --ok-fg: #7dfaa8;
+  --ok-subtle: rgb(74 222 128 / 0.18);
+  --warn: #fbbf24;
+  --warn-fg: #ffd45c;
+  --warn-subtle: rgb(251 191 36 / 0.18);
+  --critical: #ff6b6b;
+  --critical-fg: #ff8f8f;
+  --critical-subtle: rgb(255 107 107 / 0.2);
   color-scheme: dark;
 }
 

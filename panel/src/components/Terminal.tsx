@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api.ts";
 import { useTerminalSocket } from "../lib/useTerminalSocket.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { resolveXtermTheme } from "../lib/themeColors.ts";
 import { Callout } from "./ui.tsx";
 
 // xterm types only — the module is loaded dynamically below.
@@ -59,40 +60,15 @@ export function TerminalView({ onAuthError }: { onAuthError: () => void }) {
       // async init landed after cleanup, so we never stack two terminals.
       containerRef.current.replaceChildren();
 
-      // Map CSS custom properties to xterm's theme. We read the *resolved*
-      // value (getComputedStyle resolves nested var() chains to a concrete
-      // color), falling back to a safe value if the token is missing — xterm's
-      // color parser needs concrete colors, not empty strings. Background and
-      // foreground must come from the same active theme or text goes invisible
-      // (e.g. light-theme black text on a hardcoded dark fallback bg).
-      const style = getComputedStyle(document.documentElement);
-      const cssVar = (name: string, fallback: string) =>
-        style.getPropertyValue(name).trim() || fallback;
-
-      // Detect whether the active theme is light, so we can pick readable
-      // ANSI black/white shades (dark/matrix: dim-white text; light: dark text).
-      // `data-theme` on <html> is the source of truth; default (unset) is dark.
-      const isLight = document.documentElement.getAttribute("data-theme") === "light";
-      const bg = cssVar("--color-page", isLight ? "#f8f9fb" : "#0a0a0b");
-      const fg = cssVar("--color-fg", isLight ? "#18181b" : "#e2e2e6");
-      const accent = cssVar("--color-accent", "#7a7ee0");
-
       const term = new Terminal({
         cursorBlink: true,
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
         fontSize: 13,
         lineHeight: 1.4,
-        theme: {
-          background: bg,
-          foreground: fg,
-          cursor: accent,
-          cursorAccent: bg,
-          selectionBackground: accent + "44",
-          black: isLight ? "#3a3a42" : "#1a1a1e",
-          brightBlack: isLight ? "#71717a" : "#3a3a42",
-          white: isLight ? "#3f3f46" : "#c8c8d0",
-          brightWhite: isLight ? "#18181b" : "#e2e2e6",
-        },
+        // Resolve the xterm palette from the live CSS theme, with concrete
+        // per-light/dark fallbacks so text never renders invisible. See
+        // lib/themeColors.ts for the token-to-color mapping and fallbacks.
+        theme: resolveXtermTheme(),
         allowProposedApi: false,
       });
 

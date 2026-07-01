@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { api, AuthError, type PromptTemplate } from "../api.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 import { toast } from "../lib/useToast.ts";
-import { Badge, Button, Card, Empty, Input, Label, TextArea } from "./ui.tsx";
+import { Badge, Button, Card, Empty, Input, Label, Skeleton, TextArea } from "./ui.tsx";
 import { FileText } from "lucide-react";
 
 const blank = { name: "", description: "", body: "" };
@@ -37,7 +38,7 @@ export function TemplatesView({ onAuthError }: { onAuthError: () => void }) {
     api
       .templates()
       .then((r) => setTemplates(r.templates))
-      .catch((e) => (e instanceof AuthError ? onAuthError() : toast.error(String(e))));
+      .catch((e) => (e instanceof AuthError ? onAuthError() : toast.error(errorMessage(e, t))));
 
   useEffect(() => {
     void load();
@@ -71,7 +72,7 @@ export function TemplatesView({ onAuthError }: { onAuthError: () => void }) {
       toast.success(t("saved"));
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     }
   };
 
@@ -85,7 +86,7 @@ export function TemplatesView({ onAuthError }: { onAuthError: () => void }) {
       .catch((e) => {
         setTemplates(prev);
         if (e instanceof AuthError) return onAuthError();
-        toast.error(String(e));
+        toast.error(errorMessage(e, t));
       });
   };
 
@@ -276,7 +277,11 @@ export function TemplatePicker({ onPick }: { onPick: (text: string) => void }) {
               </div>
             </div>
           ) : templates === null ? (
-            <div className="px-2 py-3 text-center text-xs text-fg-faint">{t("loading")}</div>
+            <div className="space-y-1.5 px-2 py-2" aria-busy="true" aria-label={t("loading")}>
+              <Skeleton className="h-8 w-full rounded" />
+              <Skeleton className="h-8 w-full rounded" />
+              <Skeleton className="h-8 w-4/5 rounded" />
+            </div>
           ) : templates.length === 0 ? (
             <div className="px-2 py-3 text-center text-xs text-fg-faint">{t("templates_empty")}</div>
           ) : (

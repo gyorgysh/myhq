@@ -6,9 +6,10 @@ import {
   type TunnelProviderId,
   type TunnelView,
 } from "../api.ts";
-import { Badge, Button, Callout, Card, Empty, InfoCard, Input, Label, Select } from "./ui.tsx";
+import { Badge, Button, Callout, Card, InfoCard, Input, Label, Select, Skeleton } from "./ui.tsx";
 import { relTime } from "../lib/format.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 import type { TranslationKey } from "../i18n/en.ts";
 
 const PROVIDERS: Array<{ id: TunnelProviderId; label: TranslationKey; desc: TranslationKey }> = [
@@ -36,7 +37,7 @@ export function RemoteAccessView({ onAuthError }: { onAuthError: () => void }) {
   const [pwShown, setPwShown] = useState(false);
   const [pwInput, setPwInput] = useState("");
 
-  const fail = (e: unknown) => (e instanceof AuthError ? onAuthError() : setError(String(e)));
+  const fail = (e: unknown) => (e instanceof AuthError ? onAuthError() : setError(errorMessage(e, t)));
 
   const load = () =>
     api
@@ -155,7 +156,15 @@ export function RemoteAccessView({ onAuthError }: { onAuthError: () => void }) {
   if (!view) {
     return (
       <Card title={t("ra_title")}>
-        {error ? <p className="text-sm text-critical-fg">{error}</p> : <Empty>{t("loading")}</Empty>}
+        {error ? (
+          <p className="text-sm text-critical-fg">{error}</p>
+        ) : (
+          <div className="space-y-2" aria-busy="true" aria-label={t("loading")}>
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-9 w-full rounded-lg" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+        )}
       </Card>
     );
   }

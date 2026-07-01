@@ -49,7 +49,7 @@ export function UsageView({ onAuthError }: { onAuthError: () => void }) {
     }).catch(() => {});
   }, []);
 
-  if (error) return <Empty>{t("usage_failed_load").replace("{error}", error)}</Empty>;
+  if (error) return <Empty>{error}</Empty>;
 
   const refreshProbe = async () => {
     setProbeRunning(true);

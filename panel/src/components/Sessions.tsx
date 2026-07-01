@@ -73,7 +73,7 @@ export function SessionsView({ onAuthError }: { onAuthError: () => void }) {
   const hideCost = useSubscription();
   const { data, error } = usePoll(api.sessions, 5000, onAuthError);
 
-  if (error) return <Empty>{t("sessions_failed_load").replace("{error}", error)}</Empty>;
+  if (error) return <Empty>{error}</Empty>;
   const sessions = data?.sessions ?? [];
 
   return (

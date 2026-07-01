@@ -77,7 +77,11 @@ export const en = {
   theme_light: "Light",
   theme_dark: "Dark",
   theme_matrix: "Hacker",
+  theme_contrast: "High contrast",
   theme_toggle: "Toggle theme",
+  settings_appearance: "Appearance",
+  settings_appearance_desc: "Choose how the panel looks. High contrast maximizes legibility for low-vision use.",
+  settings_theme_label: "Theme",
   // Common actions
   save: "Save",
   cancel: "Cancel",
@@ -1692,6 +1696,23 @@ export const en = {
   feedback_update_nudge_body:
     "You're {n} version(s) behind. This issue may already be fixed. Consider updating first.",
   feedback_update_nudge_action: "Go to Updates",
+  // Friendly API error messages (mapped from raw errors by lib/errorMessage.ts).
+  err_session_expired: "Your session expired. Please sign in again.",
+  err_network: "Can't reach the server. Check your connection and try again.",
+  err_rate_limited: "Too many requests. Wait a moment and try again.",
+  err_server: "The server ran into a problem. Try again in a moment.",
+  err_not_found: "That item couldn't be found. It may have been removed.",
+  err_forbidden: "You don't have permission to do that.",
+  err_bad_request: "That request couldn't be processed. Please try again.",
+  err_generic: "Something went wrong. Please try again.",
+  // Keyboard shortcuts cheat-sheet (global "?" modal). Reuses the existing
+  // shortcuts_* rows; these are the extra strings the modal needs.
+  shortcuts_open: "Keyboard shortcuts",
+  shortcuts_help_key: "Show this shortcuts list",
+  shortcuts_group_tasks: "Tasks board",
+  shortcuts_tasks_dnd: "Drag a card between columns",
+  shortcuts_tasks_rename: "Rename a column (click its title)",
+  shortcuts_hint_footer: "Press ? anytime to reopen this list.",
 };
 
 export type TranslationKey = keyof typeof en;

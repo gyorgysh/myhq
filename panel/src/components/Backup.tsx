@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, AuthError, type BackupManifest } from "../api.ts";
 import { useI18n } from "../lib/useI18n.ts";
+import { errorMessage } from "../lib/errorMessage.ts";
 import { toast } from "../lib/useToast.ts";
 import { Badge, Button, Card, Input, Label } from "./ui.tsx";
 
@@ -38,7 +39,7 @@ export function BackupView({ onAuthError }: { onAuthError: () => void }) {
     api
       .backupManifest()
       .then(setManifest)
-      .catch((e) => (e instanceof AuthError ? onAuthError() : toast.error(String(e))));
+      .catch((e) => (e instanceof AuthError ? onAuthError() : toast.error(errorMessage(e, t))));
 
   useEffect(() => {
     void load();
@@ -62,7 +63,7 @@ export function BackupView({ onAuthError }: { onAuthError: () => void }) {
       setExportPass("");
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(false);
     }
@@ -85,7 +86,7 @@ export function BackupView({ onAuthError }: { onAuthError: () => void }) {
       if (fileRef.current) fileRef.current.value = "";
     } catch (e) {
       if (e instanceof AuthError) return onAuthError();
-      toast.error(String(e));
+      toast.error(errorMessage(e, t));
     } finally {
       setBusy(false);
     }
