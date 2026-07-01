@@ -737,6 +737,12 @@ export interface AskQuestionView {
   ts: number;
 }
 
+/** An image attached to a chat message: raw base64 bytes + its MIME type. */
+export interface ChatImage {
+  base64: string;
+  mediaType: string;
+}
+
 export interface ChatView {
   messages: ChatMessage[];
   cwd: string;
@@ -1202,8 +1208,8 @@ export const api = {
   languages: () => get<{ languages: Record<string, string> }>("/api/languages"),
 
   chat: () => get<ChatView>("/api/chat"),
-  sendChat: (text: string, planning = false) =>
-    req<ChatView>("POST", "/api/chat/send", { text, planning }),
+  sendChat: (text: string, planning = false, images?: ChatImage[]) =>
+    req<ChatView>("POST", "/api/chat/send", { text, planning, images }),
   stopChat: () => req<{ ok: boolean }>("POST", "/api/chat/stop"),
   clearChat: () => req<ChatView>("POST", "/api/chat/clear"),
   chatSettings: (s: { cwd?: string; auto?: boolean }) =>
@@ -1217,8 +1223,8 @@ export const api = {
 
   // Per-agent interactive chat (talk to a specific worker / Lead).
   agentChat: (id: string) => get<AgentChatView>(`/api/agent-chat/${id}`),
-  sendAgentChat: (id: string, text: string, planning = false) =>
-    req<AgentChatView>("POST", `/api/agent-chat/${id}/send`, { text, planning }),
+  sendAgentChat: (id: string, text: string, planning = false, images?: ChatImage[]) =>
+    req<AgentChatView>("POST", `/api/agent-chat/${id}/send`, { text, planning, images }),
   stopAgentChat: (id: string) => req<{ ok: boolean }>("POST", `/api/agent-chat/${id}/stop`),
   clearAgentChat: (id: string) => req<AgentChatView>("POST", `/api/agent-chat/${id}/clear`),
   agentChatSettings: (id: string, s: { cwd?: string }) =>

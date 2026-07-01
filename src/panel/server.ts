@@ -69,6 +69,7 @@ import { workers, describeWorkerSchedule, type Worker } from "../core/workers.js
 import { readRunLog } from "../core/runLog.js";
 import { chat } from "../core/chat.js";
 import { agentChat } from "../core/agentChat.js";
+import { sanitizeChatImages } from "../core/chatImages.js";
 import { memory, type MemoryEntry } from "../core/memory.js";
 import { suggestions } from "../core/suggestions.js";
 import { getStatus } from "../core/status.js";
@@ -1673,8 +1674,8 @@ Respond with ONLY a JSON array, no markdown fences, no explanation. Example form
   // --- in-panel chat (dedicated Claude session) ---
   app.get("/api/chat", async () => chat.view());
   app.post("/api/chat/send", async (req, reply) => {
-    const { text, planning } = (req.body ?? {}) as { text?: string; planning?: boolean };
-    const r = chat.send(typeof text === "string" ? text : "", planning === true);
+    const { text, planning, images } = (req.body ?? {}) as { text?: string; planning?: boolean; images?: unknown };
+    const r = chat.send(typeof text === "string" ? text : "", planning === true, sanitizeChatImages(images));
     if (!r.ok) return reply.code(409).send({ error: r.error });
     return chat.view();
   });
@@ -1733,8 +1734,8 @@ Respond with ONLY a JSON array, no markdown fences, no explanation. Example form
   });
   app.post("/api/agent-chat/:id/send", async (req, reply) => {
     const { id } = req.params as { id: string };
-    const { text, planning } = (req.body ?? {}) as { text?: string; planning?: boolean };
-    const r = agentChat.send(id, typeof text === "string" ? text : "", planning === true);
+    const { text, planning, images } = (req.body ?? {}) as { text?: string; planning?: boolean; images?: unknown };
+    const r = agentChat.send(id, typeof text === "string" ? text : "", planning === true, sanitizeChatImages(images));
     if (!r.ok) return reply.code(409).send({ error: r.error });
     return agentChat.view(id);
   });

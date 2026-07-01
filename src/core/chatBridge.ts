@@ -15,9 +15,10 @@
 
 import { config, allowedUserIds } from "../config.js";
 import { isPlanningPrompt, stripPlanningPreamble } from "./planningMode.js";
+import type { ImageInput } from "../claude/runner.js";
 
 /** Drives a single turn for the main Telegram chat. Registered by the bot. */
-type Runner = (chatId: number, prompt: string) => void;
+type Runner = (chatId: number, prompt: string, images?: ImageInput[]) => void;
 /** Aborts the in-flight turn for the main chat. Registered by the bot. */
 type Stopper = (chatId: number) => void;
 type Broadcaster = (msg: unknown) => void;
@@ -71,14 +72,17 @@ class ChatBridge {
     return this.messages;
   }
 
-  /** Drive a turn for the main chat. Returns false if not currently possible. */
-  send(text: string): { ok: boolean; error?: string } {
+  /** Drive a turn for the main chat. Returns false if not currently possible.
+   *  Optional images ride along as inline vision input for this turn. */
+  send(text: string, images?: ImageInput[]): { ok: boolean; error?: string } {
     if (!this.isEnabled()) return { ok: false, error: "disabled" };
     const trimmed = text.trim();
-    if (!trimmed) return { ok: false, error: "empty" };
+    // An image-only message is allowed (the model still gets something to look
+    // at); otherwise require some text.
+    if (!trimmed && !(images && images.length)) return { ok: false, error: "empty" };
     const id = mainChatId();
     if (id === undefined || !this.runner) return { ok: false, error: "no-chat" };
-    this.runner(id, trimmed);
+    this.runner(id, trimmed, images);
     return { ok: true };
   }
 

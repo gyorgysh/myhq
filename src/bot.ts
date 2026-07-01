@@ -81,7 +81,8 @@ export function buildBot(): Telegraf {
   // Panel Chat is a window onto the main Telegram chat: let it drive turns and
   // abort them through the same flow the Telegram handlers use.
   chatBridge.attach(
-    (chatId, prompt) => runUserPrompt(permissions, loops, asks, chatId, prompt, bot.telegram),
+    (chatId, prompt, images) =>
+      runUserPrompt(permissions, loops, asks, chatId, prompt, bot.telegram, { images }),
     (chatId) => {
       const s = sessions.get(chatId);
       s.abort?.abort();

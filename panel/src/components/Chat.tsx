@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { api, AuthError, type ApprovalView, type AskQuestionView, type Autonomy, type ChatMessage, type Worker } from "../api.ts";
+import { api, AuthError, type ApprovalView, type AskQuestionView, type Autonomy, type ChatImage, type ChatMessage, type Worker } from "../api.ts";
 import { useChatEvents } from "../lib/useChatEvents.ts";
 import { useAgentChatEvents } from "../lib/useAgentChatEvents.ts";
+import { useActiveRuns } from "../lib/useActiveRuns.ts";
 import { useI18n } from "../lib/useI18n.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { roleLabel } from "../lib/agentRole.ts";
@@ -9,7 +10,7 @@ import { avatarPng64Src, resolveAvatarSlug } from "../lib/avatar.ts";
 import { Button } from "./ui.tsx";
 import { TemplatePicker } from "./Templates.tsx";
 import { toast } from "../lib/useToast.ts";
-import { Settings2, Plus, ClipboardList, Zap, ShieldCheck, HelpCircle, Pencil, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Settings2, Plus, ClipboardList, Zap, ShieldCheck, HelpCircle, Pencil, ThumbsUp, ThumbsDown, Paperclip, X } from "lucide-react";
 
 /** Sentinel id for the main Atlas chat (the Telegram-mirrored session). */
 const ATLAS = "atlas";
@@ -24,6 +25,52 @@ function initialAgentFromUrl(): string {
   url.searchParams.delete("agent");
   history.replaceState(null, "", url.pathname + url.search + url.hash);
   return agent;
+}
+
+/** MIME types the composer accepts for inline vision input. Kept in sync with
+ *  the backend allowlist in core/chatImages.ts (which re-validates everything). */
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+/** Client-side cap per image (~8 MB); the backend enforces the real limit. */
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+/** Max images the composer will attach to one message. */
+const MAX_IMAGES = 8;
+
+/** A locally-staged image attachment before it's sent. */
+interface StagedImage {
+  id: string;
+  base64: string;
+  mediaType: string;
+  /** data: URL for the preview thumbnail. */
+  preview: string;
+  name: string;
+}
+
+/**
+ * Read a browser File into a StagedImage: base64 payload + MIME + preview URL.
+ * Returns null for anything that isn't an accepted image or is too large; the
+ * backend re-validates regardless, this just keeps obvious junk out of the UI.
+ */
+async function fileToStagedImage(file: File): Promise<StagedImage | null> {
+  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) return null;
+  if (file.size > MAX_IMAGE_BYTES) return null;
+  return await new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onerror = () => resolve(null);
+    reader.onload = () => {
+      const url = typeof reader.result === "string" ? reader.result : "";
+      const comma = url.indexOf(",");
+      const base64 = comma >= 0 ? url.slice(comma + 1) : "";
+      if (!base64) return resolve(null);
+      resolve({
+        id: Math.random().toString(16).slice(2),
+        base64,
+        mediaType: file.type,
+        preview: url,
+        name: file.name || "image",
+      });
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 /**
@@ -590,7 +637,7 @@ function AtlasChat({ onAuthError }: { onAuthError: () => void }) {
       onPlanningChange={setPlanning}
       autonomy={autonomy}
       onAutonomyChange={(a) => void setAutonomy(a)}
-      onSend={(txt) => api.sendChat(txt, planning).then(() => {})}
+      onSend={(txt, imgs) => api.sendChat(txt, planning, imgs).then(() => {})}
       onStop={() => void api.stopChat()}
     />
   );
@@ -668,7 +715,7 @@ function AgentChat({
       empty={<>{t("chat_agent_empty").replace("{name}", view?.name ?? "")}<br />{t("chat_agent_empty_2")}</>}
       planning={planning}
       onPlanningChange={setPlanning}
-      onSend={(txt) => api.sendAgentChat(agentId, txt, planning).then(() => {})}
+      onSend={(txt, imgs) => api.sendAgentChat(agentId, txt, planning, imgs).then(() => {})}
       onStop={() => void api.stopAgentChat(agentId)}
     />
   );
@@ -721,13 +768,21 @@ function ChatPane({
   /** When defined, renders an Autonomy selector in the composer toolbar. */
   autonomy?: Autonomy;
   onAutonomyChange?: (a: Autonomy) => void;
-  onSend: (text: string) => Promise<void>;
+  onSend: (text: string, images?: ChatImage[]) => Promise<void>;
   onStop: () => void;
 }) {
   const { t } = useI18n();
   const [text, setText] = useState("");
+  const [images, setImages] = useState<StagedImage[]>([]);
+  const [dragOver, setDragOver] = useState(false);
   const [diffOpen, setDiffOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // The global "What's running" StatusStrip is pinned to the bottom of the
+  // viewport whenever autonomous runs are in flight, and would otherwise sit on
+  // top of the composer, making the input hard to reach. When runs are active we
+  // reserve extra bottom space so the input clears the strip.
+  const runsActive = useActiveRuns(true).length > 0;
 
   // Collapse diff when the tool changes.
   const prevToolRef = useRef<string | undefined>();
@@ -745,18 +800,55 @@ function ChatPane({
 
   const send = async () => {
     const txt = text.trim();
-    if (!txt || busy) return;
+    // An image-only message is allowed; otherwise require some text.
+    if ((!txt && images.length === 0) || busy) return;
+    const staged = images;
     setText("");
+    setImages([]);
     try {
-      await onSend(txt);
+      await onSend(txt, staged.map((im) => ({ base64: im.base64, mediaType: im.mediaType })));
     } catch {
+      // Restore the composer so the user doesn't lose their message + attachments.
       setText(txt);
+      setImages(staged);
     }
   };
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void send();
+    }
+  };
+
+  /** Stage a batch of files, dropping non-images and honouring MAX_IMAGES. */
+  const addFiles = async (files: FileList | File[]) => {
+    const list = Array.from(files);
+    if (list.length === 0) return;
+    const room = MAX_IMAGES - images.length;
+    if (room <= 0) {
+      toast.error(t("chat_images_max"));
+      return;
+    }
+    const staged = (await Promise.all(list.slice(0, room).map(fileToStagedImage))).filter(
+      (x): x is StagedImage => x !== null,
+    );
+    if (staged.length < list.length) {
+      // Some files were rejected (wrong type, too big, or over the cap).
+      toast.error(t("chat_images_rejected"));
+    }
+    if (staged.length) setImages((cur) => [...cur, ...staged].slice(0, MAX_IMAGES));
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer?.files?.length) void addFiles(e.dataTransfer.files);
+  };
+  const onPaste = (e: React.ClipboardEvent) => {
+    const files = Array.from(e.clipboardData?.files ?? []);
+    if (files.length) {
+      e.preventDefault();
+      void addFiles(files);
     }
   };
 
@@ -847,7 +939,25 @@ function ChatPane({
         <ApprovalsBar approvals={approvals} />
       )}
 
-      <div className="flex flex-col gap-2 border-t border-line pt-3">
+      <div
+        className={`relative flex flex-col gap-2 border-t border-line pt-3 ${runsActive ? "pb-14 md:pb-12" : ""}`}
+        onDragOver={(e) => {
+          if (e.dataTransfer?.types?.includes("Files")) {
+            e.preventDefault();
+            setDragOver(true);
+          }
+        }}
+        onDragLeave={(e) => {
+          // Only clear when the pointer leaves the composer wrapper entirely.
+          if (e.currentTarget === e.target) setDragOver(false);
+        }}
+        onDrop={onDrop}
+      >
+        {dragOver && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-accent/60 bg-accent/5 text-sm font-medium text-accent">
+            {t("chat_images_drop")}
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             {planning !== undefined && onPlanningChange && (
@@ -861,11 +971,51 @@ function ChatPane({
             )}
           </div>
         </div>
+        {images.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {images.map((im) => (
+              <div key={im.id} className="group relative h-16 w-16 overflow-hidden rounded-lg border border-line bg-surface">
+                <img src={im.preview} alt={im.name} className="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setImages((cur) => cur.filter((x) => x.id !== im.id))}
+                  className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-base/80 text-fg-dim hover:text-critical-fg"
+                  title={t("chat_images_remove")}
+                  aria-label={t("chat_images_remove")}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex items-end gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ACCEPTED_IMAGE_TYPES.join(",")}
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files?.length) void addFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            variant="ghost"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={busy || images.length >= MAX_IMAGES}
+            className="h-[42px] px-2.5"
+            title={t("chat_images_attach")}
+            aria-label={t("chat_images_attach")}
+          >
+            <Paperclip size={18} />
+          </Button>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKey}
+            onPaste={onPaste}
             rows={1}
             placeholder={planning ? t("chat_placeholder_planning") : t("chat_placeholder")}
             className={`max-h-40 min-h-[42px] flex-1 resize-none rounded-xl border bg-input px-3 py-2.5 text-sm text-fg outline-none focus:border-accent ${
@@ -877,7 +1027,12 @@ function ChatPane({
               {t("stop")}
             </Button>
           ) : (
-            <Button variant="primary" onClick={() => void send()} disabled={!text.trim()} className="h-[42px]">
+            <Button
+              variant="primary"
+              onClick={() => void send()}
+              disabled={!text.trim() && images.length === 0}
+              className="h-[42px]"
+            >
               {t("chat_send")}
             </Button>
           )}

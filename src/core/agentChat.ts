@@ -22,7 +22,7 @@ import { config } from "../config.js";
 import { loadJson, saveJson } from "./jsonStore.js";
 import { PLANNING_PREAMBLE, isPlanningPrompt, stripPlanningPreamble } from "./planningMode.js";
 
-import { runTurn, isStaleSession } from "../claude/runner.js";
+import { runTurn, isStaleSession, type ImageInput } from "../claude/runner.js";
 import { agentUsage } from "./agentUsage.js";
 import { workers, type Worker } from "./workers.js";
 import { resolveAvatarSlug } from "./avatar.js";
@@ -152,18 +152,20 @@ export class AgentChatManager {
     this.sessions.get(agentId)?.abort?.abort();
   }
 
-  /** Send a user message to an agent — drives a single resumable turn. */
-  send(agentId: string, text: string, planning = false): { ok: boolean; error?: string } {
+  /** Send a user message to an agent — drives a single resumable turn.
+   *  Optional images ride along as inline vision input for this turn. */
+  send(agentId: string, text: string, planning = false, images?: ImageInput[]): { ok: boolean; error?: string } {
     if (!this.isEnabled()) return { ok: false, error: "disabled" };
     const trimmed = text.trim();
-    if (!trimmed) return { ok: false, error: "empty" };
+    // An image-only message is allowed; otherwise require some text.
+    if (!trimmed && !(images && images.length)) return { ok: false, error: "empty" };
     const w = workers.get(agentId);
     if (!w) return { ok: false, error: "no-agent" };
     const s = this.session(agentId);
     if (s.busy) return { ok: false, error: "busy" };
     const prompt = planning ? PLANNING_PREAMBLE + trimmed : trimmed;
-    void this.runTurnFor(w, s, prompt);
-    audit("agentchat.send", { agentId, chars: trimmed.length, planning });
+    void this.runTurnFor(w, s, prompt, images);
+    audit("agentchat.send", { agentId, chars: trimmed.length, planning, images: images?.length ?? 0 });
     return { ok: true };
   }
 
@@ -172,7 +174,7 @@ export class AgentChatManager {
     if (s.messages.length > HISTORY_CAP) s.messages = s.messages.slice(-HISTORY_CAP);
   }
 
-  private async runTurnFor(w: Worker, s: AgentSession, text: string): Promise<void> {
+  private async runTurnFor(w: Worker, s: AgentSession, text: string, images?: ImageInput[]): Promise<void> {
     const agentId = w.id;
     s.busy = true;
     this.broadcast({ type: "agentchat", event: "busy", agentId, busy: true });
@@ -219,6 +221,7 @@ export class AgentChatManager {
     try {
       const res = await runTurn({
         prompt: text,
+        images,
         cwd: s.cwd || w.cwd || config.WORKDIR,
         model: w.model,
         env,
@@ -284,7 +287,7 @@ export class AgentChatManager {
         this.saveResume();
         retrying = true;
         this.broadcast({ type: "agentchat", event: "notice", agentId, text: "Session expired — starting fresh conversation." });
-        void this.runTurnFor(w, s, text);
+        void this.runTurnFor(w, s, text, images);
         return;
       }
       const assistantMsg: AgentChatMessage = {

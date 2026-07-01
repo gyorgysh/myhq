@@ -229,6 +229,178 @@ export function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
   );
 }
 
+/**
+ * A modern model picker: a text field that always opens a dropdown of the
+ * available options on click/focus, even when a value is already filled in
+ * (unlike a native `<datalist>`, which hides once the field matches an option).
+ * The list is filtered as you type but never fully collapses — you can always
+ * see and pick from the built-in suggestions plus any live-fetched provider
+ * models, and any custom id can still be typed by hand.
+ *
+ * Pass `onFetch` to render a "fetch" button that loads provider models on
+ * demand; results are merged into the dropdown ahead of the static suggestions.
+ */
+export function ModelSelect({
+  value,
+  onChange,
+  suggestions,
+  onFetch,
+  fetchLabel = "Fetch",
+  placeholder,
+  disabled = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  /** Built-in suggestions (e.g. Anthropic defaults). */
+  suggestions: string[];
+  /** When provided, renders a fetch button that resolves to provider models. */
+  onFetch?: () => Promise<string[]>;
+  fetchLabel?: string;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [fetched, setFetched] = useState<string[]>([]);
+  const [fetching, setFetching] = useState(false);
+  const [active, setActive] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Merge fetched models (first, they're the most relevant) with the static
+  // suggestions, de-duped and preserving order.
+  const all = [...new Set([...fetched, ...suggestions])];
+  const q = value.trim().toLowerCase();
+  // Filter as the user types, but if nothing matches keep the full list visible
+  // so the dropdown never goes empty just because a custom id was typed.
+  const filtered = q ? all.filter((m) => m.toLowerCase().includes(q)) : all;
+  const options = filtered.length ? filtered : all;
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const doFetch = async () => {
+    if (!onFetch || fetching) return;
+    setFetching(true);
+    try {
+      setFetched(await onFetch());
+      setOpen(true);
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const pick = (m: string) => {
+    onChange(m);
+    setOpen(false);
+    inputRef.current?.focus();
+  };
+
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (!open) setOpen(true);
+      else setActive((i) => Math.min(i + 1, options.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter" && open && options[active]) {
+      e.preventDefault();
+      pick(options[active]);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div className="flex gap-2">
+      <div ref={ref} className="relative flex-1">
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          disabled={disabled}
+          placeholder={placeholder}
+          role="combobox"
+          aria-expanded={open}
+          aria-autocomplete="list"
+          onChange={(e) => {
+            onChange(e.target.value);
+            setActive(0);
+            if (!open) setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onClick={() => setOpen(true)}
+          onKeyDown={onKey}
+          className={`${fieldClass} cursor-text pr-9`}
+        />
+        {/* Chevron toggles the dropdown without stealing the input's value. */}
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Toggle options"
+          disabled={disabled}
+          onClick={() => {
+            setOpen((o) => !o);
+            inputRef.current?.focus();
+          }}
+          className="absolute right-0 top-0 flex h-full w-9 items-center justify-center text-fg-dim transition-colors hover:text-fg"
+        >
+          <span
+            aria-hidden
+            className="h-4 w-4 bg-fg-dim"
+            style={{
+              maskImage: CHEVRON_SVG,
+              WebkitMaskImage: CHEVRON_SVG,
+              maskRepeat: "no-repeat",
+              WebkitMaskRepeat: "no-repeat",
+              maskSize: "contain",
+              WebkitMaskSize: "contain",
+            }}
+          />
+        </button>
+        {open && options.length > 0 && (
+          <ul
+            role="listbox"
+            className="absolute z-40 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-xl"
+          >
+            {options.map((m, i) => {
+              const selected = m === value;
+              return (
+                <li key={m}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    onMouseEnter={() => setActive(i)}
+                    onClick={() => pick(m)}
+                    className={`mono flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors ${
+                      i === active ? "bg-accent/10 text-accent" : "text-fg hover:bg-surface-2"
+                    }`}
+                  >
+                    <span className="truncate">{m}</span>
+                    {selected && <CheckCircle2 size={14} className="shrink-0 text-accent" />}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+      {onFetch && (
+        <Button onClick={() => void doFetch()} disabled={disabled || fetching} className="shrink-0">
+          {fetching ? "…" : fetchLabel}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export function Label({ children }: { children: ReactNode }) {
   return <label className="mb-1 block text-xs font-medium text-fg-dim">{children}</label>;
 }

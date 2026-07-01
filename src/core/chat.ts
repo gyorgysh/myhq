@@ -5,6 +5,7 @@ import { approvalQueue, type ApprovalChoice } from "./approvals.js";
 import { askQueue } from "./askQueue.js";
 import { PLANNING_PREAMBLE } from "./planningMode.js";
 import { audit } from "./audit.js";
+import type { ImageInput } from "../claude/runner.js";
 
 export type ChatMessage = BridgeMessage;
 
@@ -106,12 +107,12 @@ export class ChatManager {
    * `planning` is set, a non-destructive preamble is prepended so Atlas scopes
    * the work and proposes inbox/backlog items instead of acting.
    */
-  send(text: string, planning = false): { ok: boolean; error?: string } {
+  send(text: string, planning = false, images?: ImageInput[]): { ok: boolean; error?: string } {
     const s = this.mainSession();
     if (s?.busy) return { ok: false, error: "busy" };
     const prompt = planning ? PLANNING_PREAMBLE + text : text;
-    const r = chatBridge.send(prompt);
-    if (r.ok) audit("chat.send", { chars: text.trim().length, planning });
+    const r = chatBridge.send(prompt, images);
+    if (r.ok) audit("chat.send", { chars: text.trim().length, planning, images: images?.length ?? 0 });
     return r;
   }
 }

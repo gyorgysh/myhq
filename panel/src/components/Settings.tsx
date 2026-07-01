@@ -1,6 +1,7 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { api, AuthError, type MainAgent, type Autonomy, type Provider, type PlanView, type PlanType, type ProbeResult, type EmbeddingConfig, type OllamaStatus, type LmStudioStatus, type PreferredBackend, type PushView, type Branding } from "../api.ts";
-import { Accordion, Badge, Button, Card, Input, Label, Select, Skeleton, TextArea } from "./ui.tsx";
+import { Accordion, Badge, Button, Card, Input, Label, ModelSelect, Select, Skeleton, TextArea } from "./ui.tsx";
+import { MODEL_SUGGESTIONS } from "../lib/models.ts";
 import { useI18n, INTERFACE_LANGUAGES } from "../lib/useI18n.ts";
 import { useTheme, type Theme } from "../lib/useTheme.ts";
 import { errorMessage } from "../lib/errorMessage.ts";
@@ -12,8 +13,6 @@ import { VaultView } from "./Vault.tsx";
 import { ConnectorsView } from "./Connectors.tsx";
 import { PromptView_ } from "./Prompt.tsx";
 import { SkillsView } from "./Skills.tsx";
-
-const MODEL_SUGGESTIONS = ["claude-haiku-4-5-20251001", "claude-sonnet-5", "claude-opus-4-8"];
 
 const PERSONA_PRESETS: Array<{ labelKey: TranslationKey; value: string }> = [
   { labelKey: "settings_persona_concise", value: "Concise and direct. Lead with the result, skip preamble, use short sentences." },
@@ -443,7 +442,6 @@ function WhitelabelSettings({ onAuthError }: { onAuthError: () => void }) {
 
 function MainAgentSettings({ onAuthError }: { onAuthError: () => void }) {
   const { t } = useI18n();
-  const listId = useId();
   const [agent, setAgent] = useState<MainAgent | null>(null);
   const [model, setModel] = useState("");
   const [providerId, setProviderId] = useState("");
@@ -453,7 +451,6 @@ function MainAgentSettings({ onAuthError }: { onAuthError: () => void }) {
   const [fallbackProviderId, setFallbackProviderId] = useState("");
   const [fallbackModel, setFallbackModel] = useState("");
   const [fallbackThreshold, setFallbackThreshold] = useState(95);
-  const [fetched, setFetched] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = () =>
@@ -543,15 +540,13 @@ function MainAgentSettings({ onAuthError }: { onAuthError: () => void }) {
     }
   };
 
-  const fetchModels = async () => {
-    if (!providerId) return;
-    setBusy("fetch");
+  const fetchModels = async (): Promise<string[]> => {
+    if (!providerId) return [];
     try {
-      setFetched((await api.providerModels(providerId)).models);
+      return (await api.providerModels(providerId)).models;
     } catch (e) {
       if (e instanceof AuthError) onAuthError();
-    } finally {
-      setBusy(null);
+      return [];
     }
   };
 
@@ -595,24 +590,14 @@ function MainAgentSettings({ onAuthError }: { onAuthError: () => void }) {
             </div>
             <div>
               <Label>{t("model")}</Label>
-              <div className="flex gap-2">
-                <Input
-                  list={listId}
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  placeholder={providerId ? t("settings_model_local") : t("settings_model_default")}
-                />
-                {providerId && (
-                  <Button onClick={fetchModels} disabled={busy === "fetch"} className="shrink-0">
-                    {busy === "fetch" ? "…" : t("fetch")}
-                  </Button>
-                )}
-              </div>
-              <datalist id={listId}>
-                {[...new Set([...(providerId ? fetched : MODEL_SUGGESTIONS), ...fetched])].map((m) => (
-                  <option key={m} value={m} />
-                ))}
-              </datalist>
+              <ModelSelect
+                value={model}
+                onChange={setModel}
+                suggestions={MODEL_SUGGESTIONS}
+                onFetch={providerId ? fetchModels : undefined}
+                fetchLabel={t("fetch")}
+                placeholder={providerId ? t("settings_model_local") : t("settings_model_default")}
+              />
             </div>
           </div>
         </Accordion>
@@ -721,9 +706,16 @@ function MainAgentSettings({ onAuthError }: { onAuthError: () => void }) {
               </div>
               <div>
                 <Label>{t("model")}</Label>
-                <Input
+                <ModelSelect
                   value={fallbackModel}
-                  onChange={(e) => setFallbackModel(e.target.value)}
+                  onChange={setFallbackModel}
+                  suggestions={MODEL_SUGGESTIONS}
+                  onFetch={
+                    fallbackProviderId
+                      ? () => api.providerModels(fallbackProviderId).then((r) => r.models).catch(() => [])
+                      : undefined
+                  }
+                  fetchLabel={t("fetch")}
                   placeholder={t("settings_fallback_model_ph")}
                   disabled={!fallbackProviderId}
                 />

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   api,
   AuthError,
@@ -13,7 +13,8 @@ import { roleLabel } from "../lib/agentRole.ts";
 import { useI18n } from "../lib/useI18n.ts";
 import { errorMessage } from "../lib/errorMessage.ts";
 import type { TranslationKey } from "../i18n/en.ts";
-import { Avatar, Badge, Button, Card, ConfirmDialog, Empty, InfoCard, Input, Label, Modal, Select, TextArea } from "./ui.tsx";
+import { Avatar, Badge, Button, Card, ConfirmDialog, Empty, InfoCard, Input, Label, Modal, ModelSelect, Select, TextArea } from "./ui.tsx";
+import { MODEL_SUGGESTIONS } from "../lib/models.ts";
 import { useAvatarList, resolveAvatarSlug, AVATAR_SLUGS } from "../lib/avatar.ts";
 import { RefreshCw } from "lucide-react";
 import { RunLog } from "./RunLog.tsx";
@@ -65,13 +66,6 @@ const PROVIDER_KIND_LABEL: Record<ProviderKind, string> = {
   lmstudio: "LM Studio",
   custom: "Provider",
 };
-
-// Suggested Anthropic model ids (free-text, so local model names work too).
-const MODEL_SUGGESTIONS = [
-  "claude-haiku-4-5-20251001",
-  "claude-sonnet-5",
-  "claude-opus-4-8",
-];
 
 const PERSONA_PRESETS: Array<{ labelKey: TranslationKey; descKey: TranslationKey; value: string }> = [
   { labelKey: "settings_persona_concise", descKey: "workers_persona_preset_concise", value: "Concise and direct. Lead with the result, skip preamble, use short sentences." },
@@ -958,9 +952,7 @@ function WizardConfigEditor({
 }) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
-  const [fetched, setFetched] = useState<string[]>([]);
   const [platform, setPlatform] = useState("");
-  const listId = useId();
 
   // Capture the host platform so the cwd placeholder hint shows a matching
   // (Windows vs Unix) path example.
@@ -968,13 +960,13 @@ function WizardConfigEditor({
     api.me().then((m) => setPlatform(m.platform)).catch(() => {});
   }, []);
 
-  const fetchModels = async () => {
-    if (!form.providerId) return;
+  const fetchModels = async (): Promise<string[]> => {
+    if (!form.providerId) return [];
     try {
-      const r = await api.providerModels(form.providerId);
-      setFetched(r.models);
+      return (await api.providerModels(form.providerId)).models;
     } catch (e) {
       if (e instanceof AuthError) onAuthError();
+      return [];
     }
   };
 
@@ -1068,22 +1060,14 @@ function WizardConfigEditor({
         </div>
         <div>
           <Label>{t("workers_model")}</Label>
-          <div className="flex gap-2">
-            <Input
-              list={listId}
-              value={form.model}
-              onChange={(e) => onChange({ model: e.target.value })}
-              placeholder={form.providerId ? t("workers_model_local") : t("workers_model_default")}
-            />
-            {form.providerId && (
-              <Button onClick={fetchModels} className="shrink-0">{t("fetch")}</Button>
-            )}
-          </div>
-          <datalist id={listId}>
-            {[...new Set([...(form.providerId ? fetched : MODEL_SUGGESTIONS), ...fetched])].map((m) => (
-              <option key={m} value={m} />
-            ))}
-          </datalist>
+          <ModelSelect
+            value={form.model}
+            onChange={(model) => onChange({ model })}
+            suggestions={MODEL_SUGGESTIONS}
+            onFetch={form.providerId ? fetchModels : undefined}
+            fetchLabel={t("fetch")}
+            placeholder={form.providerId ? t("workers_model_local") : t("workers_model_default")}
+          />
         </div>
         <div>
           <Label>{t("workers_provider")}</Label>
@@ -1217,12 +1201,9 @@ function WorkerForm({
   const [form, setForm] = useState<Form>(initial);
   const [enabled, setEnabled] = useState(initialEnabled);
   const [busy, setBusy] = useState(false);
-  const [fetched, setFetched] = useState<string[]>([]);
-  const [fetchingModels, setFetchingModels] = useState(false);
   const [platform, setPlatform] = useState("");
   const [defaultWorkdir, setDefaultWorkdir] = useState<string>("");
   const [knownPaths, setKnownPaths] = useState<Array<{ label: string; path: string }>>([]);
-  const listId = useId();
 
   // Prefill the working directory with the user's home dir for a brand-new
   // worker (empty cwd), so the form can be saved straight away instead of the
@@ -1245,16 +1226,13 @@ function WorkerForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchModels = async () => {
-    if (!form.providerId) return;
-    setFetchingModels(true);
+  const fetchModels = async (): Promise<string[]> => {
+    if (!form.providerId) return [];
     try {
-      const r = await api.providerModels(form.providerId);
-      setFetched(r.models);
+      return (await api.providerModels(form.providerId)).models;
     } catch (e) {
       if (e instanceof AuthError) onAuthError();
-    } finally {
-      setFetchingModels(false);
+      return [];
     }
   };
 
@@ -1379,27 +1357,14 @@ function WorkerForm({
         </div>
         <div>
           <Label>{t("workers_model")}</Label>
-          <div className="flex gap-2">
-            <Input
-              list={listId}
-              value={form.model}
-              onChange={(e) => setForm({ ...form, model: e.target.value })}
-              placeholder={form.providerId ? t("workers_model_local") : t("workers_model_default")}
-            />
-            {form.providerId && (
-              <Button onClick={fetchModels} disabled={fetchingModels} className="shrink-0">
-                {fetchingModels ? "…" : t("fetch")}
-              </Button>
-            )}
-          </div>
-          <datalist id={listId}>
-            {[...new Set([...(form.providerId ? fetched : MODEL_SUGGESTIONS), ...fetched])].map((m) => (
-              <option key={m} value={m} />
-            ))}
-          </datalist>
-          {form.providerId && fetched.length > 0 && (
-            <p className="mt-1 text-xs text-fg-faint">{t("workers_models_available").replace("{n}", String(fetched.length))}</p>
-          )}
+          <ModelSelect
+            value={form.model}
+            onChange={(model) => setForm({ ...form, model })}
+            suggestions={MODEL_SUGGESTIONS}
+            onFetch={form.providerId ? fetchModels : undefined}
+            fetchLabel={t("fetch")}
+            placeholder={form.providerId ? t("workers_model_local") : t("workers_model_default")}
+          />
           {!form.providerId && (
             <p className="mt-1 text-xs text-fg-faint">
               {t("workers_model_hint")} {t("workers_model_hint_url")}
