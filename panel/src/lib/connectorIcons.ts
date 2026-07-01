@@ -15,7 +15,25 @@ export type ConnectorIcon = {
   path: string;
   hex: string;
   title: string;
+  /**
+   * True for brand marks that are just black/white ink with no real brand
+   * colour (Notion, GitHub, Apple, Unity, Unreal, SQLite). These render with
+   * currentColor so they follow the text colour and stay visible across the
+   * light, dark, and Matrix themes instead of vanishing into the background.
+   */
+  monochrome?: boolean;
 };
+
+/** Connector ids whose brand mark is monochrome ink (no distinct brand hue). */
+const MONOCHROME_IDS = new Set([
+  "notion",
+  "github",
+  "apple-calendar",
+  "apple-mail",
+  "unity",
+  "unreal-engine",
+  "sqlite",
+]);
 
 // Slack was removed from simple-icons v15+; use a hand-drawn minimal path.
 const siSlackPath =
@@ -43,5 +61,7 @@ const ICON_MAP: Record<string, ConnectorIcon> = {
 };
 
 export function getConnectorIcon(id: string): ConnectorIcon | undefined {
-  return ICON_MAP[id];
+  const icon = ICON_MAP[id];
+  if (!icon) return undefined;
+  return MONOCHROME_IDS.has(id) ? { ...icon, monochrome: true } : icon;
 }

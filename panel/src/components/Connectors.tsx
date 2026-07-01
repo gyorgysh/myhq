@@ -4,9 +4,10 @@ import { api, AuthError, type Connector, type ConnectorScope, type SecretView } 
 import { Badge, Button, Card, Empty, Label, Modal, Select } from "./ui.tsx";
 import { ConnectorsArt } from "./onboarding.tsx";
 import { useI18n } from "../lib/useI18n.ts";
+import type { TranslationKey } from "../i18n/en.ts";
 import { errorMessage } from "../lib/errorMessage.ts";
 import { getConnectorIcon } from "../lib/connectorIcons.ts";
-import { CONNECTOR_HELP } from "../lib/connectorHelp.ts";
+import { CONNECTOR_HELP, connectorHelpKeys } from "../lib/connectorHelp.ts";
 import type { Tab } from "./Sidebar.tsx";
 
 /** Epoch-ms → `YYYY-MM-DDTHH:mm` for a `datetime-local` input (local tz). */
@@ -28,7 +29,9 @@ function ConnectorInfoModal({
   onClose: () => void;
 }) {
   const { t } = useI18n();
-  const help = CONNECTOR_HELP[connector.id];
+  const shape = CONNECTOR_HELP[connector.id];
+  const keys = shape ? connectorHelpKeys(connector.id, shape) : null;
+  const tk = (key: string) => t(key as TranslationKey);
   const icon = getConnectorIcon(connector.id);
 
   return (
@@ -42,8 +45,8 @@ function ConnectorInfoModal({
                 role="img"
                 viewBox="0 0 24 24"
                 aria-label={icon.title}
-                className="h-6 w-6 shrink-0"
-                style={{ color: `#${icon.hex}` }}
+                className={`h-6 w-6 shrink-0${icon.monochrome ? " text-fg" : ""}`}
+                style={icon.monochrome ? undefined : { color: `#${icon.hex}` }}
                 fill="currentColor"
                 xmlns="http://www.w3.org/2000/svg"
               >
@@ -65,14 +68,14 @@ function ConnectorInfoModal({
 
         {/* Body */}
         <div className="max-h-[70vh] overflow-y-auto">
-          {help ? (
+          {keys ? (
             <div className="space-y-4 p-4">
               {/* What it does */}
               <section>
                 <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-fg-dim">
                   {t("connectors_info_summary_label")}
                 </p>
-                <p className="text-sm text-fg">{help.summary}</p>
+                <p className="text-sm text-fg">{tk(keys.summary)}</p>
               </section>
 
               {/* Credential needed */}
@@ -80,7 +83,7 @@ function ConnectorInfoModal({
                 <p className="mb-0.5 text-xs font-semibold uppercase tracking-wider text-accent">
                   {t("connectors_info_credential_label")}
                 </p>
-                <p className="text-sm text-fg">{help.credentialLabel}</p>
+                <p className="text-sm text-fg">{tk(keys.credential)}</p>
               </section>
 
               {/* Setup steps */}
@@ -89,12 +92,12 @@ function ConnectorInfoModal({
                   {t("connectors_info_steps_label")}
                 </p>
                 <ol className="space-y-2">
-                  {help.steps.map((step, i) => (
-                    <li key={i} className="flex gap-3 text-sm text-fg-dim">
+                  {keys.steps.map((stepKey, i) => (
+                    <li key={stepKey} className="flex gap-3 text-sm text-fg-dim">
                       <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-semibold text-accent">
                         {i + 1}
                       </span>
-                      <span>{step}</span>
+                      <span>{tk(stepKey)}</span>
                     </li>
                   ))}
                 </ol>
@@ -111,28 +114,28 @@ function ConnectorInfoModal({
                       {t("connectors_info_read_tools")}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
-                      {help.readTools.map((tool) => (
+                      {keys.readTools.map((toolKey) => (
                         <span
-                          key={tool}
+                          key={toolKey}
                           className="inline-flex rounded-md bg-ok-subtle px-2 py-0.5 text-xs font-medium text-ok-fg"
                         >
-                          {tool}
+                          {tk(toolKey)}
                         </span>
                       ))}
                     </div>
                   </div>
-                  {help.writeTools.length > 0 && (
+                  {keys.writeTools.length > 0 && (
                     <div>
                       <p className="mb-1 text-xs font-medium text-fg-dim">
                         {t("connectors_info_write_tools")}
                       </p>
                       <div className="flex flex-wrap gap-1.5">
-                        {help.writeTools.map((tool) => (
+                        {keys.writeTools.map((toolKey) => (
                           <span
-                            key={tool}
+                            key={toolKey}
                             className="inline-flex rounded-md bg-warn-subtle px-2 py-0.5 text-xs font-medium text-warn-fg"
                           >
-                            {tool}
+                            {tk(toolKey)}
                           </span>
                         ))}
                       </div>
@@ -142,12 +145,12 @@ function ConnectorInfoModal({
               </section>
 
               {/* Tip */}
-              {help.tip && (
+              {keys.tip && (
                 <section className="rounded-lg border border-line bg-surface-2/50 px-3 py-2.5">
                   <p className="mb-0.5 text-xs font-semibold uppercase tracking-wider text-fg-dim">
                     {t("connectors_info_tip_label")}
                   </p>
-                  <p className="text-sm text-fg-dim">{help.tip}</p>
+                  <p className="text-sm text-fg-dim">{tk(keys.tip)}</p>
                 </section>
               )}
             </div>
@@ -249,14 +252,23 @@ export function ConnectorsView({ onAuthError, onGoto }: { onAuthError: () => voi
                         role="img"
                         viewBox="0 0 24 24"
                         aria-label={icon.title}
-                        className="h-5 w-5 shrink-0 text-fg-dim transition-colors"
-                        style={{ color: undefined }}
-                        onMouseEnter={(e) => {
-                          (e.currentTarget as SVGSVGElement).style.color = `#${icon.hex}`;
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as SVGSVGElement).style.color = "";
-                        }}
+                        className={`h-5 w-5 shrink-0 transition-colors ${
+                          icon.monochrome ? "text-fg-dim hover:text-fg" : "text-fg-dim"
+                        }`}
+                        onMouseEnter={
+                          icon.monochrome
+                            ? undefined
+                            : (e) => {
+                                (e.currentTarget as SVGSVGElement).style.color = `#${icon.hex}`;
+                              }
+                        }
+                        onMouseLeave={
+                          icon.monochrome
+                            ? undefined
+                            : (e) => {
+                                (e.currentTarget as SVGSVGElement).style.color = "";
+                              }
+                        }
                         fill="currentColor"
                         xmlns="http://www.w3.org/2000/svg"
                       >
