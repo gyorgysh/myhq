@@ -486,7 +486,7 @@ export function Sidebar({
         title={it.hintKey ? `${t(it.labelKey)} — ${t(it.hintKey)}` : t(it.labelKey)}
         aria-label={it.hintKey ? `${t(it.labelKey)}: ${t(it.hintKey)}` : t(it.labelKey)}
         aria-current={active ? "page" : undefined}
-        className={`flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-sm transition-colors ${
+        className={`flex w-full items-center gap-2 rounded-lg border-l-2 px-2.5 py-1.5 text-xs transition-colors 2xl:gap-2.5 2xl:py-2 2xl:text-sm ${
           active
             ? "border-accent bg-accent/10 text-accent"
             : "border-transparent text-fg-dim hover:bg-surface-2 hover:text-fg"
@@ -605,7 +605,7 @@ export function Sidebar({
           title={t("nav_settings")}
           aria-label={t("nav_settings")}
           aria-current={tab === "settings" || isSettingsChild(tab) ? "page" : undefined}
-          className={`flex w-full items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-2 text-sm transition-colors ${
+          className={`flex w-full items-center gap-2 rounded-lg border-l-2 px-2.5 py-1.5 text-xs transition-colors 2xl:gap-2.5 2xl:py-2 2xl:text-sm ${
             tab === "settings" || isSettingsChild(tab)
               ? "border-accent bg-accent/10 text-accent"
               : "border-transparent text-fg-dim hover:bg-surface-2 hover:text-fg"
