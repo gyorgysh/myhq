@@ -25,6 +25,8 @@ import { fetchProviderModels } from "./core/providerModels.js";
 import { resolveSecret } from "./core/vault.js";
 import { tunnelManager } from "./core/tunnelManager.js";
 import { ttsEnabled, ttsSetupHint } from "./telegram/tts.js";
+import { leadBots } from "./telegram/leadBotManager.js";
+import { fmtUptime } from "./telegram/leadBot.js";
 import { t, langForChat, type TranslationKey } from "./telegram/i18n/index.js";
 import { log } from "./logger.js";
 
@@ -474,6 +476,43 @@ export function registerCommands(bot: Telegraf): void {
       }
     }
 
+    await ctx.replyWithHTML(lines.join("\n"));
+  });
+
+  bot.command("ping", async (ctx) => {
+    const lang = langForChat(ctx.chat.id);
+    const s = sessions.get(ctx.chat.id);
+    const uptime = fmtUptime(process.uptime());
+    if (s.busy) {
+      const elapsed = fmtUptime(s.busySince ? (Date.now() - s.busySince) / 1000 : 0);
+      const task = s.busyPrompt ? t("bot_busy_task", lang, { task: escapeHtml(s.busyPrompt) }) : "";
+      await ctx.replyWithHTML(t("bot_ping_busy", lang, { elapsed, uptime, task }));
+    } else {
+      await ctx.replyWithHTML(t("bot_ping_idle", lang, { uptime }));
+    }
+  });
+
+  bot.command("team", async (ctx) => {
+    const lang = langForChat(ctx.chat.id);
+    const leads = leadBots.statuses();
+    if (leads.length === 0) {
+      await ctx.replyWithHTML(t("cmd_team_none", lang));
+      return;
+    }
+    const lines = [t("cmd_team_header", lang)];
+    for (const l of leads) {
+      const portfolio = l.portfolio ? ` · ${escapeHtml(l.portfolio)}` : "";
+      const link = l.username ? ` · <a href="https://t.me/${l.username}">@${escapeHtml(l.username)}</a>` : "";
+      if (!l.running) {
+        lines.push(t("cmd_team_lead_offline", lang, { name: escapeHtml(l.name), portfolio, link }));
+      } else {
+        const state = l.busy ? t("cmd_team_state_busy", lang) : t("cmd_team_state_idle", lang);
+        lines.push(t("cmd_team_lead_online", lang, { name: escapeHtml(l.name), portfolio, state, link }));
+      }
+    }
+    // Only explain "offline" when something actually is — otherwise a red note
+    // in the footer reads as a problem when every Lead is up.
+    if (leads.some((l) => !l.running)) lines.push(t("cmd_team_footer", lang));
     await ctx.replyWithHTML(lines.join("\n"));
   });
 

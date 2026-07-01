@@ -75,6 +75,23 @@ export class LeadBotManager {
     }
   }
 
+  /** Live connection + activity snapshot for every configured Lead, for the
+   *  main bot's /team command. `running` reflects whether its Telegram long-poll
+   *  is currently up; `busy` whether a turn is mid-flight. */
+  statuses(): { id: string; name: string; portfolio?: string; username?: string; running: boolean; busy: boolean }[] {
+    return workers.leads().map((w) => {
+      const entry = this.bots.get(w.id);
+      return {
+        id: w.id,
+        name: w.name,
+        portfolio: w.portfolio,
+        username: w.botUsername,
+        running: Boolean(entry && entry.bot.isRunning()),
+        busy: Boolean(entry && entry.bot.hasActiveTurn()),
+      };
+    });
+  }
+
   /** Force one Lead's bot to restart right now (panel "restart" action) — stops
    *  the current instance if any, unconditionally, then re-syncs to bring a
    *  fresh one up. Returns false if the Lead isn't a live-listening Lead. */

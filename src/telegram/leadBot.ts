@@ -22,10 +22,13 @@ import { RichDraftStreamer } from "./richDraftStreamer.js";
 import { setBotProfilePhoto } from "./botPhoto.js";
 import { AskQuestionManager } from "./askQuestion.js";
 import { sendExpandableQuote, sendFormattedMarkdown } from "./send.js";
-import { normalizeAgentText, summarizeArg, summarizeInput, toolDiffMeta } from "./formatting.js";
+import { escapeHtml, normalizeAgentText, summarizeArg, summarizeInput, toolDiffMeta } from "./formatting.js";
 import { downloadIncomingFile, isViewableImage, readImageInput } from "./files.js";
 import { getLeadProtocol } from "../prompt.js";
 import { t, langForChat } from "./i18n/index.js";
+import { friendlyError } from "./errors.js";
+import { sendBusyNotice, promptPreview } from "./busy.js";
+import { LoopDetector } from "../core/loopDetector.js";
 import { log } from "../logger.js";
 import { config } from "../config.js";
 import { agentUsage } from "../core/agentUsage.js";
@@ -50,9 +53,16 @@ export class LeadBot {
   constructor(lead: Worker) {
     this.lead = lead;
     const token = resolveSecret(lead.telegramToken!);
-    // handlerTimeout: Infinity — a turn can run for minutes (long tool work).
-    // Telegraf's default 90s watchdog would otherwise throw mid-handler and,
-    // with no bot.catch, tear down this Lead's long-poll (the "polling stopped"
+    // handlerTimeout: Infinity, paired with fire-and-forget turn dispatch in the
+    // message handlers below. Telegraf's polling loop awaits every handler in a
+    // batch (Promise.all) before it fetches the next batch, so a handler that
+    // blocks on a full turn would freeze the long-poll for minutes: new messages
+    // sit unfetched at Telegram (the bot "stops reading" while it works, spinner
+    // stuck) and only drain when the turn ends. So the handlers kick off runPrompt
+    // WITHOUT awaiting it and return immediately, keeping polling live so the busy
+    // guard can answer follow-up messages at once. The Infinity timeout then only
+    // covers the small awaited prelude (a file download) and never throws the 90s
+    // watchdog mid-turn (which would tear down the long-poll: the "polling stopped"
     // crash). The matching bot.catch in start() is the second line of defence.
     this.bot = new Telegraf(token, { handlerTimeout: Infinity });
     // Each lead bot gets its own session store, namespaced by lead id.
@@ -72,10 +82,17 @@ export class LeadBot {
     const { lead, asks } = this;
     const s = sessions.get(chatId);
     if (s.busy) {
-      await tg.sendMessage(chatId, t("bot_busy", langForChat(chatId))).catch(() => {});
+      // Reassure (debounced) without interrupting the running turn — same UX as
+      // Atlas so an impatient user gets a calm "still working / /stop to cancel"
+      // instead of feeling ignored.
+      await sendBusyNotice(tg, s);
       return;
     }
     s.busy = true;
+    s.busySince = Date.now();
+    s.busyPrompt = promptPreview(prompt);
+    s.lastBusyNoticeAt = undefined;
+    s.busyNoticeCount = undefined;
     s.abort = new AbortController();
 
     // Stream mode: per-lead override falls back to global STREAM_MODE config.
@@ -103,6 +120,12 @@ export class LeadBot {
       void tg.sendChatAction(chatId, "typing").catch(() => {});
     }, 4000);
     let retrying = false;
+    // Lead bots run unattended (bypassPermissions), so there's no human to
+    // prompt when the model gets stuck firing the same tool call in a loop.
+    // Detect it here and abort the turn, mirroring Atlas's autonomous guard, so
+    // an overnight loop can't burn tokens unchecked.
+    const loopDetector = new LoopDetector(config.LOOP_THRESHOLD);
+    let loopAborted = false;
     try {
       const protocol = getLeadProtocol(lead.name, lead.portfolio);
       const append = [protocol, lead.systemPrompt].filter(Boolean).join("\n\n");
@@ -151,6 +174,24 @@ export class LeadBot {
           const diff = toolDiffMeta(name, input);
           log.info("Tool use", { chatId, tool: name, arg: summarizeArg(input).slice(0, 300), lead: lead.name, leadId: lead.id, ...(diff ?? {}) });
           streamer.setStatus(`🔧 <i>${name}</i> ${summarizeInput(input)}`);
+
+          // No human to prompt in a Lead's autonomous run: detect a runaway retry
+          // and abort, notifying the chat (once) so tokens aren't burned silently.
+          if (!loopAborted) {
+            const loop = loopDetector.record(name, input);
+            if (loop.isLoop) {
+              loopAborted = true;
+              log.warn("Loop detected in Lead run — aborting", { leadId: lead.id, chatId, tool: name, count: loop.count });
+              void tg
+                .sendMessage(
+                  chatId,
+                  t("bot_loop_aborted", langForChat(chatId), { name, count: loop.count }),
+                  { parse_mode: "HTML" },
+                )
+                .catch(() => {});
+              s.abort?.abort();
+            }
+          }
         },
         onSessionId: (id) => {
           s.sessionId = id;
@@ -186,25 +227,41 @@ export class LeadBot {
         }
       }
     } catch (err) {
-      if (isStaleSession(err) && s.sessionId) {
+      await streamer.finalize().catch(() => {});
+      const stopped = s.abort?.signal.aborted;
+      if (loopAborted) {
+        // The loop-detection notice already explained the abort — don't pile a
+        // generic error on top of it.
+        log.info("Lead turn aborted by loop guard", { leadId: lead.id, chatId });
+      } else if (stopped) {
+        log.info("Lead turn stopped by user", { leadId: lead.id, chatId });
+        await tg.sendMessage(chatId, t("bot_stopped", langForChat(chatId))).catch(() => {});
+      } else if (isStaleSession(err) && s.sessionId) {
         // The stored session ID is no longer valid in the CLI. Drop it, inform
-        // the user, and kick off a fresh turn automatically.
+        // the user, and kick off a fresh turn automatically. We must NOT re-enter
+        // here: `s.busy` is still true, so the re-run would just hit the busy
+        // guard and bail, leaving the session stuck busy forever. Flag it and
+        // re-run from `finally`, after the state below is cleared.
         log.warn("LeadBot stale session — clearing and retrying fresh", { leadId: lead.id, chatId });
         s.sessionId = undefined;
         sessions.save();
         retrying = true;
         await tg.sendMessage(chatId, t("bot_session_expired_retrying", langForChat(chatId))).catch(() => {});
-        // Re-enter runPrompt without a resume token (fresh start).
-        void this.runPrompt(chatId, tg, sessions, prompt, images);
-        return;
+      } else {
+        // Map rate-limit / usage / auth failures to the same friendly lines Atlas
+        // uses, instead of dumping a raw error.
+        log.error("LeadBot turn error", { leadId: lead.id, error: String(err) });
+        await tg.sendMessage(chatId, friendlyError(err, langForChat(chatId))).catch(() => {});
       }
-      log.error("LeadBot turn error", { leadId: lead.id, error: String(err) });
-      await tg.sendMessage(chatId, t("bot_action_failed", langForChat(chatId), { detail: err instanceof Error ? err.message : String(err) })).catch(() => {});
     } finally {
-      if (!retrying) {
-        clearInterval(typing);
-        s.busy = false;
-        s.abort = undefined;
+      clearInterval(typing);
+      s.busy = false;
+      s.busySince = undefined;
+      s.busyPrompt = undefined;
+      s.abort = undefined;
+      if (retrying) {
+        // Fresh start now that busy is cleared and the stale sessionId is gone.
+        void this.runPrompt(chatId, tg, sessions, prompt, images);
       }
     }
   }
@@ -257,6 +314,22 @@ export class LeadBot {
       );
     });
 
+    // /ping — cheap "are you alive?" check. Users treat the bots like people and
+    // keep asking; this answers instantly with connection + busy state so they
+    // don't have to wonder whether the Lead is online.
+    bot.command("ping", async (ctx) => {
+      const s = sessions.get(ctx.chat.id);
+      const lang = langForChat(ctx.chat.id);
+      const uptime = fmtUptime(process.uptime());
+      if (s.busy) {
+        const elapsed = fmtUptime(s.busySince ? (Date.now() - s.busySince) / 1000 : 0);
+        const task = s.busyPrompt ? t("bot_busy_task", lang, { task: escapeHtml(s.busyPrompt) }) : "";
+        await ctx.replyWithHTML(t("bot_ping_busy", lang, { elapsed, uptime, task }));
+      } else {
+        await ctx.replyWithHTML(t("bot_ping_idle", lang, { uptime }));
+      }
+    });
+
     // /stop
     bot.command("stop", async (ctx) => {
       const s = sessions.get(ctx.chat.id);
@@ -287,6 +360,7 @@ export class LeadBot {
     bot.command("help", async (ctx) => {
       await ctx.replyWithHTML(
         `🤖 <b>${lead.name}</b>${lead.portfolio ? `: ${lead.portfolio}` : ""}\n\n` +
+          `/ping: check I'm online and whether I'm busy\n` +
           `/status: session info (cwd, model, autonomy)\n` +
           `/stop: abort the running request\n` +
           `/mode supervised|standard|full: approval level\n` +
@@ -342,7 +416,11 @@ export class LeadBot {
             ? `The user sent this image (also saved at: ${filePath}).`
             : `The user uploaded a file, saved at: ${filePath}. Take a look.`;
 
-        await this.runPrompt(ctx.chat.id, ctx.telegram, sessions, prompt, images);
+        // Fire-and-forget for the same reason as the text handler: awaiting the
+        // turn here would freeze the poll loop until it finishes.
+        void this.runPrompt(ctx.chat.id, ctx.telegram, sessions, prompt, images).catch((err) => {
+          log.error("Lead runPrompt crashed", { leadId: lead.id, error: String(err) });
+        });
       } catch (err) {
         log.error("Lead file/photo download failed", { leadId: lead.id, error: String(err) });
         await ctx.reply(`⚠️ Could not download: ${err instanceof Error ? err.message : String(err)}`).catch(() => {});
@@ -365,10 +443,17 @@ export class LeadBot {
         log.info("AskUserQuestion resolved by text (lead)", { leadId: lead.id, chatId: ctx.chat.id });
         return;
       }
-      await this.runPrompt(ctx.chat.id, ctx.telegram, sessions, ctx.message.text);
+      // Fire-and-forget: don't await the turn, or this handler would block
+      // Telegraf's poll loop for the whole turn and the Lead would stop reading
+      // messages. runPrompt handles its own errors; the catch is just a backstop
+      // so a fire-and-forget rejection can't surface as an unhandled rejection.
+      void this.runPrompt(ctx.chat.id, ctx.telegram, sessions, ctx.message.text).catch((err) => {
+        log.error("Lead runPrompt crashed", { leadId: lead.id, error: String(err) });
+      });
     });
 
     await bot.telegram.setMyCommands([
+      { command: "ping", description: "Am I online? (and busy or idle)" },
       { command: "status", description: "Show session info" },
       { command: "stop", description: "Abort running request" },
       { command: "mode", description: "safe or auto" },
@@ -421,4 +506,17 @@ export class LeadBot {
     this.bot.stop(signal);
     this.sessions.flush();
   }
+}
+
+/** Compact human duration from seconds, e.g. "3h 12m", "8m", "45s". */
+export function fmtUptime(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  if (h < 24) return `${h}h ${rem}m`;
+  const d = Math.floor(h / 24);
+  return `${d}d ${h % 24}h`;
 }

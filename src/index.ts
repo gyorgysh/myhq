@@ -134,6 +134,8 @@ async function main(): Promise<void> {
     { command: "cd", description: "Change working directory" },
     { command: "pwd", description: "Show current directory" },
     { command: "status", description: "Show session info" },
+    { command: "ping", description: "Am I online? (and busy or idle)" },
+    { command: "team", description: "Lead bots: who's online and busy" },
     { command: "projects", description: "Saved working dirs, switch between them" },
     { command: "diff", description: "Review changes, commit or discard" },
     { command: "commit", description: "Stage all changes and commit" },

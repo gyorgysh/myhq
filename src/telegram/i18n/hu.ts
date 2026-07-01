@@ -7,7 +7,13 @@ export const hu: Record<keyof typeof en, string> = {
   bot_stopped: "⏹ Leállítva.",
   bot_stopped_plain: "Leállítva.",
   bot_done: "Kész.",
-  bot_busy: "⏳ Még az előző kérésen dolgozom. Küldd a /stop parancsot a megszakításhoz.",
+  bot_busy_p1: "⏳ Még dolgozom rajta",
+  bot_busy_p2: "⚙️ Rajta vagyok, egy pillanat",
+  bot_busy_p3: "🔧 Mindjárt megvan",
+  bot_busy_p4: "⌛ Még megy, légy türelemmel",
+  bot_busy_task: " ezen: “<i>{task}</i>”",
+  bot_busy_line:
+    "{phrase}{task} ({elapsed} eddig). Küldd a /stop parancsot a jelenlegi feladat megszakításához, vagy a /ping paranccsal megnézheted, mióta fut.",
   bot_rate_limited: "🐢 Lassíts, még utolérem magam. Próbáld újra kb. {seconds} mp múlva.",
   bot_action_failed: "⚠️ A művelet nem sikerült.\n\n{detail}",
   bot_dl_file_failed: "⚠️ Nem sikerült letölteni a fájlt: {error}",
@@ -37,6 +43,17 @@ export const hu: Record<keyof typeof en, string> = {
   bot_stopping: "⏹ Leállítás…",
   bot_nothing_running: "Semmi nem fut.",
   bot_session_expired_retrying: "⚠️ Az előző munkamenet már nem létezik — friss beszélgetést indítok.",
+
+  // --- ping / crew status ---
+  bot_ping_idle: "🟢 <b>Online</b> · tétlen, készen állok · fut {uptime} óta",
+  bot_ping_busy: "🟢 <b>Online</b> · foglalt{task} · {elapsed} eddig · fut {uptime} óta\nKüldd a /stop parancsot a jelenlegi feladat megszakításához.",
+  cmd_team_header: "👥 <b>Csapat állapota</b>",
+  cmd_team_none: "👥 Még nincs beállítva Lead bot.",
+  cmd_team_lead_online: "🟢 <b>{name}</b>{portfolio} · {state}{link}",
+  cmd_team_lead_offline: "🔴 <b>{name}</b>{portfolio} · offline{link}",
+  cmd_team_state_busy: "dolgozik",
+  cmd_team_state_idle: "tétlen",
+  cmd_team_footer: "\n<blockquote><i>Az offline Lead csak annyit jelent, hogy a chat-kapcsolata épp áll. Magától újracsatlakozik, általában egy percen belül.</i></blockquote>",
 
   // --- permissions.ts: approvals ---
   appr_header_one: "🔐 <b>Engedély szükséges</b>",

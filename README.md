@@ -402,6 +402,8 @@ Lead bots default to standard mode with the same approve/deny prompts.
 | `/cd <path>` | Change working directory |
 | `/pwd` | Show current directory |
 | `/status` | Show session info (cwd, model, autonomy, session id) |
+| `/ping` | Quick "am I online?" check (reports idle/busy and process uptime) |
+| `/team` | Lead bots roster: who's online (Telegram poll up) and who's busy |
 | `/projects` | Saved working dirs: switch/add/remove via inline buttons |
 | `/diff` | Review the working-tree diff, then commit or discard inline |
 | `/commit <message>` | Stage all changes and commit |
@@ -418,7 +420,7 @@ Lead bots default to standard mode with the same approve/deny prompts.
 | `/templates` | List saved prompt templates |
 | `/help` | Show help |
 
-Lead bots support `/status`, `/stop`, `/mode`, `/lang`, and `/help`.
+Lead bots support `/ping`, `/status`, `/stop`, `/mode`, `/lang`, and `/help`.
 
 ## Architecture
 

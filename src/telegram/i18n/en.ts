@@ -15,7 +15,16 @@ export const en = {
   bot_stopped: "⏹ Stopped.",
   bot_stopped_plain: "Stopped.",
   bot_done: "Done.",
-  bot_busy: "⏳ Still working on the previous request. Send /stop to cancel.",
+  // Busy notice: a rotating phrase + what it's on + how long + how to act. Your
+  // message isn't queued; the current job keeps running until it finishes or you
+  // /stop it.
+  bot_busy_p1: "⏳ Still working on it",
+  bot_busy_p2: "⚙️ On it, hang tight",
+  bot_busy_p3: "🔧 Getting there",
+  bot_busy_p4: "⌛ Still going, bear with me",
+  bot_busy_task: " on “<i>{task}</i>”",
+  bot_busy_line:
+    "{phrase}{task} ({elapsed} in). Send /stop to cancel the current job, or /ping to see how long it's been running.",
   bot_rate_limited: "🐢 Slow down, I'm still catching up. Try again in ~{seconds}s.",
   bot_action_failed: "⚠️ That action failed.\n\n{detail}",
   bot_dl_file_failed: "⚠️ Could not download file: {error}",
@@ -45,6 +54,17 @@ export const en = {
   bot_stopping: "⏹ Stopping…",
   bot_nothing_running: "Nothing is running.",
   bot_session_expired_retrying: "⚠️ Previous session no longer exists — starting a fresh conversation now.",
+
+  // --- ping / crew status ---
+  bot_ping_idle: "🟢 <b>Online</b> · idle and ready · up {uptime}",
+  bot_ping_busy: "🟢 <b>Online</b> · busy{task} · {elapsed} so far · up {uptime}\nSend /stop to cancel the current job.",
+  cmd_team_header: "👥 <b>Crew status</b>",
+  cmd_team_none: "👥 No Lead bots are configured yet.",
+  cmd_team_lead_online: "🟢 <b>{name}</b>{portfolio} · {state}{link}",
+  cmd_team_lead_offline: "🔴 <b>{name}</b>{portfolio} · offline{link}",
+  cmd_team_state_busy: "working",
+  cmd_team_state_idle: "idle",
+  cmd_team_footer: "\n<blockquote><i>An offline Lead just means its chat link is momentarily down. It reconnects on its own, usually within a minute.</i></blockquote>",
 
   // --- permissions.ts: approvals ---
   appr_header_one: "🔐 <b>Permission needed</b>",

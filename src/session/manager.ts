@@ -47,6 +47,18 @@ export interface Session {
   cwd: string;
   /** Whether a query is currently running for this chat. */
   busy: boolean;
+  /** Epoch ms the current turn started; set alongside `busy`, cleared when idle.
+   *  Transient (runtime only) — powers the elapsed-time hint in busy notices. */
+  busySince?: number;
+  /** Short preview of the prompt the current turn is working on, so busy notices
+   *  and /ping can say WHAT it's doing. Transient (runtime only). */
+  busyPrompt?: string;
+  /** Epoch ms the last "still working" notice was sent to this chat, used to
+   *  dedupe a literal double-send (not to go silent). Transient (runtime only). */
+  lastBusyNoticeAt?: number;
+  /** Count of busy notices sent for the current turn, so the reassurance phrase
+   *  rotates instead of repeating. Transient (runtime only). */
+  busyNoticeCount?: number;
   /** Aborts the in-flight query (wired to /stop). */
   abort?: AbortController;
   /** Tools "always allowed" without prompting (persists across restarts). */
