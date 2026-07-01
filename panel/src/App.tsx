@@ -441,21 +441,9 @@ export function App() {
         chatEnabled={chatEnabled}
       />
 
-      {/* "?" keyboard-shortcuts cheat sheet — opened by the persistent help
-          affordance or the ? key. */}
+      {/* "?" keyboard-shortcuts cheat sheet — opened by the header "?" button
+          or the ? key. */}
       {shortcuts && <ShortcutsModal onClose={() => setShortcuts(false)} />}
-
-      {/* Persistent help affordance: a small floating "?" that opens the
-          shortcuts sheet, so the cheat sheet is discoverable without knowing
-          the key. Sits above the mobile bottom nav / status strip. */}
-      <button
-        onClick={() => setShortcuts(true)}
-        aria-label={t("shortcuts_open")}
-        title={t("shortcuts_open")}
-        className="fixed bottom-24 right-4 z-30 hidden h-9 w-9 items-center justify-center rounded-full border border-line bg-surface text-sm font-semibold text-fg-dim shadow-md transition-colors hover:text-fg md:flex md:bottom-4"
-      >
-        ?
-      </button>
     </div>
   );
 }
