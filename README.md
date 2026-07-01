@@ -140,6 +140,7 @@ Type `@yourbotname query` in any chat to search your own tasks, skills, and memo
 MyHQ isn't locked to Anthropic. Point any agent at any model: a hosted Claude tier, a local model served by **LM Studio** or **Ollama**, or any OpenAI-compatible proxy. Pick the model per role:
 
 - **Per-Lead model routing.** Every Lead, Assistant, and worker runs on its own model and provider. Route routine background work to a cheap local model and reserve a frontier model only for the agents that need it — each agent in the fleet can be on a different backend at once.
+- **Different AI agent entirely, per role.** Beyond swapping models within Claude, an individual Lead/worker (or Atlas himself) can run on **xAI's Grok CLI** or **OpenAI's Codex CLI** instead — each wraps that provider's own agentic CLI (tool belt, sandboxing, and permission handling included), so it's a genuine second agent, not just a different model string. This is an advanced, low-key option: switch a chat with `/model grok-cli` or `/model codex-cli`, or pick it from the small "AI backend" selector next to Provider/Model in Settings/Workers. Claude stays the default everywhere unless you opt in.
 - **Offline semantic memory.** Memory recall ranks by embedding similarity computed locally. Auto mode probes Ollama (`:11434`) then LM Studio (`:1234`) at startup and uses whichever is live, so semantic search works fully offline with no API key. Pin a backend or turn it off from Settings.
 - **Offline voice.** Voice-message transcription runs fully offline with **Vosk**, or against any OpenAI-compatible endpoint (OpenAI, Groq's free tier) if you prefer.
 - **Main agent.** Set the model and provider that drives Atlas from Settings (or with `/model` in chat). Switch between Opus, Sonnet, Haiku, or a local model live; the change takes effect on the next message.
@@ -225,15 +226,16 @@ On Windows (elevated PowerShell):
 | `EMBEDDING_MODEL` | no | Pinned embedding model id (default `nomic-embed-text`) |
 | `EMBEDDING_AUTH_TOKEN` | no | Optional auth token for the embedding endpoint (plain or `vault:<id>`) |
 | `LOG_LEVEL` | no | `error`, `warn`, `info` (default), `debug` |
-| `TRANSCRIBE_PROVIDER` | no | Voice transcription backend: `openai` (default) or `vosk` (local) |
+| `TRANSCRIBE_PROVIDER` | no | Voice transcription backend: `openai` (default), `vosk` (local), or `xai` |
 | `OPENAI_API_KEY` | no | API key for the `openai` transcription backend (OpenAI, Groq, ...) |
 | `TRANSCRIBE_MODEL` | no | Transcription model (default `whisper-1`) |
 | `TRANSCRIBE_BASE_URL` | no | OpenAI-compatible base URL for transcription (default `https://api.openai.com/v1`) |
 | `VOSK_MODEL_PATH` | no | Path to an unpacked Vosk model dir |
 | `FFMPEG_PATH` | no | ffmpeg binary for voice note decoding (default `ffmpeg`) |
-| `TTS_PROVIDER` | no | Voice reply (TTS) backend: `openai` (default) or `piper` (fully local) |
-| `TTS_MODEL` | no | TTS model id (default `tts-1`; ignored for piper) |
-| `TTS_VOICE` | no | TTS voice name (default `alloy`; ignored for piper) |
+| `XAI_API_KEY` | no | API key for the `xai` transcription/TTS backends (shared) |
+| `TTS_PROVIDER` | no | Voice reply (TTS) backend: `openai` (default), `piper` (fully local), or `xai` |
+| `TTS_MODEL` | no | TTS model id (default `tts-1`; openai only) |
+| `TTS_VOICE` | no | TTS voice name (default `alloy`; ignored for piper; doubles as xai's `voice_id` — defaults to `eve` if left unset) |
 | `TTS_BASE_URL` | no | OpenAI-compatible TTS base URL (default `https://api.openai.com/v1`) |
 | `PIPER_PATH` | no | Path to the piper binary for local TTS (default `piper`) |
 | `PIPER_MODEL` | no | Path to a `.onnx` Piper voice model |
@@ -258,7 +260,7 @@ On Windows (elevated PowerShell):
 
 ### Voice
 
-**Transcription**: send a voice note and it is transcribed and run like a typed prompt. Two backends via `TRANSCRIBE_PROVIDER`:
+**Transcription**: send a voice note and it is transcribed and run like a typed prompt. Three backends via `TRANSCRIBE_PROVIDER`:
 
 **`openai`** (default): any OpenAI-compatible `/audio/transcriptions` endpoint. Use OpenAI directly, or **Groq's free tier**: set `TRANSCRIBE_BASE_URL=https://api.groq.com/openai/v1`, `TRANSCRIBE_MODEL=whisper-large-v3-turbo`, and a Groq `OPENAI_API_KEY`.
 
@@ -269,11 +271,15 @@ npm install vosk
 ```
 Then set `VOSK_MODEL_PATH=/path/to/vosk-model` and `TRANSCRIBE_PROVIDER=vosk`.
 
-**Spoken replies (TTS)**: toggle with `/voice on` / `/voice off`. When on, Atlas speaks its final reply as a Telegram voice message in addition to the text. Two backends via `TTS_PROVIDER`:
+**`xai`**: xAI's `/v1/stt` endpoint. Set `XAI_API_KEY` and `TRANSCRIBE_PROVIDER=xai`.
+
+**Spoken replies (TTS)**: toggle with `/voice on` / `/voice off`. When on, Atlas speaks its final reply as a Telegram voice message in addition to the text. Three backends via `TTS_PROVIDER`:
 
 **`openai`** (default): any OpenAI-compatible `/audio/speech` endpoint (`TTS_MODEL`, `TTS_VOICE`, `TTS_BASE_URL`).
 
 **`piper`**: fully local, offline TTS. Install the binary and download an `.onnx` voice model, then set `PIPER_PATH` and `PIPER_MODEL`.
+
+**`xai`**: xAI's `/v1/tts` endpoint. Set `XAI_API_KEY` and `TTS_PROVIDER=xai`; `TTS_VOICE` doubles as the voice id (built-ins: `eve`, `ara`, `rex`, `sal`, `leo`). Replies go out as an audio file rather than a true voice note, since xAI's TTS has no Opus/OGG codec.
 
 ## Enabling the Panel
 
@@ -370,7 +376,8 @@ Lead bots default to standard mode with the same approve/deny prompts.
 - **Operator playbook (`work.md`)**: define once how recurring jobs should be done. Re-read every turn, so edits apply instantly.
 - **Session continuity**: context carries across messages; `/new` resets it. Sessions (resume token, cwd, autonomy, language, allow-lists, usage) survive restarts.
 - **Git review from chat**: `/diff` shows the diff with inline Commit / Discard buttons; `/commit <message>` stages and commits.
-- **Voice notes**: transcribed and run as prompts via OpenAI-compatible API (OpenAI, Groq) or fully local Vosk. `/voice on` adds spoken TTS replies (OpenAI TTS or fully local Piper) so Atlas can speak back as well.
+- **Voice notes**: transcribed and run as prompts via OpenAI-compatible API (OpenAI, Groq), fully local Vosk, or xAI's `/v1/stt`. `/voice on` adds spoken TTS replies (OpenAI TTS, fully local Piper, or xAI's `/v1/tts`) so Atlas can speak back as well.
+- **Multi-backend agents**: beyond swapping Claude models/providers, an individual Lead/worker (or Atlas) can run on **xAI's Grok CLI** or **OpenAI's Codex CLI** instead of the Claude Agent SDK — each wraps that provider's own agentic CLI product, tool belt and sandboxing included, rather than reimplementing one. An advanced, low-key option (`/model <backendId>` in Telegram, or a small selector in the panel); Claude remains the default everywhere unless you opt in, and picking a non-Claude backend hides the now-irrelevant Provider/Model fields to prevent an invalid pairing.
 - **Web Push notifications**: the panel registers browser subscriptions (VAPID keypair auto-generated and stored in the vault) and pushes real-time notifications — pending approvals, task failures, test pings — even when the tab is closed. Manage subscriptions and send a test ping via `GET|POST /api/push`.
 - **Panel approval queue**: pending tool-call approvals from any Telegram chat are mirrored to the panel (`GET /api/approvals`, `POST /api/approvals/:id/resolve`). Resolve them from the browser without touching your phone.
 - **Local model support**: point Atlas or any Lead at LM Studio, Ollama, or any Anthropic-compatible proxy, switchable live from the Settings tab.
@@ -448,7 +455,12 @@ src/
   claude/
     runner.ts         wraps the Agent SDK query(); fans events to callbacks; inline image vision
     events.ts         narrow type guards over SDK messages
+  grok/
+    runner.ts         AgentBackend wrapping xAI's grok CLI (streaming-json events)
+  codex/
+    runner.ts         AgentBackend wrapping OpenAI's codex CLI (exec / exec resume)
   core/               telegraf-free layer shared by all agents and the panel
+    backends.ts       AgentBackend registry (claude-agent-sdk default, grok-cli, codex-cli)
     health.ts         system-health snapshot (CPU/mem/swap/disk/IO)
     status.ts         public Claude status + provider/local-backend probes
     snapshot.ts       read-only session/usage views
@@ -509,7 +521,8 @@ src/
     gitFlow.ts         /diff rendering + commit/discard callbacks
     taskFlow.ts        task-delegate status messages + 🔁 retry button
     projects.ts        /projects switch menu
-    voice.ts           voice-note transcription dispatcher (openai or vosk)
+    voice.ts           voice-note transcription dispatcher (openai, vosk, or xai)
+    tts.ts             spoken-reply synthesis dispatcher (openai, piper, or xai)
     vosk.ts            local offline transcription (ffmpeg + Vosk)
     files.ts           incoming file downloads + image decoding for vision (path-traversal guarded)
     resumePrompt.ts    first-message-after-restart resume-or-fresh offer
