@@ -115,6 +115,8 @@ export const hu: Record<keyof typeof en, string> = {
     "🎤 A hang nincs beállítva. Állítsd be a VOSK_MODEL_PATH-t egy letöltött Vosk modellhez (és telepítsd az ffmpeg-et).",
   voice_hint_openai:
     "🎤 A hang nincs beállítva. Adj OPENAI_API_KEY-t a .env fájlhoz az átirat engedélyezéséhez.",
+  voice_hint_xai:
+    "🎤 A hang nincs beállítva. Adj XAI_API_KEY-t a .env fájlhoz az átirat engedélyezéséhez.",
   voice_not_configured: "A hangátirat nincs konfigurálva (állítsd be az OPENAI_API_KEY-t).",
   voice_http_error: "Az átirat nem sikerült (HTTP {status}): {detail}",
 

@@ -5,16 +5,18 @@ import { log } from "../logger.js";
 
 /** True if text-to-speech is configured for the selected provider. */
 export function ttsEnabled(): boolean {
-  return config.TTS_PROVIDER === "piper"
-    ? Boolean(config.PIPER_MODEL)
-    : Boolean(config.OPENAI_API_KEY);
+  if (config.TTS_PROVIDER === "piper") return Boolean(config.PIPER_MODEL);
+  if (config.TTS_PROVIDER === "xai") return Boolean(config.XAI_API_KEY);
+  return Boolean(config.OPENAI_API_KEY);
 }
 
 /** A short hint telling the operator how to enable spoken replies. */
 export function ttsSetupHint(): string {
-  return config.TTS_PROVIDER === "piper"
-    ? "Set PIPER_PATH + PIPER_MODEL (a local .onnx voice) to enable spoken replies."
-    : "Set OPENAI_API_KEY (and TTS_VOICE/TTS_MODEL) to enable spoken replies.";
+  if (config.TTS_PROVIDER === "piper")
+    return "Set PIPER_PATH + PIPER_MODEL (a local .onnx voice) to enable spoken replies.";
+  if (config.TTS_PROVIDER === "xai")
+    return "Set XAI_API_KEY (and optionally TTS_VOICE) to enable spoken replies.";
+  return "Set OPENAI_API_KEY (and TTS_VOICE/TTS_MODEL) to enable spoken replies.";
 }
 
 /**
@@ -30,13 +32,13 @@ export interface SpeechResult {
   format: "ogg" | "wav";
 }
 
-/** Synthesize speech for `text` using the configured backend (openai | piper). */
+/** Synthesize speech for `text` using the configured backend (openai | piper | xai). */
 export async function synthesizeSpeech(text: string): Promise<SpeechResult> {
   const clipped = text.slice(0, TTS_MAX_CHARS).trim();
   if (!clipped) throw new Error("Nothing to speak.");
-  return config.TTS_PROVIDER === "piper"
-    ? { audio: await synthesizePiper(clipped), format: "wav" }
-    : { audio: await synthesizeOpenAI(clipped), format: "ogg" };
+  if (config.TTS_PROVIDER === "piper") return { audio: await synthesizePiper(clipped), format: "wav" };
+  if (config.TTS_PROVIDER === "xai") return { audio: await synthesizeXai(clipped), format: "wav" };
+  return { audio: await synthesizeOpenAI(clipped), format: "ogg" };
 }
 
 /** Cap how much text we send to TTS so a long reply doesn't run for minutes. */
@@ -58,6 +60,39 @@ async function synthesizeOpenAI(text: string): Promise<Buffer> {
       voice: config.TTS_VOICE,
       input: text,
       response_format: "opus",
+    }),
+  });
+  if (!res.ok) {
+    const detail = (await res.text()).slice(0, 300);
+    throw new Error(`Speech synthesis failed (HTTP ${res.status}): ${detail}`);
+  }
+  return Buffer.from(await res.arrayBuffer());
+}
+
+/**
+ * Synthesize via xAI's /v1/tts endpoint, requesting WAV output — xAI's TTS
+ * doesn't offer an Opus/OGG codec (mp3/wav/pcm/mulaw/alaw only), so this goes
+ * through the same sendAudio path as Piper rather than a true Telegram voice
+ * note. `language` is required by the API; "auto" lets it detect from `text`.
+ * TTS_VOICE's schema default ("alloy") is an OpenAI voice name, not a real xAI
+ * one, so an unset TTS_VOICE substitutes xAI's own default ("eve") instead.
+ */
+async function synthesizeXai(text: string): Promise<Buffer> {
+  if (!config.XAI_API_KEY) {
+    throw new Error("Text-to-speech is not configured (set XAI_API_KEY).");
+  }
+  const voiceId = config.TTS_VOICE === "alloy" ? "eve" : config.TTS_VOICE;
+  const res = await fetch("https://api.x.ai/v1/tts", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.XAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      text,
+      voice_id: voiceId,
+      language: "auto",
+      output_format: { codec: "wav", sample_rate: 24000 },
     }),
   });
   if (!res.ok) {

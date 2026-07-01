@@ -141,10 +141,11 @@ const schema = z.object({
   //   draft = Bot API 9.3 sendMessageDraft (plain preview), finalized with sendMessage
   //   edit  = legacy throttled editMessageText of a placeholder message
   STREAM_MODE: z.enum(["rich", "draft", "edit"]).default("rich"),
-  // Voice notes. Two backends:
+  // Voice notes. Three backends:
   //   openai = OpenAI-compatible /audio/transcriptions (OpenAI, Groq, …)
   //   vosk   = fully local, offline recognition (needs VOSK_MODEL_PATH + ffmpeg)
-  TRANSCRIBE_PROVIDER: z.enum(["openai", "vosk"]).default("openai"),
+  //   xai    = xAI's /v1/stt endpoint (needs XAI_API_KEY)
+  TRANSCRIBE_PROVIDER: z.enum(["openai", "vosk", "xai"]).default("openai"),
   OPENAI_API_KEY: z.string().optional(),
   TRANSCRIBE_MODEL: z.string().min(1).default("whisper-1"),
   TRANSCRIBE_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
@@ -152,12 +153,20 @@ const schema = z.object({
   VOSK_MODEL_PATH: z.string().optional(),
   // ffmpeg binary used to decode OGG/Opus voice notes to 16kHz mono PCM.
   FFMPEG_PATH: z.string().min(1).default("ffmpeg"),
+  // xAI's own API key, shared by its TTS (/v1/tts) and STT (/v1/stt) endpoints —
+  // a separate credential from OPENAI_API_KEY, fixed hosts (not "OpenAI-
+  // compatible" reusable base URLs like the openai backend above).
+  XAI_API_KEY: z.string().optional(),
   // --- Text-to-speech (spoken replies) ---
   // Provider for spoken voice replies:
   //   openai = OpenAI-compatible /audio/speech (OpenAI, or any compatible proxy)
   //   piper  = fully local, offline TTS (needs PIPER_PATH + PIPER_MODEL)
-  TTS_PROVIDER: z.enum(["openai", "piper"]).default("openai"),
+  //   xai    = xAI's /v1/tts endpoint (needs XAI_API_KEY)
+  TTS_PROVIDER: z.enum(["openai", "piper", "xai"]).default("openai"),
   // OpenAI TTS model + voice (reuses OPENAI_API_KEY / a TTS-specific base url).
+  // TTS_VOICE also doubles as the xai backend's voice_id (its default "alloy"
+  // isn't a real xAI voice, so the xai path substitutes its own default "eve"
+  // when this is left unset) — TTS_MODEL/TTS_BASE_URL are openai-only.
   TTS_MODEL: z.string().min(1).default("tts-1"),
   TTS_VOICE: z.string().min(1).default("alloy"),
   TTS_BASE_URL: z.string().url().default("https://api.openai.com/v1"),

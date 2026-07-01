@@ -126,6 +126,8 @@ export const en = {
     "🎤 Voice isn't set up. Set VOSK_MODEL_PATH to a downloaded Vosk model (and install ffmpeg).",
   voice_hint_openai:
     "🎤 Voice isn't set up. Add OPENAI_API_KEY to .env to enable transcription.",
+  voice_hint_xai:
+    "🎤 Voice isn't set up. Add XAI_API_KEY to .env to enable transcription.",
   voice_not_configured: "Voice transcription is not configured (set OPENAI_API_KEY).",
   voice_http_error: "Transcription failed (HTTP {status}): {detail}",
 
