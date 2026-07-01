@@ -69,6 +69,11 @@ async function main(): Promise<void> {
   workers.onChange(() => {
     void leadBots.sync();
   });
+  // A Lead's long-poll can die on its own (e.g. a Telegram 409 Conflict from
+  // a second getUpdates poller on the same token) without the worker registry
+  // changing, so onChange() alone won't catch it — the watchdog re-syncs
+  // periodically to notice and restart it.
+  leadBots.startWatchdog();
 
   // Optional embedded management panel (off unless PANEL_ENABLED=true).
   const stopPanel = await startPanel();
@@ -155,6 +160,7 @@ async function main(): Promise<void> {
     heartbeat.stop();
     maintenance.stop();
     stopProbeScheduler();
+    leadBots.stopWatchdog();
 
     // Stop the panel and Telegram polling immediately so the port is released
     // before launchd/systemd restarts the process. In-flight turns may still

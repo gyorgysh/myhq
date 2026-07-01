@@ -40,6 +40,11 @@ export class LeadBot {
   private sessions: SessionManager;
   private lead: Worker;
   private asks: AskQuestionManager;
+  // Flips true once long-polling actually ends (intentional stop() or an
+  // unrecoverable error e.g. a Telegram 409 Conflict from a second poller on
+  // the same token). LeadBotManager's watchdog polls this to notice a Lead
+  // that died without anyone asking it to, and restarts it.
+  private stopped = false;
 
   constructor(lead: Worker) {
     this.lead = lead;
@@ -387,12 +392,23 @@ export class LeadBot {
     }
 
     log.info("Lead bot starting", { name: lead.name, portfolio: lead.portfolio });
-    void bot.launch().catch((err) => {
-      log.error("Lead bot polling stopped", { leadId: lead.id, error: String(err) });
-    });
+    void bot
+      .launch()
+      .catch((err) => {
+        log.error("Lead bot polling stopped", { leadId: lead.id, error: String(err) });
+      })
+      .finally(() => {
+        this.stopped = true;
+      });
+  }
+
+  /** True once this Lead's long-poll has ended, whether by stop() or a died launch(). */
+  isRunning(): boolean {
+    return !this.stopped;
   }
 
   stop(signal: "SIGINT" | "SIGTERM"): void {
+    this.stopped = true;
     this.bot.stop(signal);
     this.sessions.flush();
   }
