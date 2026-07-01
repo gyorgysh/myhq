@@ -1,12 +1,14 @@
 import { runTurn as claudeAgentSdkRunTurn, type RunOptions, type RunResult } from "../claude/runner.js";
 import { runTurn as grokRunTurn } from "../grok/runner.js";
+import { runTurn as codexRunTurn } from "../codex/runner.js";
 
 /**
  * One agent runtime this bot can drive a turn through — the Claude Agent SDK
- * (spawns the `claude` CLI) or the Grok CLI (spawns `grok`), each wrapping a
- * provider's own agentic CLI product (tool belt, sandboxing, permission modes
- * included) rather than reimplementing one. Every caller below already goes
- * through this registry rather than importing a runner's `runTurn` directly.
+ * (spawns the `claude` CLI), the Grok CLI (spawns `grok`), or the Codex CLI
+ * (spawns `codex`), each wrapping a provider's own agentic CLI product (tool
+ * belt, sandboxing, permission modes included) rather than reimplementing one.
+ * Every caller below already goes through this registry rather than importing
+ * a runner's `runTurn` directly.
  */
 export interface AgentBackend {
   id: string;
@@ -26,9 +28,16 @@ const GROK_CLI: AgentBackend = {
   runTurn: grokRunTurn,
 };
 
+const CODEX_CLI: AgentBackend = {
+  id: "codex-cli",
+  displayName: "Codex (CLI)",
+  runTurn: codexRunTurn,
+};
+
 const backends = new Map<string, AgentBackend>([
   [CLAUDE_AGENT_SDK.id, CLAUDE_AGENT_SDK],
   [GROK_CLI.id, GROK_CLI],
+  [CODEX_CLI.id, CODEX_CLI],
 ]);
 
 /** Look up a backend by id, falling back to the default (Claude Agent SDK)
