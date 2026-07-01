@@ -3,6 +3,7 @@ import { message } from "telegraf/filters";
 import { config, allowedUserIds } from "./config.js";
 import { authMiddleware } from "./auth.js";
 import { registerCommands } from "./commands.js";
+import { handleInlineQuery } from "./telegram/inlineSearch.js";
 import { AUTO_ALLOWED_TOOLS, runTurn, isStaleSession, type PermissionResult } from "./claude/runner.js";
 import { createTelegramMcp } from "./mcp/sendFile.js";
 import { memoryMcp } from "./mcp/memory.js";
@@ -68,6 +69,11 @@ export function buildBot(): Telegraf {
   const permissions = new PermissionManager(bot.telegram);
   const loops = new LoopPromptManager(bot.telegram);
   const asks = new AskQuestionManager(bot.telegram);
+
+  // Inline queries carry no chat, so the chat-scoped authMiddleware can't vet
+  // them and would silently drop every one. Register the inline handler ahead
+  // of that middleware; it does its own user-id allow-list check internally.
+  bot.on("inline_query", handleInlineQuery);
 
   bot.use(authMiddleware);
   registerCommands(bot);
