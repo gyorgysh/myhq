@@ -375,6 +375,7 @@ function describeLifecycle(
 function agentLabelFromMeta(meta: Record<string, unknown>): string | undefined {
   if (typeof meta.worker === "string" && meta.worker) return meta.worker;
   if (typeof meta.lead === "string" && meta.lead) return meta.lead;
+  if (typeof meta.agentChat === "string" && meta.agentChat) return meta.agentChat;
   if (typeof meta.task === "string" && meta.task) return meta.task;
   const chatId = meta.chatId;
   if (typeof chatId === "number" && chatId > 0) return "Atlas";
