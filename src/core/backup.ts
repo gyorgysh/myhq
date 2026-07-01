@@ -55,8 +55,10 @@ const STATE_FILES = [
   "update.json", // update bookkeeping
 ] as const;
 
-/** Files that exist but are deliberately never exported. */
-const EXCLUDED = new Set(["vault.json", "vault.key", "instance.lock", ".gitkeep", ".DS_Store", "audit.jsonl"]);
+/** Files that exist but are deliberately never exported. Directories (logs/,
+ *  data/runs/, data/audit/) are already excluded by listSkipped()'s isFile()
+ *  check below, so they don't need an entry here. */
+const EXCLUDED = new Set(["vault.json", "vault.key", "instance.lock", ".gitkeep", ".DS_Store"]);
 
 interface ManifestEntry {
   name: string;

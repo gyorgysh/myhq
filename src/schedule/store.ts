@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { config } from "../config.js";
 import { log } from "../logger.js";
@@ -58,7 +58,10 @@ export function saveSchedules(schedules: Schedule[]): void {
   try {
     mkdirSync(dirname(FILE), { recursive: true });
     const tmp = `${FILE}.tmp`;
-    writeFileSync(tmp, JSON.stringify(data, null, 2));
+    // schedules can carry prompts/cwd paths the user may consider sensitive;
+    // lock the file to owner-only, matching every sibling store in data/.
+    writeFileSync(tmp, JSON.stringify(data, null, 2), { mode: 0o600 });
+    chmodSync(tmp, 0o600); // enforce mode even if a stale tmp pre-existed
     renameSync(tmp, FILE);
   } catch (err) {
     log.error("Failed to persist schedules", { error: errText(err) });

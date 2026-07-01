@@ -1,6 +1,4 @@
-import { readFileSync } from "node:fs";
-import { dataPath } from "./jsonStore.js";
-import { auditResource, type AuditEvent } from "./audit.js";
+import { auditResource, recentAudit } from "./audit.js";
 
 /**
  * Audit-log anomaly detection.
@@ -16,8 +14,6 @@ import { auditResource, type AuditEvent } from "./audit.js";
  *  - addition of a new privileged grant (new vault credential / access grant),
  *    the runtime analogue of "a new allowed user was added".
  */
-
-const FILE = dataPath("audit.jsonl");
 
 export type AnomalyKind = "delete-burst" | "vault-offhours" | "new-grant";
 export type AnomalySeverity = "warning" | "critical";
@@ -91,25 +87,6 @@ function outsideWorkHours(start: string, end: string, date: Date): boolean {
   return !inside;
 }
 
-/** Read the tail of the audit log (newest first), bounded for cheap scanning. */
-function tail(limit = 2000): AuditEvent[] {
-  try {
-    const lines = readFileSync(FILE, "utf8").trim().split("\n");
-    const out: AuditEvent[] = [];
-    for (const l of lines.slice(-limit)) {
-      if (!l) continue;
-      try {
-        out.push(JSON.parse(l) as AuditEvent);
-      } catch {
-        /* skip malformed */
-      }
-    }
-    return out.reverse();
-  } catch {
-    return [];
-  }
-}
-
 /** Coarse time bucket (window-sized) so the same ongoing burst dedupes to one
  *  alert rather than re-firing every tick. */
 function bucket(ts: number, windowMs: number): number {
@@ -122,7 +99,7 @@ function bucket(ts: number, windowMs: number): number {
  */
 export function detectAnomalies(cfg: AnomalyConfig, now = Date.now()): Anomaly[] {
   if (!cfg.enabled) return [];
-  const events = tail();
+  const events = recentAudit(2000);
   const out: Anomaly[] = [];
 
   // Rule 1: delete burst — many *.delete actions inside the sliding window.

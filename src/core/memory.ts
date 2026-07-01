@@ -114,8 +114,12 @@ function clampSalience(n: number | undefined, fallback: number): number {
  * process (mirrors WorkerManager) so concurrent turns mutate one array rather
  * than racing on load-modify-save of the file.
  */
+/** Debounce window for the soft recall-hit bump (see `schedulePersist`). */
+const RECALL_PERSIST_DEBOUNCE_MS = 5_000;
+
 export class MemoryStore {
   private entries: MemoryEntry[];
+  private persistTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
     const loaded = loadJson<MemoryFile>(FILE, { version: 1, entries: [] }).entries;
@@ -362,8 +366,26 @@ export class MemoryStore {
       e.lastUsedAt = now;
       changed = true;
     }
-    if (changed) this.persist();
+    // This fires on essentially every turn, just to bump a soft usage signal —
+    // debounce rather than immediately rewriting the whole store (every
+    // embedding vector included) each time. Explicit mutations (create/update/
+    // remove/embed) below still persist immediately.
+    if (changed) this.schedulePersist();
     return combined;
+  }
+
+  /** Coalesce bursts of low-value writes (recall-hit bumps) behind one delayed
+   *  save instead of rewriting the full store — including every entry's
+   *  embedding vector — on every turn. useCount/lastUsedAt are soft signals
+   *  already tolerant of some staleness, so losing the last few seconds of
+   *  bumps to a hard crash is an acceptable tradeoff. */
+  private schedulePersist(): void {
+    if (this.persistTimer) return;
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = undefined;
+      this.persist();
+    }, RECALL_PERSIST_DEBOUNCE_MS);
+    this.persistTimer.unref?.();
   }
 
   /**

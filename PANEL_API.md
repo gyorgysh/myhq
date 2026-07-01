@@ -629,24 +629,34 @@ curl -H "$AUTH" $BASE/api/tasks/columns
 
 # Add a column
 curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/tasks/columns \
-  -d '{ "title": "Review" }'
+  -d '{ "name": "Review" }'
 
 # Rename a column
 curl -X PUT -H "$AUTH" -H "Content-Type: application/json" $BASE/api/tasks/columns/<id> \
-  -d '{ "title": "In Review" }'
+  -d '{ "name": "In Review" }'
 
-# Reorder columns or cards (send the full id order)
+# Reorder columns (send the full id order)
 curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/tasks/columns/reorder \
-  -d '{ "order": ["backlog", "doing", "review", "done"] }'
-curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/tasks/reorder \
-  -d '{ "column": "doing", "order": ["task-id-1", "task-id-2"] }'
+  -d '{ "ids": ["backlog", "doing", "review", "done"] }'
 
-# Set per-column WIP limits (0 = unlimited)
+# Reorder/move cards: each move is { id, column, order } — column is the
+# destination column id, order is the card's new position within it.
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/tasks/reorder \
+  -d '{ "moves": [{ "id": "task-id-1", "column": "doing", "order": 0 }, { "id": "task-id-2", "column": "doing", "order": 1 }] }'
+
+# Set a per-column WIP limit (column id + numeric limit; null/0 = unlimited)
 curl -X PUT -H "$AUTH" -H "Content-Type: application/json" $BASE/api/tasks/wip \
-  -d '{ "doing": 3 }'
+  -d '{ "column": "doing", "limit": 3 }'
 
 # Delete a column (its cards move back to the first column)
 curl -X DELETE -H "$AUTH" $BASE/api/tasks/columns/<id>
+
+# Queue controls: pause holds dispatch of queued cards (in-flight runs keep
+# going); resume fills free slots again; clear drops all waiting cards.
+curl -H "$AUTH" $BASE/api/tasks/queue
+curl -X POST -H "$AUTH" $BASE/api/tasks/queue/pause
+curl -X POST -H "$AUTH" $BASE/api/tasks/queue/resume
+curl -X POST -H "$AUTH" $BASE/api/tasks/queue/clear
 ```
 
 ### Web Push notifications
@@ -680,9 +690,9 @@ Tool-call approvals from any Telegram chat are mirrored here so they can be reso
 # List all pending approvals (each entry has id, chatId, toolName, input, lead)
 curl -H "$AUTH" $BASE/api/approvals
 
-# Resolve an approval
-curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/approvals/<id>/resolve \
-  -d '{ "action": "allow" }'
+# Resolve an approval (id goes in the body, not the URL)
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" $BASE/api/approvals/resolve \
+  -d '{ "id": "<id>", "action": "allow" }'
 # action: "allow" | "deny" | "always"
 #   allow  — approve this one call
 #   deny   — refuse this one call
@@ -710,6 +720,7 @@ A few more endpoints exist, mostly mirroring panel views:
 - `GET /api/gallery`: list generated images (`?tag=&provider=&from=&to=&q=`, epoch-ms date bounds), returns `{ images, tags }` where `tags` is every distinct tag across the whole gallery. `GET /api/gallery/<id>`: single record. `GET /api/gallery/<id>/file`: the raw image bytes (content-type derived from extension). `PUT /api/gallery/<id>`: edit tags, body `{ tags: string[] }`. `DELETE /api/gallery/<id>`: remove the record and its file. `POST /api/gallery/generate`: `{ providerId: "recraft" | "ideogram" | "replicate" | "fal" | "local_sd", prompt, size?, style?, model?, negativePrompt?, steps?, extraInput? }` — calls the same image-generation core the `<provider>_generate_image` MCP tool uses, downloads (or decodes) the result, and saves it to the gallery. `model` is required for `replicate`/`fal` (e.g. `black-forest-labs/flux-schnell`); `negativePrompt`/`steps` are `local_sd`-only; `extraInput` is a raw object merged into the replicate/fal request body for power users. Requires the connector to be enabled with a credential (for `local_sd`, the credential is the server's base URL).
 - `GET /api/chat`, `POST /api/chat/send|stop|clear|approve`, `PUT /api/chat/settings`: the panel's own Claude chat session (talks to Atlas). The autonomy level is set per-chat from the toolbar (replacing the removed `PANEL_CHAT_BYPASS` env flag). `POST /api/chat/send` also accepts an optional `images` array (base64 data URLs, from attach/drag-drop/paste in the composer) passed to the agent as inline vision content.
 - `POST /api/chat/react`: react to an assistant reply with `{ reaction: "up" | "down", text }`. A thumbs-up files the response text as a durable memory; a thumbs-down is recorded. Returns 400 for any other reaction.
+- `POST /api/chat/approve`: resolve a pending tool-call approval raised inside the panel chat itself, `{ approvalId, allow }` — the chat analogue of `POST /api/approvals/resolve`.
 - `GET /api/asks`, `POST /api/asks/resolve`: the pending `AskUserQuestion` queue and its resolver, used to render interactive question widgets in panel chat. Resolve with `{ id, optionIndices?, text? }`.
 - `GET /api/agent-chat/<id>`, `POST /api/agent-chat/<id>/send|stop|clear`, `PUT /api/agent-chat/<id>/settings`: an interactive chat with a specific worker/Lead by id. `POST /api/agent-chat/<id>/send` accepts the same optional `images` array as the main chat.
 - `GET /api/usage/agents`: per-agent token + cost totals and a daily-by-role breakdown.
