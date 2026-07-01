@@ -1,7 +1,8 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { randomBytes } from "node:crypto";
-import { runTurn, AUTO_ALLOWED_TOOLS } from "../claude/runner.js";
+import { AUTO_ALLOWED_TOOLS } from "../claude/runner.js";
+import { getBackend } from "./backends.js";
 import { memoryMcp } from "../mcp/memory.js";
 import { workers } from "./workers.js";
 import { getSkill } from "./skills.js";
@@ -131,7 +132,7 @@ async function castVote(
   const abort = new AbortController();
   let output = "";
   try {
-    await runTurn({
+    await getBackend().runTurn({
       prompt,
       cwd,
       model,

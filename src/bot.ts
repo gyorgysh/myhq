@@ -4,7 +4,8 @@ import { config, allowedUserIds } from "./config.js";
 import { authMiddleware } from "./auth.js";
 import { registerCommands } from "./commands.js";
 import { handleInlineQuery } from "./telegram/inlineSearch.js";
-import { AUTO_ALLOWED_TOOLS, runTurn, isStaleSession, type PermissionResult } from "./claude/runner.js";
+import { AUTO_ALLOWED_TOOLS, isStaleSession, type PermissionResult } from "./claude/runner.js";
+import { getBackend } from "./core/backends.js";
 import { createTelegramMcp } from "./mcp/sendFile.js";
 import { memoryMcp } from "./mcp/memory.js";
 import { createTasksMcp } from "./mcp/tasks.js";
@@ -237,8 +238,8 @@ export function buildBot(): Telegraf {
     const text = ctx.message.text;
     if (text.startsWith("/")) return; // handled by command handlers
     // If a crew agent is waiting for the president's reply, resolve it.
-    if (hasPendingAsk(ctx.chat.id)) {
-      if (resolveAsk(ctx.chat.id, text)) {
+    if (hasPendingAsk(ctx.chat.id, "atlas")) {
+      if (resolveAsk(ctx.chat.id, "atlas", text)) {
         log.info("crew_ask resolved by user", { chatId: ctx.chat.id });
         return;
       }
@@ -516,7 +517,7 @@ async function handleUserPrompt(
   // Parked-on-user predicate, shared by the typing loop and the draft keepalive:
   // while a crew_ask_president or AskUserQuestion free-text reply is awaited, the
   // draft preview must stop refreshing so it doesn't mask the user's typed answer.
-  const parkedOnUser = () => hasPendingAsk(chatId) || asks.hasPending(chatId);
+  const parkedOnUser = () => hasPendingAsk(chatId, "atlas") || asks.hasPending(chatId);
 
   let streamer: Streamer;
   if (config.STREAM_MODE === "rich") {
@@ -717,7 +718,7 @@ async function handleUserPrompt(
   let loopAborted = false;
 
   try {
-    const res = await runTurn({
+    const res = await getBackend().runTurn({
       prompt,
       images,
       cwd,

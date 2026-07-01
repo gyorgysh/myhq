@@ -22,7 +22,8 @@ import { config } from "../config.js";
 import { loadJson, saveJson } from "./jsonStore.js";
 import { PLANNING_PREAMBLE, isPlanningPrompt, stripPlanningPreamble } from "./planningMode.js";
 
-import { runTurn, isStaleSession, type ImageInput } from "../claude/runner.js";
+import { isStaleSession, type ImageInput } from "../claude/runner.js";
+import { getBackend } from "./backends.js";
 import { agentUsage } from "./agentUsage.js";
 import { workers, type Worker } from "./workers.js";
 import { resolveAvatarSlug } from "./avatar.js";
@@ -219,7 +220,7 @@ export class AgentChatManager {
     s.abort = abort;
     let output = "";
     try {
-      const res = await runTurn({
+      const res = await getBackend().runTurn({
         prompt: text,
         images,
         cwd: s.cwd || w.cwd || config.WORKDIR,

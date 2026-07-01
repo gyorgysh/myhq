@@ -113,7 +113,7 @@ import { sessions } from "../session/manager.js";
 import { ptyManager } from "../core/ptyManager.js";
 import { tunnelManager, BASIC_AUTH_USER } from "../core/tunnelManager.js";
 import { PanelHub } from "./hub.js";
-import { runTurn } from "../claude/runner.js";
+import { getBackend } from "../core/backends.js";
 import { runCouncil, deleteCouncilSession, getCouncilRule, setCouncilRule, type CouncilRule } from "../core/council.js";
 
 const STATIC_DIR = join(repoRoot, "panel", "dist");
@@ -141,7 +141,22 @@ export async function startPanel(): Promise<(() => Promise<void>) | undefined> {
 
   // 64MB body limit so a full-state backup import (base64 archive) fits; the
   // default 1MB is far too small once memory.json is in the payload.
-  const app = Fastify({ logger: false, bodyLimit: 64 * 1024 * 1024 });
+  //
+  // SEC: trust X-Forwarded-For only when the direct TCP peer is loopback — the
+  // only address a legitimate proxy (tunnelManager's ngrok/cloudflared, or a
+  // user's own reverse proxy per the README) can connect from, since the panel
+  // always binds loopback by default (PANEL_HOST). Without this, req.ip is the
+  // raw socket peer, which for ALL tunneled/proxied traffic is 127.0.0.1 (the
+  // local relay process) regardless of the real internet-facing client — which
+  // silently exempts every such request from the brute-force lockout below,
+  // since isLoopback(clientIp(req)) then always sees 127.0.0.1 instead of the
+  // real attacker IP. A client connecting directly (non-loopback socket peer)
+  // gets no benefit from forging the header: that hop is never trusted.
+  const app = Fastify({
+    logger: false,
+    bodyLimit: 64 * 1024 * 1024,
+    trustProxy: (address) => isLoopback(address),
+  });
 
   // Inbound webhook triggers (`POST /hook/:id`) authenticate by HMAC over the
   // EXACT request bytes, so we must keep the raw body before any JSON parsing.
@@ -1752,7 +1767,7 @@ Respond with ONLY a JSON array, no markdown fences, no explanation. Example form
       // Use os.tmpdir() as the cwd when none is provided: avoids loading the
       // project's CLAUDE.md (which can be very large) into a config-gen turn.
       const wizardCwd = cwd?.trim() || tmpdir();
-      const result = await runTurn({
+      const result = await getBackend().runTurn({
         prompt,
         cwd: wizardCwd,
         model: mainRun.model,

@@ -1,6 +1,6 @@
 import { config } from "../config.js";
-import { runTurn } from "../claude/runner.js";
 import { resolveMainRun } from "./mainSettings.js";
+import { getBackend } from "./backends.js";
 import { memoryMcp } from "../mcp/memory.js";
 import { skillsMcp } from "../mcp/skills.js";
 import { log } from "../logger.js";
@@ -62,7 +62,7 @@ export async function reflectOnTurn(
 
   const mainRun = resolveMainRun();
   try {
-    await runTurn({
+    await getBackend().runTurn({
       prompt,
       cwd: config.WORKDIR,
       model: mainRun.model,

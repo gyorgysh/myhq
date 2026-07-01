@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { config } from "../config.js";
-import { runTurn, type RunResult } from "../claude/runner.js";
+import type { RunResult } from "../claude/runner.js";
+import { getBackend } from "./backends.js";
 import { memoryMcp } from "../mcp/memory.js";
 import { createTasksMcp } from "../mcp/tasks.js";
 import { skillsMcp } from "../mcp/skills.js";
@@ -431,7 +432,7 @@ export class TaskDelegator {
         }
       : undefined;
     try {
-      const res = await runTurn({
+      const res = await getBackend().runTurn({
         prompt,
         cwd: lead?.cwd || config.WORKDIR,
         resume,

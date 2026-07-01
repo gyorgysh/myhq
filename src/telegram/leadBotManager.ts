@@ -32,9 +32,27 @@ const WATCHDOG_MS = 60_000;
 export class LeadBotManager {
   private bots = new Map<string, { bot: LeadBot; tokenRef: string }>();
   private watchdogTimer?: NodeJS.Timeout;
+  // Serializes sync() so overlapping calls from its uncoordinated triggers
+  // (boot, workers.onChange on every create/update/delete, and the 60s
+  // watchdog) can never run concurrently. Without this, two calls racing for
+  // the same not-yet-tracked Lead could both pass the "already running?" check
+  // below before either registers it, spawning two Telegraf pollers on one bot
+  // token (a self-inflicted 409 loop) plus two SessionManagers over the same
+  // state file.
+  private syncQueue: Promise<void> = Promise.resolve();
 
-  /** Reconcile the running Lead bots against the current registry. */
-  async sync(): Promise<void> {
+  /** Reconcile the running Lead bots against the current registry. Safe to
+   *  call from multiple uncoordinated triggers — calls are queued and run one
+   *  at a time, never overlapping. */
+  sync(): Promise<void> {
+    const next = this.syncQueue.then(() => this.syncOnce());
+    // Swallow so one failed pass doesn't wedge the queue for the next caller;
+    // syncOnce() already logs per-lead failures internally.
+    this.syncQueue = next.catch(() => {});
+    return next;
+  }
+
+  private async syncOnce(): Promise<void> {
     const desired = workers.leads();
 
     // Stop bots that are no longer desired, whose token changed (a token

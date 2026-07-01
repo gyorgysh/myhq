@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { config } from "../config.js";
-import { runTurn, AUTO_ALLOWED_TOOLS } from "../claude/runner.js";
+import { AUTO_ALLOWED_TOOLS } from "../claude/runner.js";
+import { getBackend } from "./backends.js";
 import { memoryMcp } from "../mcp/memory.js";
 import { createTasksMcp } from "../mcp/tasks.js";
 import { skillsMcp } from "../mcp/skills.js";
@@ -381,7 +382,7 @@ export class WorkerManager {
     const transcript = new RunLogWriter(run.id, { kind: "worker", ownerId: w.id, ownerName: w.name });
 
     try {
-      const res = await runTurn({
+      const res = await getBackend().runTurn({
         prompt: promptOverride?.trim() || w.prompt,
         cwd: w.cwd,
         model: w.model,

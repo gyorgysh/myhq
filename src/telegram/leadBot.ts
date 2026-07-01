@@ -2,7 +2,8 @@ import { Telegraf } from "telegraf";
 import type { Telegram } from "telegraf";
 import type { Worker } from "../core/workers.js";
 import { workers } from "../core/workers.js";
-import { runTurn, isStaleSession } from "../claude/runner.js";
+import { isStaleSession } from "../claude/runner.js";
+import { getBackend } from "../core/backends.js";
 import type { ImageInput } from "../claude/runner.js";
 import { memoryMcp } from "../mcp/memory.js";
 import { createTasksMcp } from "../mcp/tasks.js";
@@ -97,7 +98,7 @@ export class LeadBot {
 
     // Stream mode: per-lead override falls back to global STREAM_MODE config.
     const mode = lead.streamMode ?? config.STREAM_MODE;
-    const parkedOnUser = () => hasPendingAsk(chatId) || asks.hasPending(chatId);
+    const parkedOnUser = () => hasPendingAsk(chatId, lead.id) || asks.hasPending(chatId);
     let streamer;
     if (mode === "rich") {
       const draft = new RichDraftStreamer(tg, chatId);
@@ -116,7 +117,7 @@ export class LeadBot {
 
     await tg.sendChatAction(chatId, "typing").catch(() => {});
     const typing = setInterval(() => {
-      if (hasPendingAsk(chatId) || asks.hasPending(chatId)) return;
+      if (hasPendingAsk(chatId, lead.id) || asks.hasPending(chatId)) return;
       void tg.sendChatAction(chatId, "typing").catch(() => {});
     }, 4000);
     let retrying = false;
@@ -148,7 +149,7 @@ export class LeadBot {
       });
 
       log.info("Lead turn starting", { lead: lead.name, leadId: lead.id, chatId, model: lead.model ?? config.CLAUDE_MODEL });
-      const res = await runTurn({
+      const res = await getBackend().runTurn({
         prompt,
         images,
         cwd: s.cwd,
@@ -432,7 +433,7 @@ export class LeadBot {
       // If this Lead is blocked inside crew_ask_president waiting on the
       // president, the reply must resolve that ask, not start a new turn —
       // checked before the busy guard, since the asking turn holds busy=true.
-      if (hasPendingAsk(ctx.chat.id) && resolveAsk(ctx.chat.id, ctx.message.text)) {
+      if (hasPendingAsk(ctx.chat.id, lead.id) && resolveAsk(ctx.chat.id, lead.id, ctx.message.text)) {
         log.info("crew_ask resolved by user (lead)", { leadId: lead.id, chatId: ctx.chat.id });
         return;
       }

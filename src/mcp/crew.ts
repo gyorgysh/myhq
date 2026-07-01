@@ -3,7 +3,8 @@ import { dirname } from "node:path";
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { Telegram } from "telegraf";
 import { z } from "zod";
-import { runTurn, AUTO_ALLOWED_TOOLS } from "../claude/runner.js";
+import { AUTO_ALLOWED_TOOLS } from "../claude/runner.js";
+import { getBackend } from "../core/backends.js";
 import { setBotProfilePhoto } from "../telegram/botPhoto.js";
 import { defaultAvatarSlug } from "../core/avatar.js";
 import { memoryMcp } from "./memory.js";
@@ -144,7 +145,7 @@ export function createCrewMcp(opts: CrewMcpOptions) {
           const startedAt = Date.now();
           let output = "";
           try {
-            const res = await runTurn({
+            const res = await getBackend().runTurn({
               prompt,
               cwd: lead.cwd,
               model: lead.model,
@@ -306,8 +307,9 @@ export function createCrewMcp(opts: CrewMcpOptions) {
           question: z.string().describe("The question to ask the president."),
         },
         async (args) => {
-          const { id, promise } = registerAsk(opts.primaryChatId, config.APPROVAL_TIMEOUT_MS);
-          log.info("crew_ask_president registered", { id, chatId: opts.primaryChatId });
+          const askerId = opts.fromAgentId ?? "atlas";
+          const { id, promise } = registerAsk(opts.primaryChatId, askerId, config.APPROVAL_TIMEOUT_MS);
+          log.info("crew_ask_president registered", { id, chatId: opts.primaryChatId, agentId: askerId });
           try {
             await opts.notify(
               `❓ I need your input:\n\n${args.question}\n\nJust reply with your answer (id ${id}).`,

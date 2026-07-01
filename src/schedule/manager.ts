@@ -26,6 +26,12 @@ export class ScheduleManager {
   private schedules: Schedule[] = loadSchedules();
   private timer?: NodeJS.Timeout;
   private runner?: ScheduleRunner;
+  // Guards against a slow tick() overlapping the next setInterval firing (e.g.
+  // several due schedules queued at once, or a runner call that blocks) —
+  // without it, a second concurrent tick() would see the same schedules as
+  // still due (nextRunAt only advances once the first tick's run() resolves)
+  // and fire them again, mirroring HeartbeatManager's `running` guard.
+  private ticking = false;
 
   /** Begin ticking. `run` executes a due schedule's prompt. */
   start(run: ScheduleRunner): void {
@@ -148,6 +154,16 @@ export class ScheduleManager {
   }
 
   private async tick(run: ScheduleRunner): Promise<void> {
+    if (this.ticking) return;
+    this.ticking = true;
+    try {
+      await this.tickOnce(run);
+    } finally {
+      this.ticking = false;
+    }
+  }
+
+  private async tickOnce(run: ScheduleRunner): Promise<void> {
     const now = Date.now();
     let dirty = false;
     for (const s of this.schedules) {
