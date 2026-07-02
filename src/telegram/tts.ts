@@ -201,12 +201,13 @@ export function speechText(markdown: string): string {
  * Synthesize `markdown` and deliver it to `chatId` as a spoken message. Opus
  * output is sent as a true Telegram voice note; WAV (when transcoding wasn't
  * possible) goes as an audio file. Never throws: a TTS hiccup can't break the
- * (already-sent) text reply, but the chat gets a short notice instead of a
- * silent drop.
+ * turn — the caller falls back to a text reply when this returns `false`, and
+ * the chat also gets a short notice explaining why the voice didn't go out.
+ * Returns `true` if the voice message was sent successfully.
  */
-export async function sendVoiceReply(tg: Telegram, chatId: number, markdown: string): Promise<void> {
+export async function sendVoiceReply(tg: Telegram, chatId: number, markdown: string): Promise<boolean> {
   const spoken = speechText(markdown);
-  if (!spoken) return;
+  if (!spoken) return false;
   try {
     const { audio, format } = await synthesizeSpeech(spoken);
     if (format === "ogg") {
@@ -214,6 +215,7 @@ export async function sendVoiceReply(tg: Telegram, chatId: number, markdown: str
     } else {
       await tg.sendAudio(chatId, { source: audio, filename: "reply.wav" });
     }
+    return true;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log.warn("Voice reply failed", { chatId, error: message });
@@ -231,5 +233,6 @@ export async function sendVoiceReply(tg: Telegram, chatId: number, markdown: str
     } catch {
       // best-effort notice only; a failure here isn't worth surfacing further
     }
+    return false;
   }
 }

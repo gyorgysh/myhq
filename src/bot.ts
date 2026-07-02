@@ -851,8 +851,10 @@ async function handleUserPrompt(
       // replace the streamed message(s) with a collapsed expandable blockquote
       // (the full transcript as a log), then send the short reply line as a
       // normal chat message so the conversation stays clean.
+      const voiceMode = !autonomous && session.voiceReply && ttsEnabled();
       const splitIdx = res.text.lastIndexOf("\n---\n");
       let spokenText = res.text;
+      let bulkSent = false;
       if (splitIdx !== -1) {
         const bulk = res.text.slice(0, splitIdx).trim();
         const reply = res.text.slice(splitIdx + 5).trim();
@@ -862,14 +864,27 @@ async function handleUserPrompt(
             await tg.deleteMessage(chatId, id).catch(() => {});
           }
           await sendExpandableQuote(tg, chatId, bulk).catch(() => {});
-          await sendFormattedMarkdown(tg, chatId, reply).catch(() => {});
+          bulkSent = true;
+          if (!voiceMode) {
+            await sendFormattedMarkdown(tg, chatId, reply).catch(() => {});
+          }
         }
       }
-      // Spoken reply: if this chat opted into voice replies and TTS is
-      // configured, send the answer back as a Telegram voice message too.
-      if (!autonomous && session.voiceReply && ttsEnabled()) {
+      // Voice mode: this is meant to feel like a real voice conversation
+      // (voice in → voice out), so the text answer is dropped and only the
+      // spoken reply goes out. If synthesis/sending fails for any reason,
+      // fall back to the normal text message so the reply is never lost.
+      if (voiceMode) {
+        if (!bulkSent) {
+          for (const id of streamer.persistedMessageIds()) {
+            await tg.deleteMessage(chatId, id).catch(() => {});
+          }
+        }
         await tg.sendChatAction(chatId, "record_voice").catch(() => {});
-        await sendVoiceReply(tg, chatId, spokenText);
+        const spoke = await sendVoiceReply(tg, chatId, spokenText);
+        if (!spoke) {
+          await sendFormattedMarkdown(tg, chatId, spokenText).catch(() => {});
+        }
       }
     }
 
