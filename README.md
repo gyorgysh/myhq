@@ -660,7 +660,7 @@ panel/                MyAgens Panel frontend (React + Vite + Tailwind v4)
 
 Created by **Gyorgy**. [gyorgy.sh](https://gyorgy.sh) · [github.com/gyorgysh](https://github.com/gyorgysh).
 
-> Built in close collaboration with Claude, which is fitting: the whole project exists to put Claude agents in your pocket.
+> MyAgens is an independent project, not affiliated with or endorsed by Anthropic. It was built with the Claude Code CLI, which is fitting: development started in a Claude Code terminal and now continues with the MyAgens fleet updating its own codebase.
 
 ## License
 
