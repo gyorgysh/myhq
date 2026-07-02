@@ -1,12 +1,73 @@
 # MyAgens: Your Personal AI Headquarters
 
-**Your personal AI that actually lives on your machine.** Talk to it over Telegram from anywhere. It can read your files, run your code, check your services, and report back, with your approval before anything risky. Atlas is your central coordinator: he runs day-to-day operations, remembers everything, learns your workflows, and commands a team of specialized Leads. Each Lead owns a domain and can have its own Telegram bot.
+<p align="center">
+  <a href="https://github.com/gyorgysh/myagens/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/gyorgysh/myagens/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-AGPLv3%20%2B%20Commercial-blue"></a>
+  <img alt="Node" src="https://img.shields.io/badge/node-%3E%3D20-brightgreen">
+  <img alt="Platforms" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey">
+</p>
+
+**Your personal AI that actually lives on your machine.** Talk to it over Telegram from anywhere, or drive it from a private web dashboard. It reads your files, runs your code, checks your services, and reports back — with your approval before anything risky. Atlas is your central coordinator: he runs day-to-day operations, remembers everything, learns your workflows, and commands a team of specialized Leads. Each Lead owns a domain and can have its own Telegram bot.
+
+Source-available under AGPLv3, free forever for personal use. Built on real **Claude Code** agents — the same agent that runs in your terminal — so every agent can read files, run commands, edit code, check services, and ship things. Replies stream back live and risky actions are gated behind your approval. There's no MyAgens service in the loop: it runs as a process on your own hardware, and the only network calls it makes are the ones you configure — your model provider, and any connector you explicitly turn on.
 
 ![MyAgens Panel dashboard: live system health, Claude usage, per-core load, and filesystems](images/dashboard.webp)
 
-Open source. Built on real **Claude Code** agents running on your machine, so every agent can read files, run commands, edit code, check services, and ship things. Replies stream back live and risky actions are gated behind your approval.
+*14 live connectors · 30 languages · AES-256 encrypted vault · full audit log · works fully offline*
 
-> **These agents can read, write, and run commands on the machine they run on.** Access is gated by a Telegram user-id allow-list (and, for the panel, a secret token). Keep `ALLOWED_USER_IDS` tight and run it on a machine you control.
+<details>
+<summary><strong>Table of contents</strong></summary>
+
+- [Security & Privacy, By Design](#security--privacy-by-design)
+- [FAQ](#faq)
+- [The Command Structure](#the-command-structure)
+- [Two Ways In](#two-ways-in)
+- [Quick Install](#quick-install)
+- [The Panel](#the-panel)
+- [In Telegram](#in-telegram)
+- [What Makes It a Fleet, Not Just a Bot](#what-makes-it-a-fleet-not-just-a-bot)
+- [Bring Your Own Model](#bring-your-own-model)
+- [Setup (manual)](#setup-manual)
+- [Run as a Service](#run-as-a-service)
+- [Configuration](#configuration)
+- [Enabling the Panel](#enabling-the-panel)
+- [Panel API](#panel-api)
+- [Permissions](#permissions)
+- [Full Feature List](#full-feature-list)
+- [Commands (Atlas)](#commands-atlas)
+- [Architecture](#architecture)
+- [Troubleshooting](#troubleshooting)
+- [Credits](#credits)
+- [License](#license)
+
+</details>
+
+## Security & Privacy, By Design
+
+**These agents can read files, run commands, and edit code on the machine they run on.** That's the whole point — a real Claude Code agent, not a sandboxed toy — so we're not going to hide what that means. Here's exactly what keeps it safe:
+
+- **Nothing risky runs without you.** Every non-read-only tool call — Bash, Write, Edit, a connector write — pauses for an inline **Approve / Deny / Always-allow** prompt before it executes. Read-only tools run freely; everything else waits on you.
+- **Access is a hard allow-list.** Only the Telegram user IDs in `ALLOWED_USER_IDS` can talk to the bot at all. Everyone else is silently ignored, no exceptions.
+- **It never phones home.** MyAgens is self-hosted software, not a SaaS product. There's no telemetry, no analytics, no usage tracking — the only outbound calls are the ones *you* configure: your model provider, and any connector you turn on.
+- **Secrets are actually encrypted.** The vault is AES-256-GCM, keyed to your OS Keychain (or a locked-down `0600` file on Linux), with key rotation and passphrase-protected backup. Nothing comes back out in plaintext, not even over the API.
+- **Every action is logged.** A full, searchable audit trail of everything every agent has ever done, plus deterministic anomaly detection watching for delete bursts, off-hours access, and new privileged grants.
+- **The code is public.** Read it, audit it, fork it — before you ever run `curl | bash`.
+
+That's the short version. The full list — SSRF guards, DNS-rebinding protection, per-chat rate limits, path-traversal protection, and more — is in [Full Feature List](#full-feature-list), and the approval flow itself is detailed under [Permissions](#permissions).
+
+## FAQ
+
+**Does my data ever leave my machine?**
+Not unless you tell it to. MyAgens runs as a process on hardware you control — there's no cloud service of ours in the middle. The only outbound calls are the ones you configure: your model provider (Anthropic, or any OpenAI-compatible/local endpoint) and any connector you explicitly enable. Point it at a local model via Ollama or LM Studio and nothing ever touches the cloud.
+
+**Is it actually free?**
+Yes, for personal use — AGPLv3, no seat limits, no telemetry, no catch. If you run it as part of a commercial product or inside a for-profit business, a separate commercial license applies (see [License](#license)). Most people reading this fall in the free bucket.
+
+**What can it actually do without asking me first?**
+By default: read files, search, and inspect — nothing that changes anything. The moment it wants to write a file, run a command, or use a connector, it stops and shows you exactly what it's about to do, with Approve / Deny / Always-allow buttons. Loosen or tighten this per chat with `/mode`.
+
+**Do I need to be a sysadmin to run this?**
+No. The one-line installer handles Node, git, the Claude CLI, the clone, the build, and your `.env`, and can set up a background service for you. If you can copy-paste a command into a terminal, you can run MyAgens.
 
 ## The Command Structure
 
@@ -201,6 +262,11 @@ On Windows (elevated PowerShell):
 
 ## Configuration
 
+Two variables get you running; everything else has a sane default.
+
+<details>
+<summary><strong>Full environment variable reference</strong></summary>
+
 | Variable | Required | Description |
 | --- | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | yes | Token from @BotFather (Atlas's bot) |
@@ -251,6 +317,8 @@ On Windows (elevated PowerShell):
 | `PANEL_TERMINAL_INHERIT_ENV` | no | `true` to give the terminal the full process env instead of a sanitized allow-list (default `false`, risky) |
 | `PANEL_TUNNEL_ENABLED` | no | `true` to allow Remote Access (expose the panel over an ngrok/cloudflared tunnel; default `false`) |
 | `FEEDBACK_URL` | no | Where the panel Feedback form relays reports (default `https://gyorgy.sh/myagens_feedback`) |
+
+</details>
 
 ### Streaming modes
 
@@ -305,7 +373,10 @@ Open `http://127.0.0.1:8787` and unlock with your `PANEL_TOKEN`. Keep the bind o
 
 ## Panel API
 
-Everything the panel does is a REST call you can script. Auth is the same `PANEL_TOKEN`, sent as a Bearer header (`Authorization: Bearer $PANEL_TOKEN`) for REST and `?token=` for the WebSocket. All write endpoints take and return JSON. The full catalogue with copy-paste `curl` examples lives in [`PANEL_API.md`](PANEL_API.md); the groups are:
+Everything the panel does is a REST call you can script. Auth is the same `PANEL_TOKEN`, sent as a Bearer header (`Authorization: Bearer $PANEL_TOKEN`) for REST and `?token=` for the WebSocket. All write endpoints take and return JSON. The full catalogue with copy-paste `curl` examples lives in [`PANEL_API.md`](PANEL_API.md).
+
+<details>
+<summary><strong>Endpoint groups</strong></summary>
 
 | Group | Endpoints |
 | --- | --- |
@@ -333,6 +404,8 @@ Everything the panel does is a REST call you can script. Auth is the same `PANEL
 | Misc | `GET /api/me` (deployment facts), `POST /api/feedback` (relay a bug report / suggestion) |
 | Realtime | `GET /ws` (worker, chat, agent-chat, task, health, tunnel, suggestion, and log frames) |
 
+</details>
+
 ## Permissions
 
 Nothing runs without your say-so. For every non-read-only tool call you get an inline prompt showing exactly what is about to happen:
@@ -347,9 +420,14 @@ Three autonomy levels via `/mode`:
 - **standard**: read-only tools (`Read` / `Glob` / `Grep`) run automatically; risky tools (Bash, Write, Edit) prompt. This is the default.
 - **full**: bypass all permissions. Use for trusted autonomous runs.
 
-Lead bots default to standard mode with the same approve/deny prompts.
+Lead bots default to standard mode with the same approve/deny prompts. See also [Security & Privacy, By Design](#security--privacy-by-design).
 
 ## Full Feature List
+
+The condensed pitch is above; this is everything, including the security hardening most projects bury in an issue tracker instead of a README.
+
+<details>
+<summary><strong>Expand for the full list (60+ items)</strong></summary>
 
 - **Crew hierarchy**: President, Atlas, Leads, Assistants. Each level knows the one above it. Leads have portfolios, their own sessions, and optionally their own Telegram bots. Each Lead bot keeps its own conversation in `data/lead-<id>-state.json` (the same resume-token store as the main session), so a Lead chat survives a restart or update — the gitignored `data/` dir is left untouched by `update.sh`.
 - **Council votes**: `/council <idea>` calls every enabled Lead plus Atlas himself, gets a SUPPORT/OPPOSE vote with domain reasoning from each, and delivers a tally to Telegram. Votes are **relevance-weighted** — each voter counts in proportion to how relevant the proposal is to their domain (everyone counts equally when embeddings are off) — and the decision rule is configurable: simple majority (default), supermajority (≥2/3), or unanimous. Requires at least one enabled Lead; otherwise returns `noQuorum` and shows an amber banner in the panel. Full history in the panel Crew tab; individual sessions can be deleted (`DELETE /api/council/:id`).
@@ -411,6 +489,8 @@ Lead bots default to standard mode with the same approve/deny prompts.
 - **Telegram inline search**: type `@yourbotname query` in any Telegram chat to search your own tasks, skills, and memories inline, ranked by the same hybrid search the panel uses, gated by the allow-list.
 - **Chat image upload**: attach, drag-drop, or paste images directly into a panel chat with Atlas or any Lead; they're sent to the agent as inline vision content alongside your message.
 
+</details>
+
 ## Commands (Atlas)
 
 | Command | Action |
@@ -440,6 +520,11 @@ Lead bots default to standard mode with the same approve/deny prompts.
 Lead bots support `/ping`, `/status`, `/stop`, `/mode`, `/lang`, and `/help`.
 
 ## Architecture
+
+Built on [`telegraf`](https://github.com/telegraf/telegraf) and [`@anthropic-ai/claude-agent-sdk`](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk); the panel uses [`fastify`](https://fastify.dev) + [`systeminformation`](https://systeminformation.io) on the server and React + Vite + Tailwind on the client.
+
+<details>
+<summary><strong>Full source tree</strong></summary>
 
 ```
 src/
@@ -553,7 +638,7 @@ panel/                MyAgens Panel frontend (React + Vite + Tailwind v4)
                       Updates, Connectors, Usage, Feedback, Setup, ConnectionBanner, ...
 ```
 
-Built on [`telegraf`](https://github.com/telegraf/telegraf) and [`@anthropic-ai/claude-agent-sdk`](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk); the panel uses [`fastify`](https://fastify.dev) + [`systeminformation`](https://systeminformation.io) on the server and React + Vite + Tailwind on the client.
+</details>
 
 ## Troubleshooting
 
