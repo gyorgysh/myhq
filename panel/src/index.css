@@ -37,6 +37,10 @@
   --color-fg-faint: var(--fg-faint);
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
+  /* Signal accent — cyan. Violet is the fleet, cyan is the message moving
+     through it: reserve for live/streaming indicators, pulses, and transient
+     highlights, never as a second general-purpose accent. */
+  --color-signal: var(--signal);
   /* Status semantic tokens — use these instead of raw red/amber/emerald. */
   --color-ok: var(--ok);
   --color-ok-fg: var(--ok-fg);
@@ -61,7 +65,7 @@
   --text-base--line-height: 1.55;
 }
 
-/* Light theme (default) — clean white, indigo-violet accent. */
+/* Light theme (default) — clean white, MyAgens indigo-violet accent. */
 :root {
   --page: #f8f9fb;
   --surface: #ffffff;
@@ -72,8 +76,9 @@
   --fg-muted: #52525b;
   --fg-dim: #71717a;
   --fg-faint: #a1a1aa;
-  --accent: #5d62d1;
+  --accent: #4b50cc;
   --accent-fg: #ffffff;
+  --signal: #0a97b7;
   /* Status colors — light */
   --ok: #16a34a;
   --ok-fg: #15803d;
@@ -87,19 +92,21 @@
   color-scheme: light;
 }
 
-/* Dark theme — accent lightened for contrast on dark surfaces. */
+/* Dark theme — accent lightened for contrast, surfaces lean cool navy rather
+   than pure gray to sit in the same indigo family as the accent. */
 [data-theme="dark"] {
-  --page: #0a0a0b;
-  --surface: #161618;
-  --surface-2: #1f1f23;
-  --line: #27272a;
-  --input: #09090b;
+  --page: #0a0b10;
+  --surface: #15161d;
+  --surface-2: #1e2027;
+  --line: #282a33;
+  --input: #090a0f;
   --fg: #f4f4f5;
   --fg-muted: #a1a1aa;
   --fg-dim: #71717a;
   --fg-faint: #52525b;
-  --accent: #7a7ee0;
-  --accent-fg: #0a0a0b;
+  --accent: #7a80ea;
+  --accent-fg: #0a0b10;
+  --signal: #3ec7e6;
   /* Status colors — dark */
   --ok: #4ade80;
   --ok-fg: #4ade80;
@@ -126,8 +133,9 @@
   --fg-muted: #f0f0f0;
   --fg-dim: #d4d4d4;
   --fg-faint: #b0b0b0;
-  --accent: #9ea2ff;
+  --accent: #9aa0ff;
   --accent-fg: #000000;
+  --signal: #6ee7ff;
   /* Status colors — high-contrast (bright, saturated on black) */
   --ok: #4ade80;
   --ok-fg: #7dfaa8;
@@ -154,6 +162,7 @@
   --fg-faint: #1a6a32;
   --accent: #39ff14;
   --accent-fg: #050a07;
+  --signal: #39ff14;
   /* Status colors — matrix (all green, severity by brightness) */
   --ok: #39ff14;
   --ok-fg: #39ff14;

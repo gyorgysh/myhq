@@ -529,7 +529,7 @@ export function Sidebar({
           <span className="mono text-sm font-medium text-fg">
             <span className="text-accent">%</span>
             <span className={`ml-1.5 ${labelCls}`}>{brandName}</span>
-            <span className="ml-0.5 animate-pulse text-accent">▮</span>
+            <span className="ml-0.5 animate-pulse text-signal">▮</span>
           </span>
         )}
       </div>

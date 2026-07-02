@@ -26,11 +26,11 @@ export function PresenceBanner() {
 
   return (
     <div role="status" aria-live="polite" className="sticky top-0 z-30 bg-page">
-      <div className="border-b border-blue-500/30 bg-blue-500/10 px-4 py-2 text-sm text-fg">
+      <div className="border-b border-signal/30 bg-signal/10 px-4 py-2 text-sm text-fg">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-3 gap-y-1">
           <span className="relative flex h-2.5 w-2.5 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-500/70 opacity-75" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-500" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal/70 opacity-75" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-signal" />
           </span>
           <span className="font-medium">{t("presence_title")}</span>
           <span className="text-fg-dim">{text}</span>

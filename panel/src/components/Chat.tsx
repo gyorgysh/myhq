@@ -931,7 +931,7 @@ function ChatPane({
               )}
               <div className="break-words text-fg">
                 <Markdown text={stream.text} />
-                <span className="ml-0.5 animate-pulse text-accent">▮</span>
+                <span className="ml-0.5 animate-pulse text-signal">▮</span>
               </div>
             </div>
             </div>
