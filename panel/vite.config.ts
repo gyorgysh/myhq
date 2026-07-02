@@ -26,14 +26,14 @@ export default defineConfig({
       includeAssets: ["favicon.svg", "apple-touch-icon.png", "fonts/*.woff2"],
       manifest: {
         name: "MyAgens",
-        short_name: "HQ",
+        short_name: "MyAgens",
         description: "Personal AI command center for managing your Atlas fleet.",
         start_url: "/",
         scope: "/",
         display: "standalone",
         orientation: "portrait",
-        theme_color: "#4b50cc",
-        background_color: "#0a0b10",
+        theme_color: "#087f9c",
+        background_color: "#08131a",
         icons: [
           { src: "pwa-192x192.png", sizes: "192x192", type: "image/png" },
           { src: "pwa-512x512.png", sizes: "512x512", type: "image/png" },

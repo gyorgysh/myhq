@@ -765,7 +765,7 @@ function CrewNode({
                 title={t("crew_web_chat_hint")}
                 className="transition-opacity hover:opacity-80"
               >
-                <Badge tone="violet" className="min-w-[4.5rem] justify-center">{t("crew_web_chat")}</Badge>
+                <Badge tone="cobalt" className="min-w-[4.5rem] justify-center">{t("crew_web_chat")}</Badge>
               </button>
             )}
           </span>

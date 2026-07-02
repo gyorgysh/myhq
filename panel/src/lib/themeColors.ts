@@ -14,18 +14,18 @@
  *  index.css. */
 const XTERM_FALLBACKS = {
   light: {
-    page: "#f8f9fb",
+    page: "#f5f9fb",
     fg: "#18181b",
-    accent: "#4b50cc",
+    accent: "#087f9c",
     black: "#3a3a42",
     brightBlack: "#71717a",
     white: "#3f3f46",
     brightWhite: "#18181b",
   },
   dark: {
-    page: "#0a0b10",
-    fg: "#e2e2e6",
-    accent: "#7a80ea",
+    page: "#08131a",
+    fg: "#e6f0f4",
+    accent: "#3ec7e6",
     black: "#1a1a1e",
     brightBlack: "#3a3a42",
     white: "#c8c8d0",

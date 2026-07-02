@@ -1,6 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect width="512" height="512" fill="#4b50cc"/>
-  <text x="256" y="266" font-family="ui-monospace, 'JetBrains Mono', monospace"
-        font-size="168" font-weight="700" fill="#ffffff"
-        text-anchor="middle" dominant-baseline="central">HQ</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="512" height="512">
+  <rect width="64" height="64" fill="#08131a"/>
+  <path d="M32 16 50 26.5 32 37 14 26.5 Z" fill="#a5ddef"/>
+  <path d="M14 26.5 32 37 V53 L14 42.5 Z" fill="#3ec7e6"/>
+  <path d="M50 26.5 32 37 V53 L50 42.5 Z" fill="#0a97b7"/>
+  <circle cx="51" cy="11" r="4" fill="#6cd6ee"/>
+  <circle cx="51" cy="11" r="7.5" stroke="#6cd6ee" stroke-width="1.8" fill="none"/>
 </svg>

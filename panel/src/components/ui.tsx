@@ -79,7 +79,7 @@ export function Badge({
   className = "",
 }: {
   children: ReactNode;
-  tone?: "zinc" | "green" | "amber" | "blue" | "violet" | "critical";
+  tone?: "zinc" | "green" | "amber" | "blue" | "cobalt" | "critical";
   className?: string;
 }) {
   const tones: Record<string, string> = {
@@ -88,9 +88,9 @@ export function Badge({
     amber: "bg-warn-subtle text-warn-fg",
     blue: "bg-accent/15 text-accent",
     critical: "bg-critical-subtle text-critical-fg",
-    // Neon violet — the "Private Chat on Web" counterpart to the green Telegram
-    // badge. Fixed violet (not the theme accent) so it reads as a distinct channel.
-    violet: "bg-violet-500/15 text-violet-500 dark:text-violet-300",
+    // True blue — the "Private Chat on Web" counterpart to the green Telegram
+    // badge. Fixed blue (not the theme accent) so it reads as a distinct channel.
+    cobalt: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
   };
   return (
     <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${tones[tone]} ${className}`}>

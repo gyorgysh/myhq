@@ -37,9 +37,9 @@
   --color-fg-faint: var(--fg-faint);
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
-  /* Signal accent — cyan. Violet is the fleet, cyan is the message moving
-     through it: reserve for live/streaming indicators, pulses, and transient
-     highlights, never as a second general-purpose accent. */
+  /* Signal accent — the brighter cyan step above --accent. Reserve for
+     live/streaming indicators, pulses, and transient highlights, never as a
+     second general-purpose accent. */
   --color-signal: var(--signal);
   /* Status semantic tokens — use these instead of raw red/amber/emerald. */
   --color-ok: var(--ok);
@@ -65,18 +65,19 @@
   --text-base--line-height: 1.55;
 }
 
-/* Light theme (default) — clean white, MyAgens indigo-violet accent. */
+/* Light theme (default) — cool white, MyAgens teal-cyan accent (mirrors the
+   myagens.com palette; the deeper step holds 4.5:1 on white for text). */
 :root {
-  --page: #f8f9fb;
+  --page: #f5f9fb;
   --surface: #ffffff;
-  --surface-2: #f1f3f5;
-  --line: #e4e7eb;
+  --surface-2: #ecf3f6;
+  --line: #dde8ed;
   --input: #ffffff;
   --fg: #18181b;
   --fg-muted: #52525b;
   --fg-dim: #71717a;
   --fg-faint: #a1a1aa;
-  --accent: #4b50cc;
+  --accent: #087f9c;
   --accent-fg: #ffffff;
   --signal: #0a97b7;
   /* Status colors — light */
@@ -92,21 +93,21 @@
   color-scheme: light;
 }
 
-/* Dark theme — accent lightened for contrast, surfaces lean cool navy rather
-   than pure gray to sit in the same indigo family as the accent. */
+/* Dark theme — bright cyan accent on deep teal-navy surfaces (same family as
+   the myagens.com dark palette rather than neutral gray). */
 [data-theme="dark"] {
-  --page: #0a0b10;
-  --surface: #15161d;
-  --surface-2: #1e2027;
-  --line: #282a33;
-  --input: #090a0f;
-  --fg: #f4f4f5;
-  --fg-muted: #a1a1aa;
-  --fg-dim: #71717a;
-  --fg-faint: #52525b;
-  --accent: #7a80ea;
-  --accent-fg: #0a0b10;
-  --signal: #3ec7e6;
+  --page: #08131a;
+  --surface: #0e1c24;
+  --surface-2: #14242e;
+  --line: #1d3340;
+  --input: #060e14;
+  --fg: #eef7fa;
+  --fg-muted: #a3bcc7;
+  --fg-dim: #6b8794;
+  --fg-faint: #47616d;
+  --accent: #3ec7e6;
+  --accent-fg: #04141a;
+  --signal: #6cd6ee;
   /* Status colors — dark */
   --ok: #4ade80;
   --ok-fg: #4ade80;
@@ -133,9 +134,9 @@
   --fg-muted: #f0f0f0;
   --fg-dim: #d4d4d4;
   --fg-faint: #b0b0b0;
-  --accent: #9aa0ff;
+  --accent: #6ee7ff;
   --accent-fg: #000000;
-  --signal: #6ee7ff;
+  --signal: #a5f0ff;
   /* Status colors — high-contrast (bright, saturated on black) */
   --ok: #4ade80;
   --ok-fg: #7dfaa8;

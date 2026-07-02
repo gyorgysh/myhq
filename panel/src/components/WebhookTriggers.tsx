@@ -279,7 +279,7 @@ export function WebhookTriggersView({ onAuthError }: { onAuthError: () => void }
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-fg">{w.name}</span>
-                  {w.leadName ? <Badge tone="violet">{w.leadName}</Badge> : <Badge tone="zinc">{t("hook_lead_generic")}</Badge>}
+                  {w.leadName ? <Badge tone="cobalt">{w.leadName}</Badge> : <Badge tone="zinc">{t("hook_lead_generic")}</Badge>}
                   {!w.enabled && <Badge tone="amber">{t("hook_disabled")}</Badge>}
                   <span className="ml-auto tabular text-xs text-fg-muted">
                     {t("hook_fired_count").replace("{count}", String(w.fireCount))}

@@ -53,7 +53,7 @@ function ConversationSearch({ onAuthError }: { onAuthError: () => void }) {
           {hits.map((h) => (
             <li key={h.id} className="rounded-lg border border-line bg-surface/40 p-2.5">
               <div className="flex items-center gap-2">
-                <Badge tone={h.source === "chat" ? "blue" : "violet"}>
+                <Badge tone={h.source === "chat" ? "blue" : "cobalt"}>
                   {h.source === "chat" ? t("convsearch_source_chat") : t("convsearch_source_run")}
                 </Badge>
                 <span className="truncate text-xs text-fg-dim">{h.label}</span>

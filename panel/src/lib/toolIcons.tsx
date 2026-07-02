@@ -91,7 +91,7 @@ export function toolIconColor(tool: string): string {
     case "Write":
     case "Edit":
     case "NotebookEdit":
-      return "text-accent"; // file ops — indigo
+      return "text-accent"; // file ops — accent
     case "Bash":
       return "text-warn-fg"; // exec — amber
     case "WebFetch":
@@ -102,9 +102,9 @@ export function toolIconColor(tool: string): string {
     case "crew_ask_president":
     case "crew_report":
     case "crew_suggest":
-      return "text-accent"; // crew tools — indigo
+      return "text-accent"; // crew tools — accent
     default:
-      if (leaf.startsWith("memory_")) return "text-accent"; // memory/brain — indigo
+      if (leaf.startsWith("memory_")) return "text-accent"; // memory/brain — accent
       return "text-fg-dim"; // search/glob/todo/skill/task/etc — neutral
   }
 }

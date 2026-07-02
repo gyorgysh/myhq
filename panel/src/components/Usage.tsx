@@ -410,8 +410,8 @@ function CostChart({
 /** Display order and labels for the role categories. */
 const CATEGORIES: Array<{ role: AgentRole; label: string; color: string }> = [
   { role: "atlas",     label: "Atlas",       color: "bg-accent/70" },
-  { role: "lead",      label: "Leads",       color: "bg-violet-400/70" },
-  { role: "worker",    label: "Workers",     color: "bg-sky-400/70" },
+  { role: "lead",      label: "Leads",       color: "bg-blue-500/70" },
+  { role: "worker",    label: "Workers",     color: "bg-zinc-400/70" },
   { role: "task",      label: "Tasks",       color: "bg-emerald-400/70" },
   { role: "schedule",  label: "Schedules",   color: "bg-amber-400/70" },
   { role: "agentchat", label: "Agent Chat",  color: "bg-rose-400/70" },
